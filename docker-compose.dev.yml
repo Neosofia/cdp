@@ -1,0 +1,76 @@
+# Top-level orchestrator — brings up the entire platform with one command.
+# Each service owns its own docker-compose.yml (self-contained with its own DB).
+# Add new services here as they are built.
+#
+# Usage:
+#   docker compose -f docker-compose.dev.yml up -d
+#
+# To run a single service independently:
+#   cd services/<name> && docker compose up -d
+
+services:
+  traefik:
+    image: traefik:v3.3
+    container_name: cdp-traefik
+    ports:
+      - "80:80"
+      - "8090:8080"   # dashboard — http://localhost:8090/dashboard/
+    volumes:
+      - ./infra/traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./infra/traefik/dynamic:/etc/traefik/dynamic:ro
+    restart: unless-stopped
+
+  swagger-ui:
+    image: swaggerapi/swagger-ui
+    container_name: cdp-swagger-ui
+    ports:
+      - "8091:8080"   # browse API contracts — http://localhost:8091
+    environment:
+      SWAGGER_JSON: https://raw.githubusercontent.com/Neosofia/authentication/main/openapi.json
+    restart: unless-stopped
+
+  authentication:
+    image: ghcr.io/neosofia/authentication:latest
+    build:
+      context: ../authentication
+    container_name: cdp-authentication
+    environment:
+      ENV_FILE: .local.env
+      ENV: development
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_REGION: us-east-1
+      DATABASE_URL: postgresql+asyncpg://pdc:dev_only@auth-postgres:5432/pdc_auth
+    ports:
+      - "8014:8000"
+    depends_on:
+      auth-postgres:
+        condition: service_healthy
+    volumes:
+      - ./.dev.env:/app/.local.env:ro
+
+  authentication-bootstrap:
+    image: ghcr.io/neosofia/authentication:latest
+    container_name: cdp-authentication-bootstrap
+    working_dir: /app
+    command: ["bash", "-c", "./scripts/setup-env.sh >/tmp/setup-env.log && cat .local.env"]
+
+  auth-postgres:
+    image: postgres:16
+    container_name: cdp-auth-postgres
+    environment:
+      POSTGRES_DB: pdc_auth
+      POSTGRES_USER: pdc
+      POSTGRES_PASSWORD: dev_only
+    ports:
+      - "5014:5432"
+    volumes:
+      - auth_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pdc -d pdc_auth"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  auth_postgres_data:

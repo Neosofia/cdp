@@ -1,0 +1,47 @@
+# 9. Structured JSON Logging with Schema Validation
+
+Date: 2026-04-21
+
+## Status
+
+Accepted — implemented in Authentication Service (014)
+
+## Context
+
+Constitution §X mandates operational observability. To enable this, logs must be:
+
+1. **Machine-readable** — so monitoring systems, log aggregators (ELK, Datadog), and observability platforms can parse them programmatically
+2. **Validated** — so log consumers don't encounter malformed entries, unexpected fields, or type mismatches
+3. **Consistent** — so all services emit logs in the same structure, enabling centralized querying and alerting
+
+Prior practice of unstructured string logs (`logger.info("User login: " + username)`) prevents observability:
+- No schema enforcement → log format varies by developer
+- No machine parsing → monitoring tools resort to regex (brittle, slow)
+- No consistency → event details scattered across ad-hoc fields, making cross-service queries impossible
+
+## Decision
+
+All services in CDP MUST emit logs as **JSON** with the following constraints:
+
+1. **JSON format** — every log entry is valid JSON with `timestamp`, `level`, `message`, and optional structured fields
+2. **Schema validation** — logs MUST conform to the schema defined in `schemas/log.json`
+3. **Structured fields** — logs SHOULD include contextual fields for debugging and observability:
+   - `event_type` — structured event identifier (e.g., `platform_token_issued`, `health_check_failed`)
+   - `user_id`, `user_type` — user context for debugging and incident response (NOT for audit trails)
+   - `error`, `reason`, `detail` — additional context for troubleshooting
+4. **Test validation** — contract tests MUST validate at least one request's logs against `schemas/log.json` using `jsonschema.validate()`
+
+### Important: Logs Are NOT Audit Trails
+
+Logs are **not durable or atomic** and must NOT be relied upon for audit trails, compliance, or forensics. Delivery is not guaranteed and entries may be lost, reordered, or duplicated. For audit requirements, use a dedicated audit event store (e.g., append-only event log in PostgreSQL).
+
+## Logging Pattern
+
+TBD: Need to create logging plugin for consistency across services. For now see examples in [schemas/README.md](../../schemas/README.md)
+
+## References
+
+- Constitution §X — Operational Observability
+- Shared Schemas — [schemas/README.md](../../schemas/README.md)
+- Log Schema — [schemas/log.json](../../schemas/log.json)
+- Auth Service implementation — [src/logging_config.py](../../services/authentication/src/logging_config.py), [tests/contract/test_api_contract.py](../../services/authentication/tests/contract/test_api_contract.py)

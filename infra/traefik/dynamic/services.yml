@@ -1,0 +1,19 @@
+# Dynamic routing rules — add a section per service as you build them.
+# Traefik hot-reloads this file; no container restart needed.
+#
+# Pattern: add an http.routers.<name> + http.services.<name> pair.
+# The url must be reachable from inside the Traefik container (Docker
+# service name or host.docker.internal for host-bound processes).
+
+http:
+  routers:
+    auth:
+      rule: "Host(`auth.localhost`)"
+      entryPoints: [web]
+      service: auth
+
+  services:
+    auth:
+      loadBalancer:
+        servers:
+          - url: "http://cdp-authentication:8000"

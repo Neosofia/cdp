@@ -1,0 +1,62 @@
+# Environment files - never include in Docker build context
+.env
+.env.*
+!.env.example
+
+# Version control
+.git
+.gitignore
+.gitattributes
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+.venv/
+venv/
+env/
+*.so
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Build artifacts
+*.o
+*.a
+*.so
+.libs/
+
+# Node (if any frontend)
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Documentation
+docs/_build/
+
+# OS
+Thumbs.db
+
+# Misc
+.dockerignore
+Dockerfile*
+docker-compose*.yml
+README.md
+LICENSE
