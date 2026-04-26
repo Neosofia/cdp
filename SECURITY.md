@@ -50,4 +50,4 @@ Governed by [Constitution §IV](.specify/memory/constitution.md):
 
 | Service | Document |
 |---|---|
-| Authentication | [services/authentication/SECURITY.md](services/authentication/SECURITY.md) — OAuth 2.0 / PKCE flow, JWT signing, session management, rate limiting, and full threat model |
+| Authentication | [Neosofia/authentication SECURITY.md](https://github.com/Neosofia/authentication/blob/main/SECURITY.md) — OAuth 2.0 / PKCE flow, JWT signing, session management, rate limiting, and full threat model |
