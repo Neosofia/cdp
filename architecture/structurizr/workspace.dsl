@@ -246,6 +246,7 @@ workspace "Clinical Data Platform (CDP)" "HIPAA-compliant clinical data platform
         clinician -> clinicianChatInterface "Send replies and manage care session" "HTTPS"
         clinician -> qualityReview "Rate closed sessions" "HTTPS"
         clinician -> pagerDuty "Receive and acknowledge incidents" "PagerDuty UI"
+        pagerDuty -> clinician "Page on-call clinician" "PagerDuty incident notification"
         clinician -> patient "Initiate phone/video call after consent" "Phone/Video"
 
         mlEngineer -> bedrockWorkbench "Run EDA and model workflows" "AWS Console / SDK"
