@@ -11,9 +11,9 @@ may appear in any log event, metric, or dashboard.
 
 ### User Story 1 — On-Call Engineer Detects an Alert Agent Anomaly (Priority: P1)
 
-An on-call engineer receives a PagerDuty alert that the AI Alert agent invocation latency
+An on-call engineer receives an escalation platform alert (e.g., PagerDuty) that the AI Alert agent invocation latency
 has spiked above its p99 threshold during active care hours. They open the operational
-dashboard, see the latency trend, correlate with a Bedrock inference error spike, and begin
+dashboard, see the latency trend, correlate with an AI model inference error spike, and begin
 remediation using the runbook linked from the alert. A separate alert fires when the
 invocation rate drops unexpectedly — indicating the agent has silently stopped processing
 new messages.
@@ -23,7 +23,7 @@ platform — it detects clinical risk signals in patient messages and triggers c
 escalations. Latency spikes delay escalations; errors or traffic drops mean risk signals
 are missed entirely. Both conditions directly threaten patient safety.
 
-**Independent Test**: In staging, (a) inject artificial latency into Bedrock inference and
+**Independent Test**: In staging, (a) inject artificial latency into the AI inference provider and
 verify a latency-spike alert fires within 2 minutes; (b) stop alert agent invocations for
 5 minutes and verify a silence alert fires; (c) inject a burst of invocations 3× the
 baseline rate and verify an abnormal-traffic alert fires.
@@ -31,7 +31,7 @@ baseline rate and verify an abnormal-traffic alert fires.
 **Acceptance Scenarios**:
 
 1. **Given** alert agent invocation latency p99 exceeds the SLA threshold for one evaluation
-   window, **When** the alerting rule evaluates, **Then** a PagerDuty P1 alert fires within
+   window, **When** the alerting rule evaluates, **Then** a P1 escalation platform alert fires within
    2 minutes with the current p99 value, threshold, and a runbook link.
 2. **Given** no `agent.alert.triggered` events are received for 5 consecutive minutes during
    a window with active care episodes, **When** the silence rule evaluates, **Then** a P1
@@ -216,9 +216,9 @@ DOB, MRN, phone, email, or any other identifying field.
 #### Deidentification Pipeline (spec 002)
 | Event Type | Trigger | Key Payload Fields |
 |---|---|---|
-| `deident.job.started` | Lambda invoked for an interaction | `job_id`, `chat_interaction_id`, `message_count` |
+| `deident.job.started` | Agent invoked for an interaction | `job_id`, `chat_interaction_id`, `message_count` |
 | `deident.job.completed` | Interaction log fully processed | `job_id`, `outcome` (`clean` / `quarantine`), `duration_ms`, `model_version` |
-| `deident.job.failed` | Lambda error or timeout | `job_id`, `failure_reason`, `retry_count` |
+| `deident.job.failed` | Agent error or timeout | `job_id`, `failure_reason`, `retry_count` |
 | `deident.message.quarantined` | Low-confidence or failed message | `job_id`, `reason`, `confidence_score` |
 | `deident.model.deployed` | New model version active | `model_id`, `model_version` |
 
@@ -272,14 +272,13 @@ N/A
 
 ### Functional Requirements
 
-- **FR-001**: All platform services MUST emit structured JSON log events to CloudWatch Logs
+- **FR-001**: All platform services MUST emit structured JSON log events to the platform log aggregator
   using the standard platform log plugin. The plugin is the sole supported emission path;
-  direct calls to `PutLogEvents` outside the plugin are prohibited.
+  direct calls to the log aggregator API outside the plugin are prohibited.
 - **FR-002**: The standard log plugin MUST validate every event against the base schema at
   emission time and raise a hard error in the emitting service if the event is malformed.
-  Malformed events MUST NOT be written to CloudWatch Logs. The plugin MUST also write
-  rejected events to a local dead-letter log (e.g., a separate CloudWatch log group or
-  stderr) for investigation.
+  Malformed events MUST NOT be written to the log aggregator. The plugin MUST also write
+  rejected events to a local dead-letter log (e.g., a separate log stream or stderr) for investigation.
 - **FR-003**: PHI and PII MUST NOT appear in any log event. Prevention is enforced at two
   layers: (1) CI/CD pipeline security scans (static analysis) MUST flag any code path that
   could emit PHI or PII fields before it reaches production; (2) the platform's third-party
@@ -297,7 +296,7 @@ N/A
   - **Escalation alert end-to-end latency p99** *(P1)* (SLA: ≤60 s) — from `agent.alert.escalated` to `notification.alert.delivered`
   - **Queue publish latency p99** (target: ≤500 ms) — from `chat.interaction.ended` to `chat.queue.published`
   - **AI response agent latency p99** — from `agent.response.triggered` to `agent.response.completed`
-  - **Bedrock inference latency p99** — from `workbench.inference.started` to `workbench.inference.completed`
+  - **AI model inference latency p99** — from `workbench.inference.started` to `workbench.inference.completed`
   - **Rate-limit rejection rate** — `chat.message.rate_limited` events per minute per tenant
   - **Patient satisfaction rate** — thumbs-up % and thumbs-down % of rated interactions per tenant (derived from `chat.interaction.rated`; unrated interactions tracked separately as unrated %)
   - **AI response quality: thumbs-up rate** — `agent.session.rated` with `thumbs_up` as a % of all rated sessions per tenant per window
@@ -309,7 +308,7 @@ N/A
   - **SMS delivery failure rate** — `sms.message.failed` as a percentage of `sms.message.sent`
   - **Active care episodes** — count of open CareEpisodes per tenant
   - **Active chat interactions** — count of open ChatInteractions platform-wide
-- **FR-006**: The aggregator MUST fire a PagerDuty alert within **2 minutes** when any SLI
+- **FR-006**: The aggregator MUST raise an alert via the escalation platform (e.g., PagerDuty) within **2 minutes** when any SLI
   breaches its defined SLA threshold. Alert payload MUST include: SLI name, current value,
   SLA threshold, affected tenant (if tenant-scoped), trace ID of the triggering event, and
   a runbook URL.
@@ -349,7 +348,7 @@ N/A
 
 - **SC-001**: 100% of platform services emit structured log events conforming to the base
   schema within one sprint of this spec being implemented.
-- **SC-002**: Zero log events containing PHI or PII reach the CloudWatch log store, verified
+- **SC-002**: Zero log events containing PHI or PII reach the log aggregator, verified
   by: (a) CI/CD pipeline security scans flagging PHI-emitting code paths before deployment,
   and (b) third-party SIEM post-ingestion audit returning zero PHI/PII findings on a
   representative production-equivalent sample.
@@ -363,7 +362,7 @@ N/A
   at 2 years by automated retention policy tests.
 - **SC-007**: Service silence detection fires within 7 minutes of a service stopping event
   emission (5-minute quiet window + 2-minute alert propagation budget).
-- **SC-008**: Alert agent invocation latency p99 SLA breach (>10 s) triggers a P1 PagerDuty
+- **SC-008**: Alert agent invocation latency p99 SLA breach (>10 s) triggers a P1 escalation platform
   alert within 2 minutes, verified end-to-end in staging.
 - **SC-009**: Alert agent error rate exceeding 1% over any 5-minute window triggers a P1
   alert within 2 minutes, verified by synthetic error injection in staging.
@@ -375,12 +374,12 @@ N/A
 ## Assumptions
 
 - The log aggregator is a platform-internal service; it is not exposed externally.
-- Event ingestion uses **AWS CloudWatch Logs** via the AWS SDK (`PutLogEvents` over HTTPS);
+- Event ingestion uses a structured log aggregation service over HTTPS;
   peak event throughput is expected to be < 100 events/sec across all services and tenants.
-  No SQS or Kinesis ingest layer is required at this scale.
+  No message queue ingest layer is required at this scale.
 - Runbook content is authored by the owning squad and stored alongside this spec; the
   aggregator links to runbooks by URL (e.g., internal wiki or versioned markdown in the repo).
 - Engagement dashboards are read-only; no write operations originate from the dashboard layer.
 - Multi-tenant isolation: tenant-scoped SLI queries MUST NOT expose data from other tenants.
-- Clock skew between services is assumed to be ≤100 ms (NTP-synced AWS infrastructure);
+- Clock skew between services is assumed to be ≤100 ms (NTP-synchronized infrastructure);
   events are ordered by `timestamp` field, not ingest time.

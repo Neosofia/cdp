@@ -83,7 +83,7 @@ lower priority than core ingestion and read paths.
   the post-chat feedback window, or by a 15-minute inactivity timeout), the service MUST
   publish an "end chat interaction" event to the deidentification pipeline queue. The event
   payload MUST contain only the interaction ID, care episode ID, patient ID, tenant ID, and
-  end reason (`user-closed` / `inactivity-timeout`) — no message content. The Lambda
+  end reason (`user-closed` / `inactivity-timeout`) — no message content. The downstream
   consumer fetches the full message log from storage. The event MUST be published within
   500 ms of the interaction end trigger.
 - **FR-004**: The service MUST enforce RBAC: only authenticated identities with the
@@ -149,9 +149,9 @@ lower priority than core ingestion and read paths.
 
 - All data in this service is treated as potentially containing PHI; no redaction is performed at this layer.
 - The stored chat log (all messages with sender identity and timestamps) is the authoritative audit trail of a patient's interaction with the platform. No separate PHI audit log is required for patient self-access.
-- Per-message AI agents (AI Response, AI Alert) MAY receive raw message content. This is permitted under Constitution Principle I provided AWS Bedrock is used under HIPAA BAA.
-- AWS infrastructure (PostgreSQL via RDS, SQS for queue publishing) is pre-provisioned.
+- Per-message AI agents (AI Response, AI Alert) MAY receive raw message content. This is permitted under Constitution Principle I provided the AI provider operates under a HIPAA BAA.
+- Database and messaging queue infrastructure is pre-provisioned.
 - Authentication and authorisation are enforced by an upstream API Gateway before any request reaches this service. The chat service trusts validated identity tokens from the gateway and does not perform authentication itself.
 - Channel adapters (SMS, web, app) are separate services that call this service's ingestion API; channel-specific protocol handling is out of scope here.
 - Encryption at rest (AES-256) and in transit (TLS 1.2+) is enforced at the infrastructure layer.
-- A HIPAA BAA with AWS is in place covering all storage and messaging infrastructure.
+- A HIPAA BAA is in place with all storage and messaging infrastructure providers.

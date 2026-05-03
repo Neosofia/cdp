@@ -97,7 +97,7 @@ expected count and contain no recognisable PHI patterns.
 ### Functional Requirements
 
 - **FR-001**: The service MUST accept inbound message and session writes from the
-  deidentification pipeline (002) only, via an internal VPC-only write API. No public write
+  deidentification pipeline (002) only, via an internal network-restricted write API. No public write
   endpoint is exposed.
 - **FR-002**: Every message MUST be persisted with its clean (de-identified) content,
   patient UUID (platform-generated, opaque), chat interaction ID, care episode ID, tenant ID,
@@ -114,7 +114,7 @@ expected count and contain no recognisable PHI patterns.
   identity, tenant, operation, and record count. Log entries MUST NOT contain message content.
 - **FR-008**: Read access is restricted to authenticated employees (engineers and data
   scientists) with appropriate RBAC roles; patient-facing and clinician-facing read paths
-  are suppressed by network policy and MUST NOT be reachable from outside the VPC.
+  are suppressed by network policy and MUST NOT be reachable from outside the internal network.
 - **FR-009**: The service MUST support configurable data retention policies per tenant
   (minimum 7 years for HIPAA compliance, unless the tenant overrides to a longer period).
 
@@ -143,10 +143,8 @@ requires a call to the patient service, which is covered in a separate spec.
 
 ## Assumptions
 
-- 003 is a deployment of the 001 codebase; all functional differences are controlled via
-  environment variables and feature flags (e.g., `DATABASE_URL`, `WRITE_SOURCE=pipeline`,
-  `DISABLE_PUBLIC_READ=true`).
-- The clean store and raw store share no database tables; they are entirely separate RDS
+- 003 is a deployment of the 001 service configured for a different operational role; all functional differences are controlled via deployment configuration.
+- The clean store and raw store share no database tables; they are entirely separate database
   instances.
 - PHI removal is guaranteed by the deidentification pipeline (002); 003 applies no
   additional PHI scanning at the write boundary.

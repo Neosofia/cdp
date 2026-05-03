@@ -40,7 +40,7 @@ services:
       AWS_ACCESS_KEY_ID: test
       AWS_SECRET_ACCESS_KEY: test
       AWS_REGION: us-east-1
-      DATABASE_URL: postgresql+asyncpg://pdc:dev_only@auth-postgres:5432/pdc_auth
+      DATABASE_URL: postgresql+asyncpg://cdp:dev_only@auth-postgres:5432/cdp_auth
     ports:
       - "8014:8000"
     depends_on:
@@ -59,15 +59,15 @@ services:
     image: postgres:16
     container_name: cdp-auth-postgres
     environment:
-      POSTGRES_DB: pdc_auth
-      POSTGRES_USER: pdc
+      POSTGRES_DB: cdp_auth
+      POSTGRES_USER: cdp
       POSTGRES_PASSWORD: dev_only
     ports:
       - "5014:5432"
     volumes:
       - auth_postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U pdc -d pdc_auth"]
+      test: ["CMD-SHELL", "pg_isready -U cdp -d cdp_auth"]
       interval: 10s
       timeout: 5s
       retries: 5

@@ -4,7 +4,7 @@
 **Created**: 2026-04-17
 **Status**: Draft
 **Scope**: Agent 1 of 3 in the v1 AI agent pipeline. This spec covers the **Deidentification
-Agent** only — an AWS Lambda-based AI agent that triggers at chat session-end, strips all PII and
+Agent** only — an event-driven AI agent that triggers at chat session-end, strips all PII and
 PHI from raw chat messages, and writes the clean session to the clean chat service for use by
 downstream human-accessible workloads (debugging, observability, EDA, model pre-training).
 
@@ -47,7 +47,7 @@ PHI tokens and that a mapping record (original message ID → clean message ID) 
 
 ### User Story 2 — Failed Messages Are Quarantined (Priority: P2)
 
-When a message cannot be deidentified — because the agent returns a failure or a Lambda
+When a message cannot be deidentified — because the agent returns a failure or a processing
 timeout occurs — the pipeline routes the message to a quarantine queue for human review
 rather than allowing unprocessed output to contaminate the clean store.
 
@@ -63,7 +63,7 @@ written to the clean store.
 1. **Given** the deidentification agent returns a failure for a message, **When** the pipeline
    finalises the message, **Then** the message is placed in the quarantine queue and is NOT
    forwarded to the clean chat service.
-2. **Given** a Lambda processing a message times out, **When** the event is retried three
+2. **Given** the agent processing a message times out, **When** the event is retried three
    times, **Then** after the third failure the message moves to the quarantine queue and a
    structured alert is emitted.
 
@@ -83,7 +83,7 @@ audit log), and that no messages are lost or duplicated during the transition.
 
 **Acceptance Scenarios**:
 
-1. **Given** a new model version is deployed to Lambda, **When** new messages arrive,
+1. **Given** a new model version is deployed to the agent, **When** new messages arrive,
    **Then** they are processed using the new version; in-flight messages on the old version
    are completed before cutover.
 2. **Given** a new model version is rolled back, **When** the rollback is applied,
@@ -103,24 +103,24 @@ audit log), and that no messages are lost or duplicated during the transition.
 ### Functional Requirements
 
 - **FR-001**: The pipeline MUST be triggered at session-end and process all messages in a
-  session as a batch; each message MUST be individually deidentified via AWS Lambda invocations.
-  The pipeline MUST consume session-close events from the raw chat SQS queue to initiate processing.
+  session as a batch; each message MUST be individually deidentified by the agent.
+  The pipeline MUST consume session-close events from the raw chat event queue to initiate processing.
 - **FR-002**: The deidentification logic MUST detect and replace at minimum the following PHI
   categories: names, dates (DOB, admission/discharge dates), geographic identifiers below
   state level, phone numbers, email addresses, medical record numbers, health plan numbers,
   medication names, diagnoses, and free-text clinical notes.
 - **FR-003**: Each successfully deidentified message MUST be forwarded to the clean chat
   service with the original message ID as a correlation key.
-- **FR-004**: PHI MUST NOT appear in any Lambda log output, environment variable, or
+- **FR-004**: PHI MUST NOT appear in any agent log output, environment variable, or
   intermediate storage artefact. The pipeline MUST write a correlation key (original
   message ID → clean message ID, plus token-position metadata) to the patient database;
   it MUST NOT store raw PHI values in any pipeline-owned store.
 - **FR-005**: Every pipeline invocation MUST produce a structured audit record containing:
-  original message ID, Lambda invocation ID, model version used, agent outcome
+  original message ID, invocation ID, model version used, agent outcome
   (`clean` / `quarantine` / `failed`), and processing duration.
 - **FR-006**: Messages where the deidentification agent returns a failure MUST be routed
   to a quarantine queue; they MUST NOT be forwarded to the clean store.
-- **FR-007**: The pipeline MUST tolerate Lambda timeouts and SQS visibility timeout
+- **FR-007**: The pipeline MUST tolerate processing timeouts and message queue
   re-deliveries without producing duplicate clean messages (idempotent processing).
 - **FR-008**: Model versions MUST be independently deployable; the model version used MUST
   be recorded in the audit log for every processed message.
@@ -129,13 +129,13 @@ audit log), and that no messages are lost or duplicated during the transition.
   synchronous latency requirement.
 - **FR-010**: Audit records MUST be retained indefinitely; purge or archival policies are
   out of scope for v1 and will be addressed in a future cold-storage migration.
-- **FR-011**: The pipeline MUST emit CloudWatch metrics for: sessions processed, messages
+- **FR-011**: The pipeline MUST emit platform metrics for: sessions processed, messages
   processed, quarantine rate, processing lag (time from session-close event to completion),
-  and Lambda error rate. CloudWatch alarms MUST be configured to notify an SNS topic
-  (connected to on-call tooling such as PagerDuty, email, or SMS) when:
+  and agent error rate. Operational alerts MUST be configured to notify the on-call team
+  (e.g., via an escalation platform, email, or SMS) when:
   - The agent failure/quarantine rate exceeds 5% over a rolling 15-minute window.
   - Any session remains unprocessed beyond the 1-hour SLA window.
-  - Lambda error rate exceeds a configurable threshold.
+  - Agent error rate exceeds a configurable threshold.
 
 ### Key Entities
 
@@ -146,7 +146,7 @@ audit log), and that no messages are lost or duplicated during the transition.
   message. The pipeline does NOT store the original PHI value; raw PHI is never surfaced
   in any UI. Access control for the patient database is out of scope for this spec.
 - **QuarantineRecord**: Original message ID, job ID, reason (agent failure / timeout /
-  Lambda error), timestamp, review status.
+  agent error), timestamp, review status.
 - **ModelVersion**: Model ID, version tag, deployment timestamp, supported PHI categories.
 
 ## Success Criteria *(mandatory)*
@@ -175,13 +175,13 @@ audit log), and that no messages are lost or duplicated during the transition.
 
 ## Assumptions
 
-- The raw chat SQS queue publishes one event per session at session-end, containing the
+- The raw chat event queue publishes one event per session at session-end, containing the
   session ID and references to the storage locations of all messages in that session
   (not the raw content in the event body, to avoid PHI in queue metadata).
-- The Lambda execution environment has a VPC endpoint to access the raw message store
-  securely without traversing the public internet.
-- AWS Bedrock (under HIPAA BAA) may be used as one component within the deidentification
-  pipeline; however, the content sent to Bedrock MUST itself be processed for gross PHI
+- The agent execution environment has network access to the raw message store
+  without traversing the public internet.
+- An AI inference provider (under HIPAA BAA) may be used as one component within the deidentification
+  pipeline; however, the content sent to the inference provider MUST itself be processed for gross PHI
   removal by a deterministic pre-filter before any LLM interaction.
 - A human review workflow for quarantined messages is out of scope for v1 (quarantine queue
   is the boundary; UI tooling for reviewers is a separate feature).

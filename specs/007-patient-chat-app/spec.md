@@ -3,8 +3,7 @@
 **Feature Branch**: `007-mobile-chat-app`
 **Created**: 2026-04-17
 **Status**: Draft
-**Input**: A single Flutter codebase that deploys as native iOS and Android apps and a
-responsive web app, allowing post-discharge patients to communicate with the platform
+**Input**: A cross-platform app targeting iOS, Android, and web that allows post-discharge patients to communicate with the platform
 via a chat interface. Patients interact with AI agents and, when escalated, with human
 clinicians — all within the same thread. This is the primary high-engagement channel
 for patients across all form factors.
@@ -79,7 +78,7 @@ appears within the target response time; verify the message was stored in the ch
 ### User Story 3 — Patient Receives a Push Notification for a New Message (Priority: P2)
 
 When a new message (AI or clinician reply) is sent to the patient while the app is
-backgrounded or closed, the patient receives an APNS/FCM push notification. Tapping the
+backgrounded or closed, the patient receives a push notification. Tapping the
 notification opens the app directly to the relevant chat thread.
 
 **Why this priority**: Push notifications drive re-engagement. A patient who misses a
@@ -113,15 +112,15 @@ to the correct thread.
 ### Functional Requirements
 
 - **FR-001**: The app MUST support iOS 16+, Android 13+, and modern evergreen desktop
-  browsers (Chrome, Safari, Edge, Firefox latest two versions) from a single Flutter
-  codebase; each deployment target is released independently but shares business logic,
+  browsers (Chrome, Safari, Edge, Firefox latest two versions) from a single codebase;
+  each deployment target is released independently but shares business logic,
   UI components, and state management.
 - **FR-002**: The app MUST implement end-to-end secure communication: all API calls MUST
   use TLS 1.2+; no plaintext patient data is stored unencrypted on device.
 - **FR-003**: Patient authentication MUST use platform-issued short-lived access tokens
-  renewed via a secure refresh flow (OAuth2/OIDC) across all targets. On mobile, biometric
-  unlock (Face ID / fingerprint) MUST be supported as a convenience option using Flutter
-  platform channels; on web, the biometric layer is omitted and the patient falls back to
+  renewed via a secure refresh flow across all targets. On mobile, biometric
+  unlock (Face ID / fingerprint) MUST be supported as a convenience option using
+  platform-native APIs; on web, the biometric layer is omitted and the patient falls back to
   password or PIN. Refresh tokens on web MUST be stored in `HttpOnly` cookies; on mobile
   they MUST be stored in the platform secure enclave / keystore.
 - **FR-004**: The app MUST render a chat thread with visual differentiation between patient
@@ -132,16 +131,15 @@ to the correct thread.
   are queued and sent when connectivity is restored, with no duplication.
 - **FR-007**: The app MUST display a typing indicator while an AI or clinician response is
   being composed.
-- **FR-008**: The app MUST deliver push notifications via APNS (iOS) and FCM (Android)
-  for new messages; tapping a notification MUST deep-link to the relevant chat thread.
-  On the web target, the app MUST request Web Push permission and deliver notifications
-  where the browser supports the Web Push API (Chrome, Edge, Firefox, Safari 16.4+).
-  When Web Push is unavailable or permission is denied, the app MUST gracefully degrade
+- **FR-008**: The app MUST deliver push notifications for new messages on mobile; tapping a notification MUST deep-link to the relevant chat thread.
+  On the web target, the app MUST request browser push notification permission and deliver notifications
+  where the browser supports it.
+  When browser push is unavailable or permission is denied, the app MUST gracefully degrade
   to an in-app unread badge and indicator — no hard error or blocked flow.
 - **FR-009**: The push notification payload MUST NOT contain message content or PHI;
   notification text MUST use generic copy (e.g., "You have a new message from your care
   team").
-- **FR-011**: Raw device tokens (APNS/FCM tokens, Web Push subscription objects) are
+- **FR-011**: Raw device push tokens and browser push subscriptions are
   PHI/PII and MUST be stored exclusively in the Devices service, encrypted at rest.
   All other services (chat, session, notification dispatch) MUST reference devices only
   by an internal opaque device UUID. The push service is the sole component permitted
@@ -176,16 +174,16 @@ Apps do not own entities. Canonical entity definitions live in the services that
 
 - The app communicates with a single internal platform API gateway; it does not talk
   directly to the chat service, AI agent service, or any other backend service.
-- Authentication tokens are issued by the Authentication Service (`014-authentication-service`); OAuth2/OIDC is used.
-- Push notification infrastructure (APNS certificates, FCM credentials) is managed by the
+- Authentication tokens are issued by the Authentication Service (`014-authentication-service`).
+- Push notification infrastructure (provider credentials and certificates) is managed by the
   platform team; the app only registers device tokens and receives notifications.
-- The app is built with **Flutter**, targeting iOS, Android, and web from a single
-  codebase. Native-only APIs (APNS, FCM, `FLAG_SECURE`, biometric) are accessed via
-  Flutter platform channels or first-party packages; web equivalents are used on the
-  web target (Web Push for notifications, no screen-capture restriction equivalent).
+- The app targets iOS, Android, and web from a single codebase. Platform-native APIs
+  (device push notifications, screen security flags, biometric) are accessed via
+  platform channels or first-party packages; web equivalents are used on the
+  web target (browser push for notifications, no screen-capture restriction equivalent).
 - Feature 008 covers the clinician-facing app; the two apps share no screens but may
-  share a common Flutter package for design tokens and API client code.
+  share a common package for design tokens and API client code.
 - Accessibility compliance target is WCAG 2.1 AA.
-- App Store / Play Store submission and review processes are operational concerns outside
+- Mobile platform distribution store submission and review processes are operational concerns outside
   this spec. Web app hosting and CDN configuration are also out of scope.
 

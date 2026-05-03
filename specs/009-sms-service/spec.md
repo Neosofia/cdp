@@ -97,15 +97,15 @@ including the web/app alternative channel notice.
   If the timeout expires before all segments arrive, forward the partial message and log a warning.
 - What if the patient's registered phone number changes?
 - How does the service handle non-English SMS content?
-- **Provider outage**: Undelivered outbound messages are persisted to a local durable queue (DB or SQS) and retried with exponential backoff until the provider recovers.
+- **Provider outage**: Undelivered outbound messages are persisted to a local durable queue and retried with exponential backoff until the provider recovers.
 - What is the maximum message length for AI responses sent as SMS?
 
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
 
-- **FR-001**: The service MUST receive inbound SMS from patients via a managed SMS provider
-  (e.g., AWS SNS + Pinpoint, or Twilio) and forward them to the chat service via its
+- **FR-001**: The service MUST receive inbound SMS from patients via a managed SMS gateway provider
+  (e.g., Twilio, AWS Pinpoint) and forward them to the chat service via its
   internal API.
 - **FR-002**: The service MUST match inbound SMS phone numbers to registered patient accounts;
   unmatched numbers MUST receive a configured enrollment instruction reply and MUST NOT
@@ -129,7 +129,7 @@ including the web/app alternative channel notice.
 - **FR-010**: The service MUST be configurable with multiple long codes or short codes
   per tenant; organisations may use their own dedicated platform number.
 - **FR-011**: When the SMS provider is unavailable, the service MUST persist undelivered
-  outbound messages to a local durable queue (database or SQS) and retry delivery using
+  outbound messages to a local durable queue and retry delivery using
   exponential backoff until the provider recovers or a maximum retry TTL is exceeded.
 - **FR-012**: The service MUST buffer inbound multi-part (concatenated) SMS segments and
   reassemble them in sequence order before forwarding to the chat service. A 5-second
@@ -146,10 +146,10 @@ including the web/app alternative channel notice.
 
 - **SMSMessage**: Message ID, patient ID (if matched), phone number, tenant ID, direction
   (`inbound` / `outbound`), content, provider message ID, delivery status, timestamp.
-- **PhoneNumberRegistration**: Patient ID, phone number (E.164, stored in the patient database
-  which has AWS RDS at-rest encryption enabled), tenant ID, opt-in status, opt-out
+- **PhoneNumberRegistration**: Patient ID, phone number (E.164, stored in the patient database),
+  tenant ID, opt-in status, opt-out
   timestamp (if applicable). No additional field-level encryption or separate hash lookup
-  is required beyond RDS-level protection.
+  is required beyond database at-rest encryption.
 - **SMSSession**: Session ID, patient ID, phone number, last activity timestamp, status
   (`active` / `timed-out`), authentication status (`pending` / `verified`).
 - **SMSAuthChallenge**: Challenge ID, session ID, patient ID, OTP hash, issued timestamp,
@@ -180,7 +180,7 @@ including the web/app alternative channel notice.
 
 ## Assumptions
 
-- An SMS provider (Twilio or AWS Pinpoint) is provisioned with a HIPAA BAA or equivalent
+- An SMS gateway provider (e.g., Twilio, AWS Pinpoint) is provisioned with a HIPAA BAA or equivalent
   data processing agreement; the choice between providers is deferred to the planning phase.
 - Each tenant has at least one dedicated long code or short code; shared numbers are not
   used across tenants.

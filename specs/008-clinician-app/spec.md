@@ -4,21 +4,21 @@
 **Created**: 2026-04-17
 **Status**: Draft
 **Input**: A browser-based web application exclusively for clinicians. The primary workflow
-is: receive a PagerDuty escalation alert → click the deep link → authenticate → land on a
+is: receive an escalation platform alert → click the deep link → authenticate → land on a
 two-panel view showing the live AI-patient chat (left) and the patient's EHR records since
 discharge (right) → take over the chat or request patient consent for a call. Clinicians
 are a US regional pool and are not pre-assigned to specific patients.
 
 > **Scope note**: This spec covers the **clinician-facing** app only. The
-> **patient-facing** chat app (iOS, Android, Web — Flutter) is specified in
+> **patient-facing** chat app (iOS, Android, Web) is specified in
 > [spec 007](../007-patient-chat-app/spec.md).
 
 
 ## User Scenarios & Testing *(mandatory)*
 
-### User Story 1 — Clinician Responds to a PagerDuty Escalation Alert (Priority: P1)
+### User Story 1 — Clinician Responds to an Escalation Alert (Priority: P1)
 
-A clinician receives a PagerDuty alert containing a deep link with `patient_uuid` and
+A clinician receives an escalation platform alert (e.g., PagerDuty) containing a deep link with `patient_uuid` and
 `chat_session_uuid` as query parameters (no PII in the URL). They click the link,
 authenticate via the platform login, and land on the alert detail view. The view is a
 two-panel layout: the left panel shows the live AI-patient chat window (streaming in real
@@ -46,7 +46,7 @@ in-app prompt and surfaces "Call Patient" on acceptance.
 
 **Acceptance Scenarios**:
 
-1. **Given** a clinician follows the PagerDuty deep link, **When** they are unauthenticated,
+1. **Given** a clinician follows the escalation platform deep link, **When** they are unauthenticated,
    **Then** they are redirected to login via OAuth2 PKCE with the original URL preserved in
    `state`/`redirect_uri`, and returned to the exact alert URL after successful authentication.
 2. **Given** an authenticated clinician lands on the alert detail, **Then** the left panel
@@ -65,21 +65,21 @@ in-app prompt and surfaces "Call Patient" on acceptance.
 
 ---
 
-### User Story 2 — Clinician Claims a High-Risk Session Before PagerDuty Fires (Priority: P2)
+### User Story 2 — Clinician Claims a High-Risk Session Before Escalation Fires (Priority: P2)
 
 When the risk agent flags a patient chat session as high-risk, a 60-second early-intervention
 window opens. During this window the session appears in a live queue visible to all available
 clinicians in the region. Any free clinician can self-assign and open the two-panel alert
-detail view (User Story 1) before PagerDuty escalates. If no clinician claims it within
-60 seconds, PagerDuty fires as normal.
+detail view (User Story 1) before the escalation platform fires. If no clinician claims it within
+60 seconds, the escalation platform fires as normal.
 
-**Why this priority**: PagerDuty is the fallback escalation path, not the first line of
+**Why this priority**: The escalation platform is the fallback escalation path, not the first line of
 response. Clinicians already logged into the portal can resolve lower-severity or borderline
-cases instantly, reducing unnecessary PagerDuty pages and on-call burden.
+cases instantly, reducing unnecessary escalation pages and on-call burden.
 
 **Independent Test**: Trigger a synthetic high-risk signal; verify the session appears in
 the queue within 5 seconds; claim it as a free clinician before 60 seconds elapse; verify
-PagerDuty does NOT fire. Let a second synthetic alert expire unclaimed; verify PagerDuty
+the escalation platform does NOT fire. Let a second synthetic alert expire unclaimed; verify the escalation platform
 fires after 60 seconds.
 
 **Acceptance Scenarios**:
@@ -91,9 +91,9 @@ fires after 60 seconds.
    **When** they claim it, **Then** they are taken to the two-panel alert detail view and
    the session is removed from the queue for all other clinicians (preventing double-claim).
 3. **Given** no clinician claims the session within 60 seconds, **When** the window expires,
-   **Then** PagerDuty is triggered and the session moves to the PagerDuty-escalated state
+   **Then** the escalation platform is triggered and the session moves to the escalated state
    in the queue (still visible but marked as escalated).
-4. **Given** a clinician has already claimed a session via PagerDuty deep link, **When**
+4. **Given** a clinician has already claimed a session via escalation platform deep link, **When**
    another clinician views the queue, **Then** that session is shown as claimed and cannot
    be double-assigned.
 
@@ -132,7 +132,7 @@ verify the rating is persisted and visible on the session record.
 
 ### Edge Cases
 
-- What happens if the WebSocket connection drops while the clinician is viewing the live chat?
+- What happens if the real-time connection drops while the clinician is viewing the live chat?
 - What happens if two clinicians click "Stop AI & Take Over" on the same session simultaneously?
 - What happens if the patient declines the consent-to-call request after the AI has already been halted (patient left with no responder)? A: clinician can continue with the web chat.
 - What happens when the clinician's session token expires mid-alert-review?
@@ -151,7 +151,7 @@ verify the rating is persisted and visible on the session record.
 - **FR-004**: Clinician authentication MUST use a platform-issued short-lived session token
   stored in an `HttpOnly`, `Secure`, `SameSite=Strict` cookie; no tokens in `localStorage`
   or URL parameters.
-- **FR-005**: The app MUST use a persistent WebSocket or Server-Sent Events connection for
+- **FR-005**: The app MUST use a persistent real-time connection for
   real-time chat streaming and alert queue updates; the connection MUST auto-reconnect with
   exponential backoff on drop.
 - **FR-006**: When the risk agent flags a session as high-risk, the clinician portal MUST
@@ -160,14 +160,14 @@ verify the rating is persisted and visible on the session record.
   the region MUST be able to self-assign (claim) the session within that window, which
   opens the two-panel alert detail view and removes the session from the queue for all
   other clinicians atomically (no double-claim). If unclaimed after 60 seconds, the portal
-  MUST trigger the PagerDuty escalation and mark the session as escalated in the queue.
-- **FR-007**: The PagerDuty alert deep link MUST carry `patient_uuid` and `chat_session_uuid`
+  MUST trigger the escalation platform notification and mark the session as escalated in the queue.
+- **FR-007**: The escalation platform alert deep link MUST carry `patient_uuid` and `chat_session_uuid`
   as query parameters. Unauthenticated clinicians MUST be redirected to login via OAuth2
   PKCE with the full original URL encoded in `state`/`redirect_uri` and returned to the
   exact alert URL after authentication. The redirect target MUST be validated against an
   allowlist of platform-owned origins to prevent open-redirect attacks.
 - **FR-008**: The alert detail view MUST use a two-panel layout: left panel shows the live
-  AI-patient chat window (WebSocket-streamed, default scroll position at the most recent
+  AI-patient chat window (streamed in real time, default scroll position at the most recent
   message, full session history accessible by scrolling up); right panel shows the patient's
   EHR records since last discharge including procedure records, sourced from the EMR service.
   Patient identity is resolved server-side from `patient_uuid`; no PHI is carried in the URL.
@@ -182,7 +182,7 @@ verify the rating is persisted and visible on the session record.
 - **FR-011**: Clinician messages sent after takeover MUST be routed through the chat service
   in the same thread (sender type `clinician`), with optimistic display and a pending
   indicator updated to confirmed on server acknowledgement.
-- **FR-012**: Browser push notifications (Web Push API) MUST be supported for clinicians
+- **FR-012**: Browser push notifications MUST be supported for clinicians
   (new alert in queue), with explicit opt-in; notification payloads MUST NOT contain PHI.
 - **FR-013**: The app MUST prevent PHI leakage via browser APIs: views MUST set
   `autocomplete="off"` on input fields; no PHI MUST appear in notification payloads;
@@ -214,14 +214,14 @@ Apps do not own entities. Canonical entity definitions live in the services that
 - **SC-001**: 95% of clinician messages sent after takeover are confirmed by the chat service
   within 2 seconds under normal network conditions.
 - **SC-002**: High-risk sessions appear in the early-intervention queue within 5 seconds of
-  the risk agent flag for 99% of cases. PagerDuty escalation fires within 5 seconds of the
+  the risk agent flag for 99% of cases. Escalation platform notification fires within 5 seconds of the
   60-second window expiring when unclaimed. The 60-second early-intervention window itself
   is intentional hold time and is explicitly excluded from all escalation SLOs.
 - **SC-003**: The clinician alert detail view achieves a Lighthouse performance score of ≥80.
 - **SC-004**: The clinician portal passes WCAG 2.1 AA automated accessibility audit.
 - **SC-005**: Zero PHI values appear in browser notification payloads or `localStorage`,
   verified by automated browser tests.
-- **SC-006**: WebSocket reconnection occurs within 5 seconds of a simulated connection drop,
+- **SC-006**: Real-time connection reconnection occurs within 5 seconds of a simulated connection drop,
   with no message loss during live chat streaming.
 - **SC-007**: The app renders without layout issues on Chrome, Firefox, Safari, and Edge
   (current and prior major versions).

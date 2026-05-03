@@ -88,7 +88,7 @@ patient enrolment. Important but not blocking for the core chat/alert flow.
 **Independent Test**: Query the EMR service for a patient's most recent Encounter and
 associated ClinicalImpression resources; verify the canonical discharge summary object
 is returned with expected fields populated. Then simulate a patient with no EMR records
-and verify a PagerDuty low-priority alert is fired.
+and verify a low-priority alert is raised via the escalation platform.
 
 **Acceptance Scenarios**:
 
@@ -97,7 +97,7 @@ and verify a PagerDuty low-priority alert is fired.
    the most recent Encounter, discharge diagnosis, and follow-up instructions.
 2. **Given** no discharge summary or EMR records exist for a newly enrolled patient,
    **When** the request is made, **Then** an empty-but-valid canonical response is returned
-   to the caller AND a low-priority PagerDuty alert is fired to trigger the missing-record
+   to the caller AND a low-priority alert is raised via the escalation platform (e.g., PagerDuty) to trigger the missing-record
    review workflow; no unhandled error is raised.
 
 ---
@@ -130,7 +130,7 @@ and verify a PagerDuty low-priority alert is fired.
   patient-access permission may retrieve patient records; PHI access MUST be audit-logged.
 - **FR-006**: The service MUST respond within 2 seconds for the 95th percentile of requests
   under normal upstream availability; upstream latency MUST be surfaced in metrics.
-- **FR-007**: The service MUST implement a Valkey-backed shared cache for patient FHIR
+- **FR-007**: The service MUST implement a shared cache for patient FHIR
   resources scoped to records dated on or after the patient's most recent discharge date.
   The cache MUST be primed when a chat session starts and MUST use a sliding TTL of
   15 minutes (matching the chat session timeout), refreshed on each cache access triggered
@@ -147,7 +147,7 @@ and verify a PagerDuty low-priority alert is fired.
   `warnings[]` array in the response identifying each omitted resource by type and FHIR ID;
   it MUST NOT reject the entire response due to a subset of invalid resources.
 - **FR-012**: When a discharge summary or EMR record retrieval for a newly enrolled patient
-  returns no records, the service MUST fire a low-priority PagerDuty alert to trigger the
+  returns no records, the service MUST raise a low-priority alert via the escalation platform (e.g., PagerDuty) to trigger the
   missing-record review workflow; the empty-but-valid canonical response MUST still be
   returned to the caller.
 
@@ -156,7 +156,7 @@ and verify a PagerDuty low-priority alert is fired.
 - **PatientContext**: Internal patient ID, tenant ID, canonical demographics, active medications,
   active conditions, allergies, most recent discharge summary reference.
 - **EMRIntegration**: Integration ID, tenant ID, EMR vendor hint, FHIR base URL, auth scheme,
-  credential reference (AWS Secrets Manager secret ARN), status (active/disabled).
+  credential reference (identifier in the platform secrets store), status (active/disabled).
 - **FHIRCacheEntry**: Resource type, FHIR resource ID, tenant ID, patient ID, canonical
   normalised payload, cached-at timestamp, last-touched-at timestamp, sliding TTL
   (15 min default); scoped to records on or after the patient's most recent discharge date.
@@ -191,13 +191,13 @@ and verify a PagerDuty low-priority alert is fired.
   (e.g., Health Gorilla, 1up Health) is deferred to the planning phase.
 - This service is read-only in v1; write-back to the EMR (e.g., posting clinical notes)
   is a future capability.
-- EMR credentials are stored in AWS Secrets Manager and are never present in application
+- EMR credentials are stored in the platform secrets store and are never present in application
   configuration files or logs.
 - Patient matching across multiple EMRs (where the same patient has different IDs) is
   handled by an internal patient identifier mapping table seeded at enrolment. The mapping
   table is the authoritative source of truth; the service queries exactly the EMRs listed
   for a patient and does not attempt to detect or warn on absent mappings.
-- The FHIR resource cache backend is Valkey (Redis-compatible, open-source). Cache entries
+- The FHIR resource cache is backed by a shared in-memory data store. Cache entries
   are limited to records dated on or after the patient's most recent discharge date and use
   a 15-minute sliding TTL aligned with the chat session timeout.
 
