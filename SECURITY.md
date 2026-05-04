@@ -6,7 +6,7 @@ Platform-wide security principles that apply to every service in the CDP platfor
 
 ## PHI Containment
 
-Enforced architecturally, not just by policy ([Constitution §I](.specify/memory/constitution.md)):
+Enforced architecturally, not just by policy ([Constitution §I](architecture/constitution.md)):
 
 - Raw messages with PHI exist only in the Chat Service database, encrypted at rest. No other service stores raw message content.
 - All AI inference involving raw patient content runs exclusively under a HIPAA BAA ([ADR-0002](architecture/structurizr/decisions/0002-use-bedrock-for-ai-inference.md)).
@@ -35,7 +35,7 @@ Enforced architecturally, not just by policy ([Constitution §I](.specify/memory
 
 ## Observability and Audit
 
-Governed by [Constitution §IV](.specify/memory/constitution.md):
+Governed by [Constitution §IV](architecture/constitution.md):
 
 - Every security-relevant event across all services (authentication, access, escalation, session lifecycle) is emitted as structured JSON validated against a shared schema ([ADR-0009](architecture/structurizr/decisions/0009-structured-json-logging-with-schema-validation.md)). This enables consistent SIEM correlation rules across the platform without per-service instrumentation.
 

@@ -4,7 +4,7 @@
 
 The Clinical Data Platform (CDP) is a HIPAA-compliant system that supports coordinated clinical care through AI-assisted messaging, risk detection, and clinician escalation workflows. CDP enables care teams to maintain a communication channel with patients across care settings. Patients interact via a mobile app or SMS; an AI risk agent monitors conversations for clinical risk signals and escalates high-risk interactions to on-call clinicians via a structured alert and PagerDuty escalation pipeline.
 
-This architecture was developed using **Spec Kit**, a structured specification and planning workflow for AI-assisted software development. Each platform service has a corresponding feature spec (see `specs/` in the repository root) generated and refined through the Spec Kit `specify → plan → tasks → implement` pipeline. The C4 diagrams in this workspace are derived directly from those specs and maintained in sync as the platform evolves.
+This architecture was developed using a structured specification and planning workflow. Each platform service has a corresponding feature spec (see `specs/` in the repository root). The C4 diagrams in this workspace are derived directly from those specs and maintained in sync as the platform evolves.
 
 **Key Capabilities:**
 
@@ -22,7 +22,7 @@ See [requirements.md](https://github.com/byoung/cdp/blob/main/requirements.md) f
 
 ## Project Constitution
 
-The platform is governed by a [constitution](https://github.com/byoung/cdp/blob/main/.specify/memory/constitution.md) that defines non-negotiable principles for all design and implementation decisions.
+The platform is governed by a [constitution](https://github.com/byoung/cdp/blob/main/architecture/constitution.md) that defines non-negotiable principles for all design and implementation decisions.
 
 ## Feature Specifications
 

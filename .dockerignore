@@ -1,7 +1,6 @@
 # Environment files - never include in Docker build context
-.env
-.env.*
-!.env.example
+*.env
+.*.env
 
 # Version control
 .git

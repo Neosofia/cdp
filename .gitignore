@@ -3,14 +3,8 @@ architecture/structurizr/.structurizr/
 architecture/structurizr/workspace.json
 
 # Environment variables
-.env
-.env.*
-.local.env
-.dev.env
-.staging.env
-!.local.env.example
-!.env.example
-ops.env
+*.env
+.*.env
 
 # Python
 __pycache__/

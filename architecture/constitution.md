@@ -125,7 +125,7 @@ re-platform that would otherwise be forced by growth.
 
 Specific technology selections (cloud provider, database, messaging infrastructure,
 AI inference providers, EMR adapters, etc.) are recorded in Architecture Decision
-Records (ADRs) in `.specify/memory/`. Technology choices are subject to change;
+Records (ADRs) in `architecture/`. Technology choices are subject to change;
 the principles in this constitution are not. Any technology choice that would
 violate a core principle MUST NOT be adopted regardless of other merits.
 
@@ -164,7 +164,7 @@ new principles or material expansions, PATCH for clarifications and wording.
 their quarterly architecture review. The on-call engineer MUST verify constitution
 alignment before promoting any release candidate.
 
-**Runtime guidance**: See `.specify/memory/` for living architecture decision
+**Runtime guidance**: See `architecture/` for living architecture decision
 records (ADRs) and `.github/prompts/` for AI agent prompt configurations.
 
 ## Standards and Best Practices

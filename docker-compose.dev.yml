@@ -30,47 +30,48 @@ services:
     restart: unless-stopped
 
   authentication:
-    image: ghcr.io/neosofia/authentication:latest
+    image: ghcr.io/neosofia/authentication:v0.4.0
     build:
       context: ../authentication
     container_name: cdp-authentication
+    env_file:
+      - ./.authentication.env
     environment:
-      ENV_FILE: .local.env
       ENV: development
       AWS_ACCESS_KEY_ID: test
       AWS_SECRET_ACCESS_KEY: test
       AWS_REGION: us-east-1
-      DATABASE_URL: postgresql+asyncpg://cdp:dev_only@auth-postgres:5432/cdp_auth
+      DATABASE_URL: postgresql+psycopg://cdp:dev_only@authentication-postgres:5432/cdp_authentication
     ports:
-      - "8014:8000"
+      - "8014:8014"
     depends_on:
-      auth-postgres:
+      authentication-postgres:
         condition: service_healthy
     volumes:
-      - ./.dev.env:/app/.local.env:ro
+      - ./.authentication.env:/app/.env:ro
 
   authentication-bootstrap:
-    image: ghcr.io/neosofia/authentication:latest
+    image: ghcr.io/neosofia/authentication:v0.4.0
     container_name: cdp-authentication-bootstrap
     working_dir: /app
-    command: ["bash", "-c", "./scripts/setup-env.sh >/tmp/setup-env.log && cat .local.env"]
+    command: ["bash", "-c", "ENV_FILE=/tmp/.env ./scripts/setup-env.sh >/tmp/setup-env.log && cat /tmp/.env"]
 
-  auth-postgres:
-    image: postgres:16
-    container_name: cdp-auth-postgres
+  authentication-postgres:
+    image: postgres:18
+    container_name: cdp-authentication-postgres
     environment:
-      POSTGRES_DB: cdp_auth
+      POSTGRES_DB: cdp_authentication
       POSTGRES_USER: cdp
       POSTGRES_PASSWORD: dev_only
     ports:
       - "5014:5432"
     volumes:
-      - auth_postgres_data:/var/lib/postgresql/data
+      - authentication_postgres_data:/var/lib/postgresql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U cdp -d cdp_auth"]
+      test: ["CMD-SHELL", "pg_isready -U cdp -d cdp_authentication"]
       interval: 10s
       timeout: 5s
       retries: 5
 
 volumes:
-  auth_postgres_data:
+  authentication_postgres_data:

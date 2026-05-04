@@ -1,97 +1,49 @@
 # Operations Guide
 
-Local development and operational runbooks for the Clinical Data Platform (CDP).
+This guide is for system administrators, software engineers, and testers wishing to run the entire CDP on their local machine. For cloud deployments, see our [public](https://github.com/Neosofia/infrastructure/blob/main/public-cloud/RUNBOOK.md) or [private](https://github.com/Neosofia/infrastructure/blob/main/private-cloud/RUNBOOK.md) cloud runbooks.
 
-For service-specific runbooks (environment variables, seed data, WorkOS setup, production deployment), see the `OPERATIONS.md` and `OPS-LOCAL.md` in each service directory — e.g. [services/authentication/OPS-LOCAL.md](services/authentication/OPS-LOCAL.md).
-
----
-
-## Prerequisites
+## Prerequisites for local operations
 
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running
-- [uv](https://docs.astral.sh/uv/getting-started/installation/) — Python package manager
 
 ## Local env setup
 
-The authentication container mounts `.dev.env` from the repo root into `/app/.local.env`.
-The runtime auth service is configured to load that fixed file via `ENV_FILE=.local.env`.
+Before starting a service at set of environment variables must be generated in order to operate correctly. Every service will have their own operations guide to walk you through the process of generating them. For example, the authentication service has a very lengthy [setup process](https://github.com/Neosofia/authentication/blob/main/OPERATIONS.md) due to the nature of how the service securely operates.
 
-Generate this file from the authentication helper baked into the auth image:
-
-```bash
-docker compose -f docker-compose.dev.yml run --rm authentication-bootstrap > .dev.env
+When finished, you should have a set of environment variable files that look like this:
+```
+.authentication.env
+.notification.env
+.authorization.env
+...
 ```
 
-This runs `scripts/setup-env.sh` inside the auth image and writes the generated environment file to the CDP repo root.
+A service may also include helper scripts inside its docker image to simplify setup. For example, the authentication service provides a bootstrap container that generates its env file for you:
 
-If an existing `.dev.env` file already exists, remove or back it up before regenerating so the helper can create a fresh local config.
+```bash
+docker compose -f docker-compose.dev.yml run --rm authentication-bootstrap > .authentication.env
+```
 
-After generation, fill in these required values manually in `.dev.env`:
+This runs `scripts/setup-env.sh` inside the auth image, generates a local auth environment file, and writes it to the CDP repo root. The top-level compose file then mounts `.authentication.env` into the auth container as `/app/.env`.
+
+After generation, fill in these required values manually in `.authentication.env`:
 
 - `WORKOS_CLIENT_ID`
 - `WORKOS_API_KEY`
 
-Then verify the file contains the generated secrets.
 
-> Note: the runtime auth service uses Docker Compose networking and overrides `DATABASE_URL` to point at the `auth-postgres` service. The `.dev.env` file may still contain `localhost:5014` for host-side tooling, but the container itself connects to `auth-postgres:5432`.
 
 ## Start the Full Stack
 
-Run this after `.dev.env` has been generated and updated:
+Once you have generated all your environment variables, you can bring up the whole platform locally with this command:
 
 ```bash
 docker compose -f docker-compose.dev.yml up -d
 ```
 
-This starts:
+Then access the platform by starting at localhost:8014 for the authentication service and whatever other services your stack exposes.
 
-| Container | Purpose | URL |
-|---|---|---|
-| `cdp-traefik` | Local reverse proxy / API gateway | Dashboard: http://localhost:8090/dashboard/ |
-| `cdp-authentication` | Authentication Service | http://auth.localhost or http://localhost:8014 |
-| `cdp-auth-postgres` | Auth Service database | `localhost:5014` |
 
-All services are accessible via clean `*.localhost` hostnames through Traefik — no port numbers needed in browser/frontend code.
 
----
 
-## Common Tasks
 
-### Rebuild after code changes
-
-```bash
-docker compose -f docker-compose.dev.yml up -d --build <service>
-```
-
-### Run tests for a service
-
-```bash
-cd services/<name> && uv run pytest
-```
-
-### Run a single service independently
-
-Each service's `docker-compose.yml` is self-contained with its own database. Per-service compose files do **not** include shared infrastructure (Traefik, LocalStack secret seeding) — use the top-level file for integrated development.
-
----
-
-## Adding a New Service to the Local Gateway
-
-1. Add the service's container to its own `services/<name>/docker-compose.yml` and include it in `docker-compose.dev.yml`.
-2. Add a router + service block to [`infra/traefik/dynamic/services.yml`](infra/traefik/dynamic/services.yml):
-
-```yaml
-http:
-  routers:
-    myservice:
-      rule: "Host(`myservice.localhost`)"
-      entryPoints: [web]
-      service: myservice
-  services:
-    myservice:
-      loadBalancer:
-        servers:
-          - url: "http://cdp-myservice:8000"
-```
-
-Traefik hot-reloads the file — no restart needed.
