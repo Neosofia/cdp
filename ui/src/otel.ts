@@ -1,4 +1,4 @@
-import { WebTracerProvider } from '@opentelemetry/sdk-trace-web';
+import { WebTracerProvider, SimpleSpanProcessor, ConsoleSpanExporter } from '@opentelemetry/sdk-trace-web';
 import { getWebAutoInstrumentations } from '@opentelemetry/auto-instrumentations-web';
 import { registerInstrumentations } from '@opentelemetry/instrumentation';
 import { W3CTraceContextPropagator } from '@opentelemetry/core';
@@ -7,6 +7,7 @@ export const setupTracing = () => {
   const provider = new WebTracerProvider();
 
   // Register the provider
+  provider.addSpanProcessor(new SimpleSpanProcessor(new ConsoleSpanExporter()));
   provider.register({
     propagator: new W3CTraceContextPropagator(), // Ensures traceparent is sent via W3C format
   });

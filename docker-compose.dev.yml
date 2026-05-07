@@ -19,7 +19,7 @@ services:
     restart: unless-stopped
 
   authentication:
-    image: ghcr.io/neosofia/authentication:v0.5.0
+    image: ghcr.io/neosofia/authentication:v0.5.1
     build:
       context: ../authentication
     container_name: cdp-authentication
@@ -40,7 +40,7 @@ services:
       - ./.authentication.env:/app/.env:ro
 
   authentication-bootstrap:
-    image: ghcr.io/neosofia/authentication:v0.5.0
+    image: ghcr.io/neosofia/authentication:v0.5.1
     container_name: cdp-authentication-bootstrap
     working_dir: /app
     command: ["bash", "-c", "ENV_FILE=/tmp/.env ./scripts/setup-env.sh >/tmp/setup-env.log && cat /tmp/.env"]
@@ -63,7 +63,7 @@ services:
       retries: 5
 
   template-service:
-    image: ghcr.io/neosofia/service-template:v0.2.0
+    image: ghcr.io/neosofia/service-template:v0.2.1
     build:
       context: ../templates/python/service
     container_name: cdp-template-service
