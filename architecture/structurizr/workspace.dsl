@@ -183,7 +183,7 @@ workspace "Clinical Data Platform (CDP)" "HIPAA-compliant clinical data platform
         workOSBridge -> tokenIssuer "Pass validated claims for JWT issuance" "Internal"
         tokenIssuer -> jwksPublisher "Sign token with private key (public key cached by JWKS)" "Internal"
         machineCredentialIssuer -> tokenIssuer "Verify bcrypt secret, issue machine JWT" "Internal"
-        apiGateway -> tokenValidator "Validate inbound bearer token (GET /api/me)" "HTTPS"
+        apiGateway -> tokenValidator "Validate inbound bearer token (GET /api/token-inspect)" "HTTPS"
         apiGateway -> jwksPublisher "Fetch public key for local JWT validation (GET /.well-known/jwks.json, 1h cache)" "HTTPS"
 
         # Patient Service component relationships
