@@ -38,7 +38,7 @@ After generation, fill in these required values manually in `.authentication.env
 Once you have generated all your environment variables, you can bring up the whole platform locally with this command:
 
 ```bash
-docker compose -f docker-compose.dev.yml up -d
+docker compose -f docker-compose.dev.yml up ui 
 ```
 
 Then access the platform by starting at localhost:8014 for the authentication service and whatever other services your stack exposes.
