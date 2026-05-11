@@ -4,7 +4,7 @@ This document outlines how to retrieve, add, update, and style UI components in 
 
 ## Shared UI Registry
 
-We use a decentralized registry model based on [shadcn/ui](https://ui.shadcn.com/) rather than a monolithic NPM package. Our source of truth for component logic and structure lives in `templates/ui/registry/`. 
+We use a decentralized registry model based on [shadcn/ui](https://ui.shadcn.com/) rather than a monolithic NPM package. Our source of truth for component logic and structure lives in `templates/react/ui/registry/`. 
 
 This approach gives the CDP UI full local ownership of the component code (in `src/components/ui`), while standardizing the baseline primitives.
 
@@ -21,7 +21,7 @@ To add a new component to the CDP UI:
 
 ### Updating an Existing Component
 
-If the corporate component source changes in `templates/ui`:
+If the corporate component source changes in `templates/react/ui`:
 
 1. Re-run the `shadcn add` command with the `--overwrite` flag:
    ```bash
