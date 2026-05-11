@@ -14,7 +14,7 @@ To add a new component to the CDP UI:
 
 1. Use the `shadcn` CLI to pull the component from the corporate template registry (using the raw GitHub URL or local equivalent if configured):
    ```bash
-   npx shadcn add "https://raw.githubusercontent.com/Neosofia/templates/main/ui/registry/ui/<component-name>.json"
+   npx shadcn add "https://raw.githubusercontent.com/Neosofia/templates/main/react/ui/registry/ui/<component-name>.json"
    ```
 2. The CLI will insert the component into `src/components/ui/`.
 3. Check the component's internal dependencies (like `lucide-react` or `@radix-ui/react-*`) and ensure they are installed in `package.json`.
@@ -25,7 +25,7 @@ If the corporate component source changes in `templates/react/ui`:
 
 1. Re-run the `shadcn add` command with the `--overwrite` flag:
    ```bash
-   npx shadcn add "https://raw.githubusercontent.com/Neosofia/templates/main/ui/registry/ui/<component-name>.json" --overwrite
+   npx shadcn add "https://raw.githubusercontent.com/Neosofia/templates/main/react/ui/registry/ui/<component-name>.json" --overwrite
    ```
 2. Re-apply any CDP-specific dark theme or layout tweaks if they were overwritten (see Custom Styling below).
 
