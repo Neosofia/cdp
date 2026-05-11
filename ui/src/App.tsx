@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { setupTracing } from './otel';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -36,12 +36,19 @@ interface UserProfile {
   roles: string[];
 }
 
+interface JwtTokenData {
+  exp?: number;
+  'neosofia:roles'?: string[];
+  [key: string]: unknown;
+}
+
 export default function App() {
-  const [tokenInfo, setTokenInfo] = useState<{ raw: string, decoded: any } | null>(null);
+  const [tokenInfo, setTokenInfo] = useState<{ raw: string, decoded: JwtTokenData } | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [initializing, setInitializing] = useState(true);
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [testResult, setTestResult] = useState<{api: string, data: any, status: number} | null>(null);
+  const [testResult, setTestResult] = useState<{api: string, data: unknown, status: number} | null>(null);
+  const [entitlements, setEntitlements] = useState<Record<string, boolean>>({});
   const [activeRole, setActiveRole] = useState<string>('');
   const [selectedSection, setSelectedSection] = useState<string>('');
   const [selectedAction, setSelectedAction] = useState<string | null>(null);
@@ -54,6 +61,65 @@ export default function App() {
     setSelectedAction(action);
     callback();
   };
+
+  const fetchSessionData = useCallback(async (retries = 2) => {
+    for (let attempt = 0; attempt <= retries; attempt += 1) {
+      try {
+        if (attempt > 0) {
+          await new Promise((resolve) => setTimeout(resolve, 250));
+        }
+
+        // Step 1: exchange session cookie for platform JWT
+        const tokenRes = await fetch('/auth-api/api/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: 'grant_type=session'
+        });
+
+        if (!tokenRes.ok) throw new Error(`Token fetch failed: ${tokenRes.status}`);
+
+        const tokenData: LocalOauthToken = await tokenRes.json();
+        if (!tokenData.access_token) throw new Error('No access token in response');
+
+        const decoded = jwtDecode<JwtTokenData>(tokenData.access_token);
+        const newTokenInfo = { raw: tokenData.access_token, decoded };
+        const roles = decoded?.['neosofia:roles'] || [];
+        const newRole = roles.length > 0 ? roles[0] : '';
+
+        // Step 2: use the verified JWT to fetch profile — no session unseal on the server
+        const profileRes = await fetch('/auth-api/api/profile', {
+          headers: { 'Authorization': `Bearer ${tokenData.access_token}` },
+        });
+
+        const newProfile = profileRes.ok ? await profileRes.json() : null;
+
+        // Clear any pending refresh timer before scheduling a new one
+        if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+
+        // Token expiration is managed by a useEffect instead
+
+        // Single batch update — no intermediate render states
+        setTokenInfo(newTokenInfo);
+        setProfile(newProfile);
+        setActiveRole(newRole);
+        localStorage.setItem(
+          LOCAL_AUTH_KEY,
+          JSON.stringify({ profile: newProfile, activeRole: newRole })
+        );
+        return;
+      } catch (err) {
+        if (attempt === retries) {
+          console.error('Failed to fetch session data after retries', err);
+        }
+      }
+    }
+
+    // All retries failed — session is gone; show login button
+    setTokenInfo(null);
+    setProfile(null);
+    setActiveRole('');
+    localStorage.removeItem(LOCAL_AUTH_KEY);
+  }, []);
 
   const pingApi = async (url: string, label?: string) => {
     if (!tokenInfo) return;
@@ -70,10 +136,38 @@ export default function App() {
       }
       const data = await res.json();
       setTestResult({ api: label ?? url, data, status: res.status });
-    } catch (e: any) {
-      setTestResult({ api: label ?? url, data: e.message, status: 500 });
+    } catch (e: unknown) {
+      setTestResult({ api: label ?? url, data: e instanceof Error ? e.message : 'Unknown error', status: 500 });
     }
   };
+
+
+  // Fetch entitlements whenever the token or active role changes
+  useEffect(() => {
+    const fetchEntitlements = async () => {
+      if (!tokenInfo || !activeRole) {
+        setEntitlements({});
+        return;
+      }
+      try {
+        const res = await fetch('/capabilities-api/api/v1/capabilities', {
+          headers: {
+            'Authorization': `Bearer ${tokenInfo.raw}`,
+            'X-Active-Role': activeRole,
+          }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setEntitlements(data);
+        } else {
+          setEntitlements({});
+        }
+      } catch (e) {
+        console.error("Failed to fetch entitlements", e);
+      }
+    };
+    fetchEntitlements();
+  }, [tokenInfo, activeRole]);
 
   const openDebugTestPage = () => {
     setSelectedSection('Debug');
@@ -104,69 +198,19 @@ export default function App() {
     }
   };
 
-  const fetchSessionData = async (retries = 2) => {
-    for (let attempt = 0; attempt <= retries; attempt += 1) {
-      try {
-        if (attempt > 0) {
-          await new Promise((resolve) => setTimeout(resolve, 250));
-        }
 
-        // Step 1: exchange session cookie for platform JWT
-        const tokenRes = await fetch('/auth-api/api/token', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: 'grant_type=session'
-        });
-
-        if (!tokenRes.ok) throw new Error(`Token fetch failed: ${tokenRes.status}`);
-
-        const tokenData: LocalOauthToken = await tokenRes.json();
-        if (!tokenData.access_token) throw new Error('No access token in response');
-
-        const decoded: any = jwtDecode(tokenData.access_token);
-        const newTokenInfo = { raw: tokenData.access_token, decoded };
-        const roles = decoded?.['neosofia:roles'] || [];
-        const newRole = roles.length > 0 ? roles[0] : '';
-
-        // Step 2: use the verified JWT to fetch profile — no session unseal on the server
-        const profileRes = await fetch('/auth-api/api/profile', {
-          headers: { 'Authorization': `Bearer ${tokenData.access_token}` },
-        });
-
-        const newProfile = profileRes.ok ? await profileRes.json() : null;
-
-        // Clear any pending refresh timer before scheduling a new one
-        if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
-
-        // Schedule a proactive refresh 60s before token expiry
-        if (decoded.exp) {
-          const msUntilExpiry = decoded.exp * 1000 - Date.now();
-          const refreshIn = Math.max(msUntilExpiry - 60_000, 0);
-          refreshTimerRef.current = setTimeout(() => fetchSessionData(), refreshIn);
-        }
-
-        // Single batch update — no intermediate render states
-        setTokenInfo(newTokenInfo);
-        setProfile(newProfile);
-        setActiveRole(newRole);
-        localStorage.setItem(
-          LOCAL_AUTH_KEY,
-          JSON.stringify({ profile: newProfile, activeRole: newRole })
-        );
-        return;
-      } catch (err) {
-        if (attempt === retries) {
-          console.error('Failed to fetch session data after retries', err);
-        }
-      }
+  useEffect(() => {
+    if (tokenInfo?.decoded?.exp) {
+      const expirationTime = tokenInfo.decoded.exp * 1000;
+      const refreshIn = Math.max(expirationTime - Date.now() - 60_000, 0);
+      refreshTimerRef.current = setTimeout(() => {
+        fetchSessionData();
+      }, refreshIn);
     }
-
-    // All retries failed — session is gone; show login button
-    setTokenInfo(null);
-    setProfile(null);
-    setActiveRole('');
-    localStorage.removeItem(LOCAL_AUTH_KEY);
-  };
+    return () => {
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    };
+  }, [tokenInfo, fetchSessionData]);
 
   const handleLogout = async () => {
     // Clear the UI state immediately, then redirect browser to auth-service logout.
@@ -196,7 +240,7 @@ export default function App() {
     };
 
     initialize();
-  }, []);
+  }, [fetchSessionData]);
 
   const initials = `${profile?.first_name?.charAt(0) || ''}${profile?.last_name?.charAt(0) || ''}`.toUpperCase();
 
@@ -212,7 +256,7 @@ export default function App() {
           <div className="flex items-center gap-3 justify-end">
             <NavigationMenu className="hidden md:flex" viewport={false}>
               <NavigationMenuList className="gap-1">
-                <NavigationMenuItem>
+                {entitlements['ui:menu:debug'] && (<NavigationMenuItem>
                   <NavigationMenuTrigger className="bg-transparent text-slate-300 hover:text-white data-open:text-white">
                     Debug
                   </NavigationMenuTrigger>
@@ -221,8 +265,8 @@ export default function App() {
                       <Button onClick={openDebugTestPage} variant="ghost" className="w-full justify-start rounded-xl px-3 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-white">Test API endpoints</Button>
                     </div>
                   </NavigationMenuContent>
-                </NavigationMenuItem>
-                <NavigationMenuItem>
+                </NavigationMenuItem>)}
+                {entitlements['ui:menu:admin'] && (<NavigationMenuItem>
                   <NavigationMenuTrigger className="bg-transparent text-slate-300 hover:text-white data-open:text-white">
                     Admin
                   </NavigationMenuTrigger>
@@ -234,7 +278,7 @@ export default function App() {
                       <Button onClick={() => handleMenuAction('Admin', 'Manage machine tokens', () => setTestResult({ api: 'Admin: Manage machine tokens', data: 'Not implemented yet', status: 200 }))} variant="ghost" className="w-full justify-start rounded-xl px-3 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-white">Manage tokens</Button>
                     </div>
                   </NavigationMenuContent>
-                </NavigationMenuItem>
+                </NavigationMenuItem>)}
                 <NavigationMenuItem>
                   <NavigationMenuTrigger className="bg-transparent text-slate-300 hover:text-white data-open:text-white">
                     Patient

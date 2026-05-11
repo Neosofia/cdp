@@ -23,6 +23,11 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/auth-api/, '')
       },
+      '/capabilities-api': {
+        target: process.env.VITE_CAPABILITIES_API_URL || 'http://localhost:8019',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/capabilities-api/, '')
+      },
       '/template-api': {
         target: process.env.VITE_TEMPLATE_API_URL || 'http://localhost:8018',
         changeOrigin: true,
