@@ -2,7 +2,7 @@
 
 **Feature Branch**: `017-audit-infrastructure`
 **Created**: April 19, 2026
-**Status**: Draft — v1 scope is `cdp-audit` package only; Central Audit Service is stubbed for future
+**Status**: Draft — v1 scope is `cdp-audit` generator only; Central Audit Service is stubbed for future
 
 ---
 
@@ -10,7 +10,7 @@
 
 Every CDP service that persists mutable state must produce a tamper-evident, queryable audit trail as a platform-wide HIPAA and clinical-safety obligation. Two components deliver this:
 
-1. **`cdp-audit` shared library** *(v1 scope)* — An internal shared library that generates, at schema migration time, the audit tables, history views, composite indexes, and triggers that enforce the [before-image history table pattern](../../architecture/structurizr/decisions/0004-full-row-audit-history-over-sparse-deltas.md). Services depend on it as a build-time library; all generated schema objects live in each service's own database under that service's own migration history. There is no shared runtime dependency.
+1. **`cdp-audit` generator** *(v1 scope)* — A language-agnostic tool/generator that produces, at schema migration time, the SQL for audit tables, history views, composite indexes, and triggers that enforce the [before-image history table pattern](../../architecture/structurizr/decisions/0004-full-row-audit-history-over-sparse-deltas.md). Services depend on it as a migration-time utility; all generated schema objects live in each service's own database under that service's own framework-idiomatic migration history. There is no shared runtime dependency.
 
 2. **Central Audit Service** *(future / out of scope for v1)* — A read-side CDC consumer that aggregates audit events across service databases into a single queryable store for cross-service audit queries and auditor UI support. It has no authority over any service's schema and writes nothing back to service databases.
 
@@ -18,17 +18,17 @@ The split is intentional: `cdp-audit` ensures consistent schema generation today
 
 ---
 
-## Part 1: `cdp-audit` Python Package
+## Part 1: `cdp-audit` Schema Generator
 
 ### Purpose
 
-Hand-rolling audit tables, triggers, and views per service produces drift: subtle schema differences, inconsistent index names, forgotten `change_type` checks. The `cdp-audit` library provides a single authoritative implementation consumed by every service's schema migrations.
+Hand-rolling audit tables, triggers, and views per service produces drift: subtle schema differences, inconsistent index names, forgotten `change_type` checks. The `cdp-audit` generator provides a language-agnostic, single authoritative implementation consumed by every service's schema migrations.
 
-The library is a **build-time dependency only**. It runs at migration time (schema generation), not at request time. Each service database remains self-contained — the generated schema objects live in the service's own database and are tracked in the service's own migration history.
+The generator is a **migration-time tool only**. It produces raw, framework-agnostic SQL, ensuring that any service—whether built in Python, Rust, Rails, or otherwise—can execute the exact same authoritative audit triggers. Each service database remains self-contained — the generated schema objects live in the service's own database and are tracked in the service's own migration history.
 
 ### Contract
 
-The library exposes helpers to apply and reverse audit infrastructure for a named table. A caller specifies the table name and its primary key; the library generates all required schema objects in the correct dependency order. Corresponding tear-down helpers reverse each operation exactly, enabling safe migration rollback.
+The generator accepts a table definition (name, columns, types) and generates all required SQL statements in the correct dependency order. Corresponding tear-down templates reverse each operation exactly, enabling safe migration rollback.
 
 ### What the Library Generates
 
@@ -72,7 +72,7 @@ The view provides a complete ordered timeline of all states a row has passed thr
 | FR-006 | The update trigger MUST override `changed_at` to the current database time on every UPDATE, preventing application code from forging change timestamps |
 | FR-007 | The history view MUST present current and historical rows in a single ordered result set, sorted by primary key then change timestamp |
 | FR-008 | All tear-down operations MUST be exact inverses of their corresponding setup operations |
-| FR-009 | The library MUST be consumable as a local shared dependency without requiring an external package registry |
+| FR-009 | The generator MUST produce framework-agnostic, standard SQL DDL that can be executed by any target language |
 
 ### Security Requirements
 
@@ -91,7 +91,7 @@ The view provides a complete ordered timeline of all states a row has passed thr
 
 ### Adoption Path
 
-Services adopt `cdp-audit` when they write their first migration that introduces audit tables. Existing services that hand-rolled audit tables (e.g., `014-authentication-service`) should migrate to `cdp-audit`-generated schema in a follow-on migration once the library is stable, verified by comparing the generated schema against the hand-rolled schema.
+Services adopt `cdp-audit` when they write their first migration that introduces audit tables. Existing services that hand-rolled audit tables (e.g., `014-authentication-service`) should migrate to the `cdp-audit`-generated SQL in a follow-on migration once the tool is stable, verified by comparing the generated schema against the hand-rolled schema.
 
 ---
 

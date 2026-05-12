@@ -1,8 +1,9 @@
-x-auth-image: &auth_image ghcr.io/neosofia/authentication:v0.9.0
+x-auth-image: &auth_image ghcr.io/neosofia/authentication:v0.11.0
 
 services:
   authentication:
-    image: *auth_image
+    build:
+      context: ../authentication
     container_name: cdp-authentication
     env_file:
       - ./.authentication.env
@@ -22,7 +23,8 @@ services:
       - ./.authentication.env:/app/.env:ro
 
   authentication-bootstrap:
-    image: *auth_image
+    build:
+      context: ../authentication
     container_name: cdp-authentication-bootstrap
     profiles:
       - manual

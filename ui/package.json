@@ -17,6 +17,7 @@
     "@opentelemetry/auto-instrumentations-web": "^0.62.0",
     "@opentelemetry/context-zone-peer-dep": "^2.7.1",
     "@opentelemetry/core": "^2.7.1",
+    "@opentelemetry/instrumentation": "^0.217.0",
     "@opentelemetry/instrumentation-fetch": "^0.217.0",
     "@opentelemetry/sdk-trace-web": "^2.7.1",
     "@radix-ui/react-avatar": "^1.1.11",
