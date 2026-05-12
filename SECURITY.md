@@ -2,30 +2,20 @@
 
 Platform-wide security principles that apply to every service in the CDP platform. For service-specific detail, see each service's own `SECURITY.md`.
 
+For general SDLC and secure coding practices (including configuration, input validation, supply chain controls, and testing), see the [Neosofia SDLC Best Practices](https://neosofia.tech/resources/checklists/sdlc/).
+
 ---
 
-## PHI Containment
+## PHI Containment & Identity
 
-Enforced architecturally, not just by policy ([Constitution §I](architecture/constitution.md)):
+*See [Constitution §I: PHI Safety](architecture/constitution.md) for core principles regarding PHI encryption, BAA usage, de-identification, and logging.*
 
-- Raw messages with PHI exist only in the Chat Service database, encrypted at rest. No other service stores raw message content.
-- All AI inference involving raw patient content runs exclusively under a HIPAA BAA ([ADR-0002](architecture/structurizr/decisions/0002-use-bedrock-for-ai-inference.md)).
-- The Deidentification Pipeline is the only path through which message content reaches any downstream workload; quarantine-on-failure ensures no PHI escapes into the clean store.
-- The Bedrock AI Workbench operates in a completely isolated account with no production network access.
-- No PHI or PII appears in any log, metric, or error message across any service. Logs contain only opaque internal identifiers.
-
-## Identity and Access
-
-- We never implement our own credential storage, MFA, or password policy in any service. All human identity is delegated to a HIPAA-eligible identity provider ([ADR-0007](architecture/structurizr/decisions/0007-never-roll-your-own-authentication.md)).
-- Every inbound request is authenticated at the API Gateway before being forwarded to any service.
-- Access tokens are short-lived; machine-to-machine calls use narrow-scoped credentials that are explicitly rejected on user-facing endpoints.
-- Device push tokens are encrypted and never leave the Devices Service; all other services hold only an opaque device identifier.
-
-## HIPAA and Compliance
-
-- Every service that touches PHI emits a tamper-evident audit log on every create/read event ([ADR-0004](architecture/structurizr/decisions/0004-full-row-audit-history-over-sparse-deltas.md)).
-- Audit log retention is ≥ 6 years (HIPAA minimum) across all services.
-- SMS opt-out (TCPA STOP/START) is enforced at the SMS Service layer with permanent suppression.
+- **Data Locality:** Raw messages with PHI exist only in the Chat Service database, encrypted at rest. No other service stores raw message content.
+- **De-identification Pipeline:** The pipeline is the exclusive path through which message content reaches any downstream workload; quarantine-on-failure ensures no PHI escapes into the clean store.
+- **Isolated Environments:** The Bedrock AI Workbench operates in a completely isolated account with no production network access. 
+- **Identity Delegation:** We never implement our own credential storage, MFA, or password policy. All human identity is delegated to a HIPAA-eligible identity provider ([ADR-0007](architecture/structurizr/decisions/0007-never-roll-your-own-authentication.md)).
+- **Short-lived Access:** Access tokens are short-lived; machine-to-machine calls use narrow-scoped credentials that are explicitly rejected on user-facing endpoints.
+- **Device Anonymity:** Device push tokens are encrypted and never leave the Devices Service; all other services hold only an opaque device identifier.
 
 ## Network and Transport
 
@@ -33,16 +23,13 @@ Enforced architecturally, not just by policy ([Constitution §I](architecture/co
 - Services are deployed in a private network. No data store is directly reachable from outside the platform boundary.
 - An independent third-party SIEM scans platform logs for PHI/PII leakage continuously.
 
-## Observability and Audit
+## HIPAA, Observability & Audit
 
-Governed by [Constitution §IV](architecture/constitution.md):
+*See [Constitution §IV: Reliability & Observability](architecture/constitution.md) for overarching metrics and SLA requirements.*
 
-- Every security-relevant event across all services (authentication, access, escalation, session lifecycle) is emitted as structured JSON validated against a shared schema ([ADR-0009](architecture/structurizr/decisions/0009-structured-json-logging-with-schema-validation.md)). This enables consistent SIEM correlation rules across the platform without per-service instrumentation.
-
-## Supply Chain
-
-- Every service commits its dependency lockfile with cryptographic hashes. Builds use frozen installs to block uncontrolled upgrades.
-- Container images are scanned for known vulnerabilities in CI; critical and high findings fail the build before any deployment.
+- **Audit Logging:** Every service that touches PHI emits a tamper-evident audit log on every create/read event ([ADR-0004](architecture/structurizr/decisions/0004-full-row-audit-history-over-sparse-deltas.md)). Audit log retention is ≥ 6 years (HIPAA minimum) across all services.
+- **Security Events:** Every security-relevant event (authentication, access, escalation, session lifecycle) is emitted as structured JSON validated against a shared schema ([ADR-0009](architecture/structurizr/decisions/0009-structured-json-logging-with-schema-validation.md)).
+- **Compliance:** SMS opt-out (TCPA STOP/START) is enforced at the SMS Service layer with permanent suppression.
 
 ---
 

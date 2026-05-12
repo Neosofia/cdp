@@ -1,73 +1,20 @@
-# React + TypeScript + Vite
+# CDP UI
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This directory contains the UI service for the Clinical Data Platform. It exists to provide a shared web interface for the CDP system and to keep the frontend experience consistent across the platform.
 
-Currently, two official plugins are available:
+## Who this is for
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- Frontend developers working on CDP visual and interaction patterns
+- Product and design teams who want a single source of truth for CDP UI behavior
+- Operators and engineers who need to run or support the CDP user-facing application locally or in a cloud environment
 
-## React Compiler
+## Why it exists
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+The UI service is the place where CDP user-facing components, theme styles, and application shell come together. It is not a generic template repository; it is specifically designed to support the CDP application and the people who build, maintain, and operate it.
 
-## Expanding the ESLint configuration
+## Useful links
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+- `../OPERATIONS.md` — primary guidance for operating the CDP stack, including local development and cloud deployment patterns
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+If you need service-specific instructions for running this UI locally or in the cloud, start with the CDP repository operations document rather than changing this service README.
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
-
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```

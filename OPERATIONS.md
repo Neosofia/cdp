@@ -32,16 +32,15 @@ After generation, fill in these required values manually in `.authentication.env
 - `WORKOS_API_KEY`
 
 
-
 ## Start the Full Stack
 
 Once you have generated all your environment variables, you can bring up the whole platform locally with this command:
 
 ```bash
-docker compose -f docker-compose.dev.yml up ui 
+docker compose -f docker-compose.dev.yml up -d
 ```
 
-Then access the platform by starting at localhost:8014 for the authentication service and whatever other services your stack exposes.
+Then access the platform by starting at localhost:5173 for the UI, and whatever other services your stack exposes (e.g. Authentication at localhost:8014).
 
 
 

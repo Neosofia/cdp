@@ -1,15 +1,8 @@
-services:
-  swagger-ui:
-    image: swaggerapi/swagger-ui
-    container_name: cdp-swagger-ui
-    ports:
-      - "8091:8080"
-    environment:
-      SWAGGER_JSON: https://raw.githubusercontent.com/Neosofia/authentication/main/openapi.json
-    restart: unless-stopped
+x-auth-image: &auth_image ghcr.io/neosofia/authentication:v0.9.0
 
+services:
   authentication:
-    image: ghcr.io/neosofia/authentication:v0.9.0
+    image: *auth_image
     container_name: cdp-authentication
     env_file:
       - ./.authentication.env
@@ -29,7 +22,7 @@ services:
       - ./.authentication.env:/app/.env:ro
 
   authentication-bootstrap:
-    image: ghcr.io/neosofia/authentication:v0.9.0
+    image: *auth_image
     container_name: cdp-authentication-bootstrap
     profiles:
       - manual
