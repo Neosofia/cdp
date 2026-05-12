@@ -121,7 +121,7 @@ workspace "Clinical Data Platform (CDP)" "HIPAA-compliant clinical data platform
                 workOSBridge = component "WorkOS Claims Extractor" "Extracts identity, user type, roles, and tenant from WorkOS assertion; validates session authenticity." "Python" "Component"
                 tokenIssuer = component "Token Issuer" "Issues short-lived RS256 platform JWTs with identity, user type, roles, and tenant claims (15min default TTL for humans, 5min for services)." "Python" "Component"
                 tokenValidator = component "Token Validator" "Validates bearer token JWT, verifies RS256 signature, returns decoded claims." "Python" "Component"
-                machineCredentialIssuer = component "Machine Credential Issuer" "Issues short-lived service-to-service JWTs via OAuth2 client_credentials grant with bcrypt secret verification (5min TTL)." "Python" "Component"
+                machineCredentialIssuer = component "Service Credential Issuer" "Issues short-lived service-to-service JWTs via OAuth2 client_credentials grant with bcrypt secret verification (5min TTL)." "Python" "Component"
                 jwksPublisher = component "JWKS Publisher" "Publishes RSA public key in JWK Set format (RFC 7517); 1-hour cache enables distributed JWT validation without Auth Service in critical path." "Python" "Component"
             }
             apiGateway = container "API Gateway" "Unified API entry point. Included in view, but per-service routing links are omitted for clarity." "AWS API Gateway" "Gateway"

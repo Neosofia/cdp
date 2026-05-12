@@ -1,4 +1,4 @@
-x-auth-image: &auth_image ghcr.io/neosofia/authentication:v0.11.0
+x-auth-image: &auth_image ghcr.io/neosofia/authentication:v0.13.0
 
 services:
   authentication:
