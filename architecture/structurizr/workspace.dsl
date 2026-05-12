@@ -108,7 +108,7 @@ workspace "Clinical Data Platform (CDP)" "HIPAA-compliant clinical data platform
 
         platformCore = softwareSystem "Platform Core" "Real-time chat ingestion, platform authentication, clinical alert escalation, and the unified API gateway." {
             !docs docs
-            !decisions decisions
+            !adrs ../adrs
             chatService = container "Chat Service" "Raw chat ingestion and storage, chat interactions, and care-episode linkage." "Python / FastAPI + PostgreSQL" "Service" {
                 messageIngestionAPI = component "Message Ingestion API" "Accepts inbound messages from app, web, and SMS channels with durable persistence." "Python" "Component"
                 chatInteractionManager = component "Chat Interaction Manager" "Creates and manages ChatInteraction sessions linked to care episodes." "Python" "Component"
