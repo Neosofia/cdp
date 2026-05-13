@@ -42,6 +42,8 @@ interface JwtTokenData {
   [key: string]: unknown;
 }
 
+let initialSessionFetch: Promise<void> | null = null;
+
 export default function App() {
   const [tokenInfo, setTokenInfo] = useState<{ raw: string, decoded: JwtTokenData } | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -227,16 +229,31 @@ export default function App() {
 
   useEffect(() => {
     const initialize = async () => {
-      const justLoggedOut = localStorage.getItem(LOGOUT_FLAG);
-      if (justLoggedOut) {
-        localStorage.removeItem(LOGOUT_FLAG);
+      if (initialSessionFetch) {
+        await initialSessionFetch;
         setInitializing(false);
         return;
       }
 
-      restoreLocalAuth();
-      await fetchSessionData();
-      setInitializing(false);
+      initialSessionFetch = (async () => {
+        const justLoggedOut = localStorage.getItem(LOGOUT_FLAG);
+        if (justLoggedOut) {
+          localStorage.removeItem(LOGOUT_FLAG);
+          return;
+        }
+
+        restoreLocalAuth();
+        await fetchSessionData();
+      })();
+
+      try {
+        await initialSessionFetch;
+      } catch (error) {
+        initialSessionFetch = null;
+        throw error;
+      } finally {
+        setInitializing(false);
+      }
     };
 
     initialize();
