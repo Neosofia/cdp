@@ -1,9 +1,8 @@
-x-auth-image: &auth_image ghcr.io/neosofia/authentication:v0.13.0
+x-auth-image: &auth_image ghcr.io/neosofia/authentication:v0.14.0
 
 services:
   authentication:
-    build:
-      context: ../authentication
+    image: *auth_image
     container_name: cdp-authentication
     env_file:
       - ./.authentication.env
@@ -23,8 +22,7 @@ services:
       - ./.authentication.env:/app/.env:ro
 
   authentication-bootstrap:
-    build:
-      context: ../authentication
+    image: *auth_image
     container_name: cdp-authentication-bootstrap
     profiles:
       - manual
@@ -49,20 +47,20 @@ services:
       retries: 5
 
   capabilities-service:
-    image: ghcr.io/neosofia/capabilities-service:v0.1.0
+    image: ghcr.io/neosofia/capabilities-service:v0.1.1
     container_name: cdp-capabilities-service
     env_file:
-      - ../capabilities/.env.example
+      - ./.capabilities.env
     environment:
       ENV: development
     ports:
       - "8019:8019"
 
   template-service:
-    image: ghcr.io/neosofia/service-template:v0.4.0
+    image: ghcr.io/neosofia/service-template:v0.4.1
     container_name: cdp-template-service
     env_file:
-      - ../templates/python/service/.env.example
+      - ./.template.env
     environment:
       ENV: development
     ports:
