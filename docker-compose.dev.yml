@@ -57,7 +57,7 @@ services:
       - "8019:8019"
 
   python-template:
-    image: ghcr.io/neosofia/python-template:v0.4.1
+    image: ghcr.io/neosofia/python-template:v0.4.2
     container_name: cdp-python-template
     env_file:
       - ./.template.env
