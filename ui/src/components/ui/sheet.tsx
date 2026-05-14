@@ -67,9 +67,12 @@ function SheetContent({
       >
         {children}
         {showCloseButton && (
-          // @ts-expect-error Types for radix-ui 'render' prop are missing in current version
-          <SheetPrimitive.Close data-slot="sheet-close" render={<Button variant="ghost" className="absolute top-3 right-3" size="icon-sm" />}><XIcon
-                                /><span className="sr-only">Close</span></SheetPrimitive.Close>
+          <SheetPrimitive.Close asChild>
+            <Button variant="ghost" className="absolute top-3 right-3" size="icon-sm">
+              <XIcon className="size-4" />
+              <span className="sr-only">Close</span>
+            </Button>
+          </SheetPrimitive.Close>
         )}
       </SheetPrimitive.Content>
     </SheetPortal>

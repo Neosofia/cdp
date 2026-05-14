@@ -9,6 +9,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Breadcrumb, BreadcrumbList, BreadcrumbItem, BreadcrumbLink, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb';
 import { jwtDecode } from 'jwt-decode';
 import { ShieldCheckIcon as Shield, ChartBarIcon as Activity, ArrowRightOnRectangleIcon as LogOut, BuildingOfficeIcon as Building } from '@heroicons/react/24/outline';
+import ServiceManagement from '@/components/ServiceManagement';
 import logo from './assets/Neosofia.png';
 
 // Auth base URL for browser navigations (login/logout redirects).
@@ -287,12 +288,9 @@ export default function App() {
                   <NavigationMenuTrigger className="bg-transparent text-slate-300 hover:text-white data-open:text-white">
                     Admin
                   </NavigationMenuTrigger>
-                  <NavigationMenuContent className="min-w-65 rounded-2xl border border-white/10 bg-slate-950 text-slate-300 p-2 shadow-2xl shadow-black/40">
+                  <NavigationMenuContent className="min-w-48 rounded-2xl border border-white/10 bg-slate-950 text-slate-300 p-2 shadow-2xl shadow-black/40">
                     <div className="space-y-1">
-                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider px-3 py-2">Machine tokens</p>
-                      <Button onClick={() => handleMenuAction('Admin', 'Create machine token', () => setTestResult({ api: 'Admin: Create machine token', data: 'Not implemented yet', status: 200 }))} variant="ghost" className="w-full justify-start rounded-xl px-3 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-white">Create token</Button>
-                      <Button onClick={() => handleMenuAction('Admin', 'List machine tokens', () => setTestResult({ api: 'Admin: List machine tokens', data: 'Not implemented yet', status: 200 }))} variant="ghost" className="w-full justify-start rounded-xl px-3 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-white">List tokens</Button>
-                      <Button onClick={() => handleMenuAction('Admin', 'Manage machine tokens', () => setTestResult({ api: 'Admin: Manage machine tokens', data: 'Not implemented yet', status: 200 }))} variant="ghost" className="w-full justify-start rounded-xl px-3 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-white">Manage tokens</Button>
+                      <Button onClick={() => handleMenuAction('Admin', 'Services', () => {})} variant="ghost" className="w-full justify-start rounded-xl px-3 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-white">Services</Button>
                     </div>
                   </NavigationMenuContent>
                 </NavigationMenuItem>)}
@@ -455,6 +453,11 @@ export default function App() {
         )}
         {tokenInfo && (
           <div className="grid gap-6 md:grid-cols-2">
+            {selectedSection === 'Admin' && selectedAction === 'Services' ? (
+              <div className="col-span-2">
+                <ServiceManagement token={tokenInfo.raw} activeRole={activeRole} />
+              </div>
+            ) : (
             <Card className="border-border shadow-sm col-span-2 gap-0 py-0">
               <CardHeader className="bg-slate-800/60 border-b border-slate-700/60 py-4">
                 <CardTitle className="text-lg flex items-center gap-2">
@@ -499,6 +502,7 @@ export default function App() {
                 )}
               </CardContent>
             </Card>
+            )}
 
           </div>
         )}
