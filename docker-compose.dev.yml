@@ -2,7 +2,10 @@ x-auth-image: &auth_image ghcr.io/neosofia/authentication:v0.17.0
 
 services:
   authentication:
-    image: *auth_image
+    build:
+      context: ../authentication
+      dockerfile: Dockerfile
+    image: authentication:local
     container_name: cdp-authentication
     env_file:
       - ./.authentication.env
@@ -12,7 +15,8 @@ services:
       AWS_SECRET_ACCESS_KEY: test
       AWS_REGION: us-east-1
       FRONTEND_URL: http://localhost:5173
-      DATABASE_URL: postgresql+psycopg://cdp:dev_only@authentication-postgres:5432/cdp_authentication
+      MIGRATION_DATABASE_URL: postgresql+psycopg://cdp:dev_only@authentication-postgres:5432/cdp_authentication
+      DATABASE_URL: postgresql+psycopg://app:dev_only_app@authentication-postgres:5432/cdp_authentication
     ports:
       - "8014:8014"
     depends_on:
@@ -20,6 +24,7 @@ services:
         condition: service_healthy
     volumes:
       - ./.authentication.env:/app/.env:ro
+      - ../authentication/src:/app/src:ro
     healthcheck:
       test: ["CMD-SHELL", "/app/.venv/bin/python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:8014/health', timeout=3)\""]
       interval: 10s
@@ -28,7 +33,10 @@ services:
       start_period: 15s
 
   authentication-bootstrap:
-    image: *auth_image
+    build:
+      context: ../authentication
+      dockerfile: Dockerfile
+    image: authentication:local
     container_name: cdp-authentication-bootstrap
     profiles:
       - manual
