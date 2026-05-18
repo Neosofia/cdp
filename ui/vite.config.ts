@@ -16,23 +16,6 @@ export default defineConfig({
   ],
   server: {
     host: '0.0.0.0', // Listen on all network interfaces
-    port: 5173,
-    proxy: {
-      '/auth-api': {
-        target: process.env.VITE_AUTH_API_URL || 'http://localhost:8014',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/auth-api/, '')
-      },
-      '/capabilities-api': {
-        target: process.env.VITE_CAPABILITIES_API_URL || 'http://localhost:8019',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/capabilities-api/, '')
-      },
-      '/template-api': {
-        target: process.env.VITE_TEMPLATE_API_URL || 'http://localhost:8018',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/template-api/, '')
-      }
-    }
+    port: 5173
   }
 })

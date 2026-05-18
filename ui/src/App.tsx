@@ -13,9 +13,8 @@ import ServiceManagement from '@/components/ServiceManagement';
 import logo from './assets/Neosofia.png';
 
 // Auth base URL for browser navigations (login/logout redirects).
-// In dev this points directly at the auth service; in production it is
-// the same origin routed via Traefik's /auth-api prefix.
-const AUTH_BASE = import.meta.env.VITE_AUTH_BASE_URL ?? '/auth-api';
+// We use a cross-origin explicit URL for both local dev and production.
+const AUTH_BASE = import.meta.env.VITE_AUTH_BASE_URL ?? 'http://localhost:8014';
 const LOCAL_AUTH_KEY = 'cdp-ui-auth';
 const LOGOUT_FLAG = 'cdp-ui-just-logged-out';
 
@@ -66,7 +65,7 @@ export default function App() {
   };
 
   const fetchSessionData = useCallback(async (retries = 2) => {
-    const AUTH_API = import.meta.env.VITE_AUTH_API_URL ?? '/auth-api';
+    const AUTH_API = import.meta.env.VITE_AUTH_API_URL ?? 'http://localhost:8014';
     for (let attempt = 0; attempt <= retries; attempt += 1) {
       try {
         if (attempt > 0) {
@@ -77,10 +76,17 @@ export default function App() {
         const tokenRes = await fetch(`${AUTH_API}/api/token`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: 'grant_type=session'
+          body: 'grant_type=session',
+          credentials: 'include'
         });
 
-        if (!tokenRes.ok) throw new Error(`Token fetch failed: ${tokenRes.status}`);
+        if (!tokenRes.ok) {
+          if (tokenRes.status === 401) {
+            // Unauthenticated (no session cookie) — do not retry, just fail fast
+            throw Object.assign(new Error('Unauthenticated'), { isAuthError: true });
+          }
+          throw new Error(`Token fetch failed: ${tokenRes.status}`);
+        }
 
         const tokenData: LocalOauthToken = await tokenRes.json();
         if (!tokenData.access_token) throw new Error('No access token in response');
@@ -112,6 +118,10 @@ export default function App() {
         );
         return;
       } catch (err) {
+        if (err && typeof err === 'object' && 'isAuthError' in err) {
+          // Break cleanly without retrying if it's a known auth failure
+          break;
+        }
         if (attempt === retries) {
           console.error('Failed to fetch session data after retries', err);
         }
@@ -149,7 +159,7 @@ export default function App() {
   // Fetch entitlements whenever the token or active role changes
   useEffect(() => {
     const fetchEntitlements = async () => {
-      const CAPABILITIES_API = import.meta.env.VITE_CAPABILITIES_API_URL ?? '/capabilities-api';
+      const CAPABILITIES_API = import.meta.env.VITE_CAPABILITIES_API_URL ?? 'http://localhost:8019';
       if (!tokenInfo?.raw) {
         setEntitlements({});
         return;
@@ -477,9 +487,9 @@ export default function App() {
                     </div>
 
                     <div className="mb-6 grid gap-3 md:grid-cols-3">
-                      <Button onClick={() => runDebugTest('Profile', '/auth-api/api/profile')} variant="outline" size="lg" className="w-full border-slate-600 bg-slate-800 text-slate-100 hover:bg-slate-700 hover:text-white">Profile</Button>
-                      <Button onClick={() => runDebugTest('Token Inspect', '/auth-api/api/token-inspect')} variant="outline" size="lg" className="w-full border-slate-600 bg-slate-800 text-slate-100 hover:bg-slate-700 hover:text-white">Token Inspect</Button>
-                      <Button onClick={() => runDebugTest('Documents /d1', '/template-api/api/v1/documents/d1')} variant="outline" size="lg" className="w-full border-slate-600 bg-slate-800 text-slate-100 hover:bg-slate-700 hover:text-white">Documents /d1</Button>
+                      <Button onClick={() => runDebugTest('Profile', `${import.meta.env.VITE_AUTH_API_URL ?? 'http://localhost:8014'}/api/profile`)} variant="outline" size="lg" className="w-full border-slate-600 bg-slate-800 text-slate-100 hover:bg-slate-700 hover:text-white">Profile</Button>
+                      <Button onClick={() => runDebugTest('Token Inspect', `${import.meta.env.VITE_AUTH_API_URL ?? 'http://localhost:8014'}/api/token-inspect`)} variant="outline" size="lg" className="w-full border-slate-600 bg-slate-800 text-slate-100 hover:bg-slate-700 hover:text-white">Token Inspect</Button>
+                      <Button onClick={() => runDebugTest('Documents /d1', `${import.meta.env.VITE_TEMPLATE_API_URL ?? 'http://localhost:8018'}/api/v1/documents/d1`)} variant="outline" size="lg" className="w-full border-slate-600 bg-slate-800 text-slate-100 hover:bg-slate-700 hover:text-white">Documents /d1</Button>
                     </div>
                   </>
                 ) : (
