@@ -110,6 +110,29 @@
             include *
         }
 
+        dynamic chatService "LocalAuthorizationFlow" {
+            title "Authorization Process Flow (Cedar & Middleware)"
+
+            1: patientChatApp -> messageIngestionAPI "HTTP POST /api/v1/messages (Bearer JWT)"
+            2: messageIngestionAPI -> authzMiddleware "Delegate access control check with requested action and resource"
+            3: authzMiddleware -> localPolicies "Read Cedar policies (if not cached)"
+            4: localPolicies -> authzMiddleware "Return policy bundle"
+            5: authzMiddleware -> authzMiddleware "Evaluate request (principal, action, resource) via local Cedar engine"
+            6: authzMiddleware -> messageIngestionAPI "Return Allow decision"
+            7: messageIngestionAPI -> chatInteractionManager "Process request (Create or resume chat interaction)"
+        }
+        dynamic patientService "DatabaseAuditFlow" {
+            title "Audit & Immutability Process Flow (PostgreSQL Templates)"
+
+            1: clinicianApp -> patientRecordStore "HTTP PUT /api/v1/patients/{uuid} (Bearer JWT)"
+            2: patientRecordStore -> patientDatabase "BEGIN TRANSACTION"
+            3: patientRecordStore -> patientDatabase "UPDATE patient_records SET status = 'inactive', changed_by = 'clinician-uuid' WHERE patient_uuid = '...'
+            3a: patientRecordStore -> patientDatabase "(optional) continue with more UPDATE clauses, e.g. updated_at = now(), notes = '...'"
+            4: patientDatabase -> patientDatabase "Trigger: Update changed_at to now() and write before-image to _audit table (Who & When); uses SQL templates from https://github.com/Neosofia/templates/tree/main/sql/audit"
+            5: patientRecordStore -> patientDatabase "COMMIT"
+            6: patientDatabase -> patientRecordStore "Return success"
+            7: patientRecordStore -> clinicianApp "Return 200 OK"
+        }
         dynamic platformCore "ClinicianAlertFlow" {
             title "Clinician Alert and Chat Intercept - Process Flow"
 
@@ -122,6 +145,18 @@
             clinician -> clinicianApp "Open escalated session"
             clinicianApp -> chatService "Read transcript and send clinician reply"
             chatService -> patientChatApp "Deliver clinician reply to patient"
+        }
+
+        dynamic platformCore "WorkOSLoginFlow" {
+            title "Authentication - Process Flow"
+
+            clinician -> clinicianApp "Click Log in"
+            clinicianApp -> authService "Start WorkOS login (GET /login)"
+            authService -> workOS "Redirect browser to WorkOS AuthKit"
+            workOS -> authService "Return authorization code and state to /callback"
+            authService -> clinicianApp "Redirect browser back to the UI root with a sealed session cookie"
+            clinicianApp -> authService "Exchange sealed session cookie for platform JWT (POST /api/token, grant_type=session)"
+            authService -> clinicianApp "Return platform JWT to the UI"
         }
 
         dynamic platformCore "PatientChatFlow" {
@@ -147,6 +182,15 @@
             18: bedrockService -> aiRiskAgent "Return risk score"
             19: aiRiskAgent -> notificationService "Escalate on high-risk outcome"
             20: notificationService -> pagerDuty "Create incident for unclaimed alert"
+        }
+
+        dynamic platformCore "ServiceTokenFlow" {
+            title "App (Service) Token Issuance and Validation"
+
+            1: chatService -> authService "Request machine JWT (POST /api/token grant_type=client_credentials)"
+            2: authService -> chatService "Return machine JWT"
+            3: chatService -> devicesService "Call device registry API with Bearer JWT"
+            4: devicesService -> authService "Validate JWT signature and decode claims via Auth Service JWKS"
         }
 
         styles {

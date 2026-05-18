@@ -62,6 +62,7 @@ workspace "Clinical Data Platform (CDP)" "HIPAA-compliant clinical data platform
                 registrationHandler = component "Registration Handler" "Processes invite-gated patient registration with duplicate detection and care episode association." "Python" "Component"
                 patientRecordStore = component "Patient Record Store" "Create and read PII/PHI patient records with atomic audit logging." "Python" "Component"
                 patientSearch = component "Patient Search" "Name and identifier search for authenticated clinicians." "Python" "Component"
+                patientDatabase = component "Patient Database" "PostgreSQL 18. Enforces atomic full-row snapshots for all updates and blocks hard deletes using triggers." "PostgreSQL" "Database,Component"
             }
             careEpisodeService = container "Care Episode Service" "Creates and manages procedure-scoped care episodes and active episode lookup." "Python / FastAPI" "Service" {
                 inviteCreator = component "Invite & Episode Creator" "Atomically creates a care episode and an invite token on clinician request." "Python" "Component"
@@ -106,10 +107,12 @@ workspace "Clinical Data Platform (CDP)" "HIPAA-compliant clinical data platform
         # Platform Core — chat ingestion, authentication, API gateway
         # ---------------------------------------------------------------------------
 
-        platformCore = softwareSystem "Platform Core" "Real-time chat ingestion, platform authentication, clinical alert escalation, and the unified API gateway." {
+        platformCore = softwareSystem "Platform Core" "Real-time chat ingestion, platform authentication, and clinical alert escalation." {
             !docs docs
             !adrs ../adrs
             chatService = container "Chat Service" "Raw chat ingestion and storage, chat interactions, and care-episode linkage." "Python / FastAPI + PostgreSQL" "Service" {
+                authzMiddleware = component "Authorization Middleware" "Interrogates caller identity and evaluates requested action against local Cedar policies via authorization-in-the-middle SDK." "Python" "Component"
+                localPolicies = component "Cedar Policy Files" "Service-owned policy bundle (.cedar) loaded from the filesystem." "Filesystem" "Component,Configuration"
                 messageIngestionAPI = component "Message Ingestion API" "Accepts inbound messages from app, web, and SMS channels with durable persistence." "Python" "Component"
                 chatInteractionManager = component "Chat Interaction Manager" "Creates and manages ChatInteraction sessions linked to care episodes." "Python" "Component"
                 messageStreaming = component "Message Streaming" "Streams AI and clinician replies to patients via WebSocket/SSE." "Python" "Component"
@@ -124,7 +127,6 @@ workspace "Clinical Data Platform (CDP)" "HIPAA-compliant clinical data platform
                 machineCredentialIssuer = component "Service Credential Issuer" "Issues short-lived service-to-service JWTs via OAuth2 client_credentials grant with bcrypt secret verification (5min TTL)." "Python" "Component"
                 jwksPublisher = component "JWKS Publisher" "Publishes RSA public key in JWK Set format (RFC 7517); 1-hour cache enables distributed JWT validation without Auth Service in critical path." "Python" "Component"
             }
-            apiGateway = container "API Gateway" "Unified API entry point. Included in view, but per-service routing links are omitted for clarity." "AWS API Gateway" "Gateway"
             notificationService = container "Notification Service" "Receives high-risk alerts, runs early-intervention window, escalates unclaimed alerts." "Python / FastAPI" "Service" {
                 alertReceiver = component "Alert Receiver" "Accepts structured escalation events from the AI Risk Agent and validates payloads." "Python" "Component"
                 earlyInterventionWindow = component "Early Intervention Window" "Holds alert for 60 seconds, publishes to clinician alert queue, and tracks self-assignment." "Python" "Component"
@@ -183,13 +185,17 @@ workspace "Clinical Data Platform (CDP)" "HIPAA-compliant clinical data platform
         workOSBridge -> tokenIssuer "Pass validated claims for JWT issuance" "Internal"
         tokenIssuer -> jwksPublisher "Sign token with private key (public key cached by JWKS)" "Internal"
         machineCredentialIssuer -> tokenIssuer "Verify bcrypt secret, issue machine JWT" "Internal"
-        apiGateway -> tokenValidator "Validate inbound bearer token (GET /api/token-inspect)" "HTTPS"
-        apiGateway -> jwksPublisher "Fetch public key for local JWT validation (GET /.well-known/jwks.json, 1h cache)" "HTTPS"
+
+        chatService -> authService "Request machine JWT for service authentication" "HTTPS"
+        chatService -> devicesService "Call device registry API with Bearer JWT" "HTTPS"
+        devicesService -> authService "Validate service JWT via Auth Service JWKS" "HTTPS"
 
         # Patient Service component relationships
         registrationHandler -> activeEpisodeLookup "Confirm patient-to-episode association on registration" "HTTPS"
         alertDetail -> patientSearch "Search patients by name or identifier" "HTTPS"
         alertDetail -> patientRecordStore "Read patient record" "HTTPS"
+        patientRecordStore -> patientDatabase "Reads/Writes with implicit Who (jwt_uid variable) and What (app data) context" "SQL"
+        patientDatabase -> patientDatabase "Execute internal triggers for immutable audit logging" "PL/pgSQL"
 
         # Care Episode Service component relationships
         inviteCreator -> patientRecordStore "Verify patient record exists before creating invite" "HTTPS"
@@ -208,6 +214,9 @@ workspace "Clinical Data Platform (CDP)" "HIPAA-compliant clinical data platform
         pagerDutyDispatcher -> pagerDuty "Create incident for unclaimed alert" "PagerDuty Events API"
 
         # Chat Service component relationships
+        messageIngestionAPI -> authzMiddleware "Delegate access control check" "Internal"
+        authzMiddleware -> authzMiddleware "Evaluate request via local Cedar engine" "Internal"
+        authzMiddleware -> localPolicies "Read Cedar policies (if not cached)" "Filesystem / Internal"
         messageIngestionAPI -> chatInteractionManager "Create or resume chat interaction" "Internal"
         messageIngestionAPI -> riskEventPublisher "Trigger risk evaluation" "Internal"
         chatInteractionManager -> activeEpisodeLookup "Lookup active care episode" "HTTPS"
@@ -264,6 +273,10 @@ workspace "Clinical Data Platform (CDP)" "HIPAA-compliant clinical data platform
     }
 
     views {
+
+        properties {
+            "structurizr.metadata" "false"
+        }
 
         !include workspace-views.dsl
 

@@ -8,7 +8,7 @@ Accepted — implemented in Authentication Service (014)
 
 ## Context
 
-Constitution §X mandates operational observability. To enable this, logs must be:
+Constitution §IV mandates operational observability. To enable this, logs must be:
 
 1. **Machine-readable** — so monitoring systems, log aggregators (ELK, Datadog), and observability platforms can parse them programmatically
 2. **Validated** — so log consumers don't encounter malformed entries, unexpected fields, or type mismatches
@@ -41,7 +41,7 @@ TBD: Need to create logging plugin for consistency across services. For now see 
 
 ## References
 
-- Constitution §X — Operational Observability
+- Constitution §IV — Operational Observability
 - Shared Schemas — [schemas/README.md](../../schemas/README.md)
 - Log Schema — [schemas/log.json](../../schemas/log.json)
 - Auth Service implementation — [src/logging_config.py](../../services/authentication/src/logging_config.py), [tests/contract/test_api_contract.py](../../services/authentication/tests/contract/test_api_contract.py)

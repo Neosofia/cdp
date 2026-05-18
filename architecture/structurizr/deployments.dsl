@@ -120,11 +120,6 @@
                 }
             }
 
-            apigw = deploymentNode "API Gateway" "Managed API entry point with WAF" "AWS API Gateway v2 + AWS WAF" {
-                tags "AwsGateway"
-                gwInst = containerInstance apiGateway
-            }
-
             vpc = deploymentNode "VPC" "Isolated private network" "AWS VPC" {
                 tags "AwsVpc"
 
@@ -149,9 +144,9 @@
                         }
                     }
 
-                    rds = deploymentNode "RDS" "Multi-AZ, encrypted at rest" "AWS RDS PostgreSQL 16" {
+                    rds = deploymentNode "RDS" "Multi-AZ, encrypted at rest" "AWS RDS PostgreSQL 18" {
                         tags "AwsDatabase"
-                        db = infrastructureNode "auth-db" "Authentication service database" "PostgreSQL 16" {
+                        db = infrastructureNode "auth-db" "Authentication service database" "PostgreSQL 18" {
                             tags "Database"
                         }
                     }
@@ -185,13 +180,13 @@
         wosSso         -> authSvcDev     "OAuth2 callback"
 
         # --- Prod relationships ---
-        cfDist         -> gwInst         "routes to API GW"
+        cfDist         -> authSvcProd    "routes to Authentication Service"
         authSvcProd    -> db             "reads/writes (private subnet)"
         authSvcProd    -> secretsInst    "reads secrets at startup (VPC endpoint)"
         authSvcProd    -> natGw          "outbound internet traffic"
         natGw          -> ghcr           "pulls image on deploy"
         natGw          -> wosSso         "WorkOS API calls (OAuth2 initiation)"
-        wosSso         -> authSvcProd    "OAuth2 callback (inbound via CF → API GW)"
+        wosSso         -> authSvcProd    "OAuth2 callback (inbound via CloudFront)"
     }
 
 
