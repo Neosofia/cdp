@@ -18,6 +18,7 @@ const AUTH_BASE = import.meta.env.VITE_AUTH_BASE_URL ?? 'http://localhost:8014';
 const AUTH_API = import.meta.env.VITE_AUTH_API_URL ?? 'http://localhost:8014';
 const CAPABILITIES_API = import.meta.env.VITE_CAPABILITIES_API_URL ?? 'http://localhost:8019';
 const TEMPLATE_API = import.meta.env.VITE_TEMPLATE_API_URL ?? 'http://localhost:8018';
+const IS_PROD = import.meta.env.PROD;
 
 const LOCAL_AUTH_KEY = 'cdp-ui-auth';
 const LOGOUT_FLAG = 'cdp-ui-just-logged-out';
@@ -490,7 +491,9 @@ export default function App() {
 
                     <div className="mb-6 grid gap-3 md:grid-cols-3">
                       <Button onClick={() => runDebugTest('Profile', `${AUTH_API}/api/profile`)} variant="outline" size="lg" className="w-full border-slate-600 bg-slate-800 text-slate-100 hover:bg-slate-700 hover:text-white">Profile</Button>
-                      <Button onClick={() => runDebugTest('Token Inspect', `${AUTH_API}/api/token-inspect`)} variant="outline" size="lg" className="w-full border-slate-600 bg-slate-800 text-slate-100 hover:bg-slate-700 hover:text-white">Token Inspect</Button>
+                      {!IS_PROD && (
+                        <Button onClick={() => runDebugTest('Token Inspect', `${AUTH_API}/api/token-inspect`)} variant="outline" size="lg" className="w-full border-slate-600 bg-slate-800 text-slate-100 hover:bg-slate-700 hover:text-white">Token Inspect</Button>
+                      )}
                       <Button onClick={() => runDebugTest('Documents /d1', `${TEMPLATE_API}/api/v1/documents/d1`)} variant="outline" size="lg" className="w-full border-slate-600 bg-slate-800 text-slate-100 hover:bg-slate-700 hover:text-white">Documents /d1</Button>
                     </div>
                   </>
