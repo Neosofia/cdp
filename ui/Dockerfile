@@ -10,6 +10,15 @@ RUN pnpm install --frozen-lockfile
 
 COPY . .
 
+ARG VITE_AUTH_BASE_URL
+ENV VITE_AUTH_BASE_URL=$VITE_AUTH_BASE_URL
+ARG VITE_AUTH_API_URL
+ENV VITE_AUTH_API_URL=$VITE_AUTH_API_URL
+ARG VITE_CAPABILITIES_API_URL
+ENV VITE_CAPABILITIES_API_URL=$VITE_CAPABILITIES_API_URL
+ARG VITE_TEMPLATE_API_URL
+ENV VITE_TEMPLATE_API_URL=$VITE_TEMPLATE_API_URL
+
 RUN pnpm run build
 
 # ── Runtime stage ─────────────────────────────────────────────────────────────
