@@ -1,7 +1,7 @@
 # ── Build stage ──────────────────────────────────────────────────────────────
 FROM node:24-alpine AS builder
 
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN npm install -g pnpm
 
 WORKDIR /app
 
@@ -15,7 +15,7 @@ RUN pnpm run build
 # ── Runtime stage ─────────────────────────────────────────────────────────────
 FROM node:24-alpine
 
-RUN npm install -g serve
+RUN npm install -g pnpm serve
 
 WORKDIR /app
 
@@ -23,4 +23,4 @@ COPY --from=builder /app/dist ./dist
 
 EXPOSE 5173
 
-CMD ["serve", "-s", "dist", "-l", "5173"]
+CMD ["sh", "-c", "serve -s dist -l ${PORT:-5173}"]
