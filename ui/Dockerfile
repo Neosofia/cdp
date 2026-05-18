@@ -1,4 +1,5 @@
-FROM node:24-alpine
+# ── Build stage ──────────────────────────────────────────────────────────────
+FROM node:24-alpine AS builder
 
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
@@ -9,6 +10,17 @@ RUN pnpm install --frozen-lockfile
 
 COPY . .
 
+RUN pnpm run build
+
+# ── Runtime stage ─────────────────────────────────────────────────────────────
+FROM node:24-alpine
+
+RUN npm install -g serve
+
+WORKDIR /app
+
+COPY --from=builder /app/dist ./dist
+
 EXPOSE 5173
 
-CMD ["pnpm", "run", "dev", "--", "--host"]
+CMD ["serve", "-s", "dist", "-l", "5173"]
