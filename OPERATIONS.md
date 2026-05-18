@@ -8,14 +8,15 @@ This guide is for system administrators, software engineers, and testers wishing
 
 ## Local env setup
 
-Before starting a service at set of environment variables must be generated in order to operate correctly. Every service will have their own operations guide to walk you through the process of generating them. For example, the authentication service has a very lengthy [setup process](https://github.com/Neosofia/authentication/blob/main/OPERATIONS.md) due to the nature of how the service securely operates.
+Before starting the services, a set of environment variable files must be generated in order to operate correctly. To promote Separation of Concerns (SoC) and adhere to Twelve-Factor App principles, all configuration is managed via `.env` files rather than hardcoded in the `docker-compose.dev.yml`.
 
-When finished, you should have a set of environment variable files that look like this:
-```
-.authentication.env
-.notification.env
-.authorization.env
-...
+For each service, copy its respective `.env.sample` file to a `.env` file and fill in the missing sensitive values (such as `YOUR_WORKOS_API_KEY` or `YOUR_SECRET`):
+
+```bash
+cp .authentication.env.sample .authentication.env
+cp .authentication-postgres.env.sample .authentication-postgres.env
+cp .capabilities.env.sample .capabilities.env
+cp .template.env.sample .template.env
 ```
 
 A service may also include helper scripts inside its docker image to simplify setup. For example, the authentication service provides a bootstrap container that generates its env file for you:

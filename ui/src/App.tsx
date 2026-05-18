@@ -15,6 +15,10 @@ import logo from './assets/Neosofia.png';
 // Auth base URL for browser navigations (login/logout redirects).
 // We use a cross-origin explicit URL for both local dev and production.
 const AUTH_BASE = import.meta.env.VITE_AUTH_BASE_URL ?? 'http://localhost:8014';
+const AUTH_API = import.meta.env.VITE_AUTH_API_URL ?? 'http://localhost:8014';
+const CAPABILITIES_API = import.meta.env.VITE_CAPABILITIES_API_URL ?? 'http://localhost:8019';
+const TEMPLATE_API = import.meta.env.VITE_TEMPLATE_API_URL ?? 'http://localhost:8018';
+
 const LOCAL_AUTH_KEY = 'cdp-ui-auth';
 const LOGOUT_FLAG = 'cdp-ui-just-logged-out';
 
@@ -65,7 +69,6 @@ export default function App() {
   };
 
   const fetchSessionData = useCallback(async (retries = 2) => {
-    const AUTH_API = import.meta.env.VITE_AUTH_API_URL ?? 'http://localhost:8014';
     for (let attempt = 0; attempt <= retries; attempt += 1) {
       try {
         if (attempt > 0) {
@@ -159,7 +162,6 @@ export default function App() {
   // Fetch entitlements whenever the token or active role changes
   useEffect(() => {
     const fetchEntitlements = async () => {
-      const CAPABILITIES_API = import.meta.env.VITE_CAPABILITIES_API_URL ?? 'http://localhost:8019';
       if (!tokenInfo?.raw) {
         setEntitlements({});
         return;
@@ -487,9 +489,9 @@ export default function App() {
                     </div>
 
                     <div className="mb-6 grid gap-3 md:grid-cols-3">
-                      <Button onClick={() => runDebugTest('Profile', `${import.meta.env.VITE_AUTH_API_URL ?? 'http://localhost:8014'}/api/profile`)} variant="outline" size="lg" className="w-full border-slate-600 bg-slate-800 text-slate-100 hover:bg-slate-700 hover:text-white">Profile</Button>
-                      <Button onClick={() => runDebugTest('Token Inspect', `${import.meta.env.VITE_AUTH_API_URL ?? 'http://localhost:8014'}/api/token-inspect`)} variant="outline" size="lg" className="w-full border-slate-600 bg-slate-800 text-slate-100 hover:bg-slate-700 hover:text-white">Token Inspect</Button>
-                      <Button onClick={() => runDebugTest('Documents /d1', `${import.meta.env.VITE_TEMPLATE_API_URL ?? 'http://localhost:8018'}/api/v1/documents/d1`)} variant="outline" size="lg" className="w-full border-slate-600 bg-slate-800 text-slate-100 hover:bg-slate-700 hover:text-white">Documents /d1</Button>
+                      <Button onClick={() => runDebugTest('Profile', `${AUTH_API}/api/profile`)} variant="outline" size="lg" className="w-full border-slate-600 bg-slate-800 text-slate-100 hover:bg-slate-700 hover:text-white">Profile</Button>
+                      <Button onClick={() => runDebugTest('Token Inspect', `${AUTH_API}/api/token-inspect`)} variant="outline" size="lg" className="w-full border-slate-600 bg-slate-800 text-slate-100 hover:bg-slate-700 hover:text-white">Token Inspect</Button>
+                      <Button onClick={() => runDebugTest('Documents /d1', `${TEMPLATE_API}/api/v1/documents/d1`)} variant="outline" size="lg" className="w-full border-slate-600 bg-slate-800 text-slate-100 hover:bg-slate-700 hover:text-white">Documents /d1</Button>
                     </div>
                   </>
                 ) : (
