@@ -66,6 +66,7 @@ export default function App() {
   };
 
   const fetchSessionData = useCallback(async (retries = 2) => {
+    const AUTH_API = import.meta.env.VITE_AUTH_API_URL ?? '/auth-api';
     for (let attempt = 0; attempt <= retries; attempt += 1) {
       try {
         if (attempt > 0) {
@@ -73,7 +74,7 @@ export default function App() {
         }
 
         // Step 1: exchange session cookie for platform JWT
-        const tokenRes = await fetch('/auth-api/api/token', {
+        const tokenRes = await fetch(`${AUTH_API}/api/token`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           body: 'grant_type=session'
@@ -90,7 +91,7 @@ export default function App() {
         const newRole = roles.length > 0 ? roles[0] : '';
 
         // Step 2: use the verified JWT to fetch profile — no session unseal on the server
-        const profileRes = await fetch('/auth-api/api/profile', {
+        const profileRes = await fetch(`${AUTH_API}/api/profile`, {
           headers: { 'Authorization': `Bearer ${tokenData.access_token}` },
         });
 
@@ -148,12 +149,13 @@ export default function App() {
   // Fetch entitlements whenever the token or active role changes
   useEffect(() => {
     const fetchEntitlements = async () => {
-      if (!tokenInfo || !activeRole) {
+      const CAPABILITIES_API = import.meta.env.VITE_CAPABILITIES_API_URL ?? '/capabilities-api';
+      if (!tokenInfo?.raw) {
         setEntitlements({});
         return;
       }
       try {
-        const res = await fetch('/capabilities-api/api/v1/capabilities', {
+        const res = await fetch(`${CAPABILITIES_API}/api/v1/capabilities`, {
           headers: {
             'Authorization': `Bearer ${tokenInfo.raw}`,
             'X-Active-Role': activeRole,

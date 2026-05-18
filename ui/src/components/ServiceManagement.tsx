@@ -79,7 +79,7 @@ interface Props {
 // Helpers
 // ---------------------------------------------------------------------------
 
-const AUTH_API = '/auth-api';
+const AUTH_API = import.meta.env.VITE_AUTH_API_URL ?? '/auth-api';
 const PAGE_SIZE = 20;
 const AUDIT_PAGE_SIZE = 5;
 
