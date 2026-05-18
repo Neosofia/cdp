@@ -1,0 +1,17 @@
+{
+  "$schema": "https://schema.railway.com/railway.json",
+  "services": {
+    "cdp": {
+      "source": {
+        "rootDirectory": "/ui"
+      },
+      "networking": {
+        "customDomains": [
+          {
+            "domain": "staging.neosofia.tech"
+          }
+        ]
+      }
+    }
+  }
+}
