@@ -32,6 +32,12 @@ After generation, fill in these required values manually in `.authentication.env
 - `WORKOS_API_KEY`
 
 
+## UI Service local dev
+
+For the front-end interface, we use a distinct Dockerfile for the local development environment (`cdp/ui/Dockerfile.dev`). This development image installs `pnpm` directly using `npm` and binds the Vite dev server with Hot Module Replacement (HMR) to port 5173. 
+
+The production image (`cdp/ui/Dockerfile`) isolates the static build into a pure runtime image hosting the `dist` directory via `serve`, dynamically responding to a provisioned `$PORT` or safely defaulting to 5173 (which ensures compatibility with deployment hosts like Railway).
+
 ## Start the Full Stack
 
 Once you have generated all your environment variables, you can bring up the whole platform locally with this command:
