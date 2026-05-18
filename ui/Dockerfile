@@ -15,7 +15,7 @@ RUN pnpm run build
 # ── Runtime stage ─────────────────────────────────────────────────────────────
 FROM node:24-alpine
 
-RUN npm install -g serve
+RUN npm install -g http-server
 
 WORKDIR /app
 
@@ -23,4 +23,4 @@ COPY --from=builder /app/dist ./dist
 
 EXPOSE 5173
 
-CMD ["serve", "-s", "dist", "-l", "5173"]
+CMD ["http-server", "dist", "-p", "5173", "-a", "0.0.0.0"]
