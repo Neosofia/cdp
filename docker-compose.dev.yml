@@ -10,11 +10,9 @@ services:
     env_file:
       - ./.authentication.env
     environment:
-      ENV: development
       AWS_ACCESS_KEY_ID: test
       AWS_SECRET_ACCESS_KEY: test
       AWS_REGION: us-east-1
-      FRONTEND_URL: http://localhost:5173
       MIGRATION_DATABASE_URL: postgresql+psycopg://cdp:dev_only@authentication-postgres:5432/cdp_authentication
       DATABASE_URL: postgresql+psycopg://app:dev_only_app@authentication-postgres:5432/cdp_authentication
     ports:
