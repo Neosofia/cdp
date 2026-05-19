@@ -51,7 +51,7 @@ services:
       retries: 5
 
   capabilities:
-    image: ghcr.io/neosofia/capabilities:v0.2.4
+    image: ghcr.io/neosofia/capabilities:v0.3.0
     container_name: cdp-capabilities
     env_file:
       - ./.capabilities.env
@@ -65,7 +65,7 @@ services:
       start_period: 10s
 
   python-template:
-    image: ghcr.io/neosofia/python-template:v0.5.4
+    image: ghcr.io/neosofia/python-template:v0.6.0
     container_name: cdp-python-template
     env_file:
       - ./.template.env
