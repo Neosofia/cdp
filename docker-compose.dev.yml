@@ -1,11 +1,8 @@
-x-auth-image: &auth_image ghcr.io/neosofia/authentication:v0.18.3
+x-auth-image: &auth_image ghcr.io/neosofia/authentication:v0.20.0
 
 services:
   authentication:
-    build:
-      context: ../authentication
-      dockerfile: Dockerfile
-    image: authentication:local
+    image: *auth_image
     container_name: cdp-authentication
     env_file:
       - ./.authentication.env
@@ -14,9 +11,6 @@ services:
     depends_on:
       authentication-postgres:
         condition: service_healthy
-    volumes:
-      - ./.authentication.env:/app/.env:ro
-      - ../authentication/src:/app/src:ro
     healthcheck:
       test: ["CMD-SHELL", "/app/.venv/bin/python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:8014/health', timeout=3)\""]
       interval: 10s
