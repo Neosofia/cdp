@@ -7,9 +7,10 @@ RUN git clone --depth 1 https://github.com/structurizr/structurizr.git . \
 FROM eclipse-temurin:21-jdk-jammy
 COPY --chmod=0777 structurizr /usr/local/structurizr
 COPY adrs /usr/local/adrs
+COPY --chmod=0755 run-structurizr.sh /usr/local/bin/run-structurizr.sh
 COPY --from=build /tmp/structurizr/structurizr-application/target/structurizr-*.war /usr/local/structurizr.war
 
 WORKDIR /usr/local/structurizr
 EXPOSE 8080
-ENTRYPOINT ["java", "-Dserver.port=8080", "--enable-native-access=ALL-UNNAMED", "-jar", "/usr/local/structurizr.war"]
-CMD ["server"]
+ENTRYPOINT ["/usr/local/bin/run-structurizr.sh"]
+CMD ["local", "/usr/local/structurizr"]
