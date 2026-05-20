@@ -1,4 +1,4 @@
-# 6. API Response Shape and Resource Linking
+# 06. API Response Shape and Resource Linking
 
 Date: 2026-04-19
 

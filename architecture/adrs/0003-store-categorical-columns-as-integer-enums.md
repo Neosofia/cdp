@@ -1,6 +1,5 @@
-# 3. Store Categorical Columns as Integer Enums
+# 03. Store Categorical Columns as Integer Enums
 
-Date: 2026-04-19
 
 ## Status
 

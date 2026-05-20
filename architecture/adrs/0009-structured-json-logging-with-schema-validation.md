@@ -1,4 +1,4 @@
-# 9. Structured JSON Logging with Schema Validation
+# 09. Structured JSON Logging with Schema Validation
 
 Date: 2026-04-21
 
@@ -37,11 +37,11 @@ Logs are **not durable or atomic** and must NOT be relied upon for audit trails,
 
 ## Logging Pattern
 
-TBD: Need to create logging plugin for consistency across services. For now see examples in [schemas/README.md](../../schemas/README.md)
+The shared Python SDK plugin `logenvelope` enforces structured JSON formatting and schema consistency across Python platform services. See [schemas/README.md](https://github.com/Neosofia/schemas/blob/main/README.md) for testing patterns.
 
 ## References
 
 - Constitution §IV — Operational Observability
-- Shared Schemas — [schemas/README.md](../../schemas/README.md)
-- Log Schema — [schemas/log.json](../../schemas/log.json)
-- Auth Service implementation — [src/logging_config.py](../../services/authentication/src/logging_config.py), [tests/contract/test_api_contract.py](../../services/authentication/tests/contract/test_api_contract.py)
+- Shared Schemas — [schemas/README.md](https://github.com/Neosofia/schemas/blob/main/README.md)
+- Log Schema — [schemas/log.json](https://github.com/Neosofia/schemas/blob/main/log-v1.0.0.json)
+- Auth Service implementation — [src/logging_config.py](https://github.com/Neosofia/authentication/blob/main/src/logging_config.py), [tests/contract/test_api_contract.py](https://github.com/Neosofia/authentication/blob/main/tests/contract/test_api_contract.py)

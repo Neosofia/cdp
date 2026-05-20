@@ -1,4 +1,4 @@
-# 5. Use uv for Python Package Management
+# 05. Use uv for Python Package Management
 
 Date: 2026-04-19
 

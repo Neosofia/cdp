@@ -4,12 +4,12 @@
         # Included into workspace.dsl inside the views { } block.
         # ---------------------------------------------------------------------------
 
-        deployment platformCore "earth" "DevDeployment" {
+        deployment cdp "earth" "DevDeployment" {
             title "Authentication Service — Dev Deployment (Proxmox on-prem)"
             include github wosNode cloudflare netbird pve
         }
 
-        deployment platformCore "earth" "ProdDeployment" {
+        deployment cdp "earth" "ProdDeployment" {
             title "Authentication Service — Production Deployment (AWS, planned)"
             include github wosNode aws
         }

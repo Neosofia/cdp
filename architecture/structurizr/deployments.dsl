@@ -162,31 +162,31 @@
         }
 
         # --- CI/CD relationships (shared — visible in both views) ---
-        ci      -> build     "gates"
-        build   -> ghcr      "pushes image"
-        build   -> deploy    "triggers on same tag"
+        ci      -> build     "gates" "GHA gate"
+        build   -> ghcr      "pushes image" "OCI registry push"
+        build   -> deploy    "triggers on same tag" "workflow trigger"
 
         # --- Dev relationships ---
-        deploy         -> authSvcDev     "docker compose up --force-recreate via self-hosted runner"
-        ghcr           -> authSvcDev     "image pulled by deploy workflow before compose up"
-        dns            -> nbRelay        "CNAME → NetBird peer IP (proxied)"
-        nbRelay        -> nbClient       "routes via WireGuard mesh"
-        nbClient       -> authSvcDev     "routes to :8000"
-        portainer      -> portainerAgent "manages via agent :9001"
-        portainerAgent -> authSvcDev     "monitors"
-        authSvcDev     -> postgres       "reads/writes"
-        authSvcDev     -> localstack     "fetches secret bundle at startup (AWS_ENDPOINT_URL)"
-        localstack     -> postgres       "init hook probes DB availability"
-        wosSso         -> authSvcDev     "OAuth2 callback"
+        deploy         -> authSvcDev     "docker compose up --force-recreate via self-hosted runner" "Docker Compose deploy"
+        ghcr           -> authSvcDev     "image pulled by deploy workflow before compose up" "OCI image pull"
+        dns            -> nbRelay        "CNAME → NetBird peer IP (proxied)" "DNS"
+        nbRelay        -> nbClient       "routes via WireGuard mesh" "WireGuard"
+        nbClient       -> authSvcDev     "routes to :8000" "TCP/8000"
+        portainer      -> portainerAgent "manages via agent :9001" "Portainer Agent API"
+        portainerAgent -> authSvcDev     "monitors" "Docker API"
+        authSvcDev     -> postgres       "reads/writes" "PostgreSQL"
+        authSvcDev     -> localstack     "fetches secret bundle at startup (AWS_ENDPOINT_URL)" "AWS SDK"
+        localstack     -> postgres       "init hook probes DB availability" "PostgreSQL"
+        wosSso         -> authSvcDev     "OAuth2 callback" "HTTPS"
 
         # --- Prod relationships ---
-        cfDist         -> authSvcProd    "routes to Authentication Service"
-        authSvcProd    -> db             "reads/writes (private subnet)"
-        authSvcProd    -> secretsInst    "reads secrets at startup (VPC endpoint)"
-        authSvcProd    -> natGw          "outbound internet traffic"
-        natGw          -> ghcr           "pulls image on deploy"
-        natGw          -> wosSso         "WorkOS API calls (OAuth2 initiation)"
-        wosSso         -> authSvcProd    "OAuth2 callback (inbound via CloudFront)"
+        cfDist         -> authSvcProd    "routes to Authentication Service" "HTTP/HTTPS"
+        authSvcProd    -> db             "reads/writes (private subnet)" "PostgreSQL"
+        authSvcProd    -> secretsInst    "reads secrets at startup (VPC endpoint)" "AWS Secrets Manager"
+        authSvcProd    -> natGw          "outbound internet traffic" "NAT"
+        natGw          -> ghcr           "pulls image on deploy" "HTTPS"
+        natGw          -> wosSso         "WorkOS API calls (OAuth2 initiation)" "HTTPS"
+        wosSso         -> authSvcProd    "OAuth2 callback (inbound via CloudFront)" "HTTPS"
     }
 
 

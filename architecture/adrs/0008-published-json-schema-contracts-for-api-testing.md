@@ -1,4 +1,4 @@
-# 8. OpenAPI 3.0 Specification for API Documentation
+# 08. OpenAPI 3.0 Specification for API Documentation
 
 Date: 2026-04-21
 
@@ -46,12 +46,12 @@ The OpenAPI spec is:
 
 ## Contract Testing Patterns
 
-See [schemas/README.md](../../schemas/README.md) for testing patterns and OpenAPI validation examples.
+See [schemas/README.md](https://github.com/Neosofia/schemas/blob/main/README.md) for testing patterns and OpenAPI validation examples.
 
 ## References
 
 - Constitution §V — Test Pyramid
 - OpenAPI 3.0.0 Specification — https://spec.openapis.org/oas/v3.0.0
 - JSON Schema — https://json-schema.org/
-- Shared Schemas — [schemas/README.md](../../../schemas/README.md)
-- Auth Service implementation — [services/authentication/openapi.json](../../../services/authentication/openapi.json), [tests/contract/test_api_contract.py](../../../services/authentication/tests/contract/test_api_contract.py)
+- Shared Schemas — [schemas/README.md](https://github.com/Neosofia/schemas/blob/main/README.md)
+- Auth Service implementation — [authentication/openapi.json](https://github.com/Neosofia/authentication/blob/main/openapi.json), [tests/contract/test_api_contract.py](https://github.com/Neosofia/authentication/blob/main/tests/contract/test_api_contract.py)

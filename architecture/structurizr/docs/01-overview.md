@@ -8,7 +8,7 @@ This architecture was developed using a structured specification and planning wo
 
 **Key Capabilities:**
 
-- **Patient Communication** — Secure chat via Flutter mobile/web app and SMS
+- **Patient Communication** — Secure chat via React web app and SMS
 - **AI Risk Detection** — Per-message risk evaluation using AWS Bedrock inference
 - **Clinician Escalation** — 60-second self-assign window before PagerDuty escalation
 - **De-identification Pipeline** — PHI/PII stripping for safe ML training datasets
@@ -17,12 +17,12 @@ This architecture was developed using a structured specification and planning wo
 
 ## Requirements
 
-See [requirements.md](https://github.com/byoung/cdp/blob/main/requirements.md) for the full functional and non-functional requirements.
+See the `checklists/requirements.md` document within each individual service specification folder for functional and non-functional requirements.
 
 
 ## Project Constitution
 
-The platform is governed by a [constitution](https://github.com/byoung/cdp/blob/main/architecture/constitution.md) that defines non-negotiable principles for all design and implementation decisions.
+The platform is governed by a [constitution](../../../architecture/constitution.md) that defines non-negotiable principles for all design and implementation decisions.
 
 ## Feature Specifications
 
@@ -30,20 +30,21 @@ Each platform service has a full feature spec under `specs/` in the repository r
 
 | # | Feature | Spec |
 |---|---------|------|
-| 001 | Chat Service | [spec.md](https://github.com/byoung/cdp/blob/main/specs/001-chat-service/spec.md) |
-| 002 | Deidentification Pipeline | [spec.md](https://github.com/byoung/cdp/blob/main/specs/002-deidentification-pipeline/spec.md) |
-| 003 | Clean Chat Service | [spec.md](https://github.com/byoung/cdp/blob/main/specs/003-clean-chat-service/spec.md) |
-| 004 | EMR Service | [spec.md](https://github.com/byoung/cdp/blob/main/specs/004-emr-service/spec.md) |
-| 005 | Notification Service | [spec.md](https://github.com/byoung/cdp/blob/main/specs/005-notification-service/spec.md) |
-| 006 | Bedrock AI Workbench | [spec.md](https://github.com/byoung/cdp/blob/main/specs/006-bedrock-ai-workbench/spec.md) |
-| 007 | Patient Chat App | [spec.md](https://github.com/byoung/cdp/blob/main/specs/007-patient-chat-app/spec.md) |
-| 008 | Clinician App | [spec.md](https://github.com/byoung/cdp/blob/main/specs/008-clinician-app/spec.md) |
-| 009 | SMS Service | [spec.md](https://github.com/byoung/cdp/blob/main/specs/009-sms-service/spec.md) |
-| 010 | AI Agent Service | [spec.md](https://github.com/byoung/cdp/blob/main/specs/010-ai-agent-service/spec.md) |
-| 011 | Operational Metrics | [spec.md](https://github.com/byoung/cdp/blob/main/specs/011-operational-metrics/spec.md) |
-| 012 | Patient Service | [spec.md](https://github.com/byoung/cdp/blob/main/specs/012-patient-service/spec.md) |
-| 013 | Devices Service | [spec.md](https://github.com/byoung/cdp/blob/main/specs/013-devices-service/spec.md) |
-| 014 | Authentication Service | [spec.md](https://github.com/byoung/cdp/blob/main/specs/014-authentication-service/spec.md) |
-| 015 | Care Episode Service | [spec.md](https://github.com/byoung/cdp/blob/main/specs/015-care-episode-service/spec.md) |
-| 016 | Authorization Service | [spec.md](https://github.com/byoung/cdp/blob/main/specs/016-authorization-service/spec.md) |
+| 001 | Chat Service | [spec.md](../../../specs/001-chat-service/spec.md) |
+| 002 | Deidentification Pipeline | [spec.md](../../../specs/002-deidentification-pipeline/spec.md) |
+| 003 | Clean Chat Service | [spec.md](../../../specs/003-clean-chat-service/spec.md) |
+| 004 | EMR Service | [spec.md](../../../specs/004-emr-service/spec.md) |
+| 005 | Notification Service | [spec.md](../../../specs/005-notification-service/spec.md) |
+| 006 | Bedrock AI Workbench | [spec.md](../../../specs/006-bedrock-ai-workbench/spec.md) |
+| 007 | Patient Chat App | [spec.md](../../../specs/007-patient-chat-app/spec.md) |
+| 008 | Clinician App | [spec.md](../../../specs/008-clinician-app/spec.md) |
+| 009 | SMS Service | [spec.md](../../../specs/009-sms-service/spec.md) |
+| 010 | AI Agent Service | [spec.md](../../../specs/010-ai-agent-service/spec.md) |
+| 011 | Operational Metrics | [spec.md](../../../specs/011-operational-metrics/spec.md) |
+| 012 | Patient Service | [spec.md](../../../specs/012-patient-service/spec.md) |
+| 013 | Devices Service | [spec.md](../../../specs/013-devices-service/spec.md) |
+| 014 | Authentication Service | [spec.md](../../../specs/014-authentication-service/spec.md) |
+| 015 | Care Episode Service | [spec.md](../../../specs/015-care-episode-service/spec.md) |
+| 016 | Authorization Service | [spec.md](../../../specs/016-authorization-service/spec.md) |
+| 017 | Audit Infrastructure | [spec.md](../../../specs/017-audit-infrastructure/spec.md) |
 

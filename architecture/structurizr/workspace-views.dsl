@@ -7,40 +7,52 @@
         systemLandscape "Landscape" {
             title "CDP Platform - System Landscape"
             include *
-            exclude corporateIdP
-            exclude thirdPartySiem
             exclude apns
             exclude fcm
             exclude webPush
         }
 
-        container patientEngagement "PatientEngagementContainers" {
+        container cdp "PatientEngagementContainers" {
             title "Patient Engagement - Containers"
+            autolayout tb
             include *
+            exclude clinicalWorkflow
+            exclude aiDataPlatform
+            exclude platformCore
             exclude apns
             exclude fcm
             exclude webPush
         }
 
-        container clinicalWorkflow "ClinicalWorkflowContainers" {
+        container cdp "ClinicalWorkflowContainers" {
             title "Clinical Workflow - Containers"
+            autolayout tb
             include *
+            exclude patientEngagement
+            exclude aiDataPlatform
+            exclude platformCore
             exclude corporateIdP
         }
 
-        container aiDataPlatform "AiDataContainers" {
+        container cdp "AiDataContainers" {
             title "AI & Data Platform - Containers"
+            autolayout tb
             include *
+            exclude patientEngagement
+            exclude clinicalWorkflow
+            exclude platformCore
         }
 
-        container platformCore "PlatformCoreContainers" {
+        container cdp "PlatformCoreContainers" {
             title "Platform Core - Containers"
+            autolayout tb
             include *
+            exclude patientEngagement
+            exclude clinicalWorkflow
+            exclude aiDataPlatform
             exclude apns
             exclude fcm
             exclude webPush
-            exclude corporateIdP
-            exclude thirdPartySiem
             exclude bedrockWorkbench
             exclude operationalMetrics
         }
@@ -133,7 +145,7 @@
             6: patientDatabase -> patientRecordStore "Return success"
             7: patientRecordStore -> clinicianApp "Return 200 OK"
         }
-        dynamic platformCore "ClinicianAlertFlow" {
+        dynamic cdp "ClinicianAlertFlow" {
             title "Clinician Alert and Chat Intercept - Process Flow"
 
             aiRiskAgent -> notificationService "Escalate high-risk signal"
@@ -147,7 +159,7 @@
             chatService -> patientChatApp "Deliver clinician reply to patient"
         }
 
-        dynamic platformCore "WorkOSLoginFlow" {
+        dynamic cdp "WorkOSLoginFlow" {
             title "Authentication - Process Flow"
 
             clinician -> clinicianApp "Click Log in"
@@ -159,7 +171,7 @@
             authService -> clinicianApp "Return platform JWT to the UI"
         }
 
-        dynamic platformCore "PatientChatFlow" {
+        dynamic cdp "PatientChatFlow" {
             title "Patient Chat - Process Flow"
 
             1: patient -> patientChatApp "Opens chat and sends message"
@@ -184,7 +196,7 @@
             20: notificationService -> pagerDuty "Create incident for unclaimed alert"
         }
 
-        dynamic platformCore "ServiceTokenFlow" {
+        dynamic cdp "ServiceTokenFlow" {
             title "App (Service) Token Issuance and Validation"
 
             1: chatService -> authService "Request machine JWT (POST /api/token grant_type=client_credentials)"

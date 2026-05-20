@@ -1,9 +1,15 @@
 services:
   structurizr:
-    image: structurizr/structurizr
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: cdp-structurizr
     command: local
+    environment:
+      - STRUCTURIZR_EDITABLE=true
     ports:
       - "8080:8080"
     volumes:
-      - ./structurizr:/usr/local/structurizr
+      - ./structurizr:/usr/local/structurizr:cached
+      - ./adrs:/usr/local/adrs:cached
 

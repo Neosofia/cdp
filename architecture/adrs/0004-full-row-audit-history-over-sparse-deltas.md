@@ -1,4 +1,4 @@
-# 4. Store Full Row Snapshots in Audit History Tables, Not Sparse Deltas
+# 04. Store Full Row Snapshots in Audit History Tables, Not Sparse Deltas
 
 Date: 2026-04-19
 

@@ -1,4 +1,4 @@
-# ADR 0010: Role Picker UI and Single Active Role Enforcement
+# 10. ADR 0010: Role Picker UI and Single Active Role Enforcement
 
 ## Context
 When interacting with the system, users may possess multiple valid WorkOS organization roles (e.g., both `clinician` and `admin`). In a standard B2B setup, it can be convenient to load all roles into a single JWT and let policies sort out access. However, loading multiple cross-functional credentials simultaneously violates the principle of least privilege, opening the door for unintended destructive actions while a user is performing standard operational tasks. We need a way to maintain strict separation of duties while preserving flexibility for development and demonstration scenarios.

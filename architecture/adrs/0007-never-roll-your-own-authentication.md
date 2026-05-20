@@ -1,4 +1,4 @@
-# 7. Never Implement Custom Authentication; Use a Qualified Identity Provider
+# 07. Never Implement Custom Authentication; Use a Qualified Identity Provider
 
 Date: 2026-04-19
 

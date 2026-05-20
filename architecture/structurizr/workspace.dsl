@@ -22,11 +22,15 @@ workspace "Clinical Data Platform (CDP)" "HIPAA-compliant clinical data platform
         bedrockWorkbench = softwareSystem "Bedrock AI Workbench" "Isolated AWS account for ML experimentation on approved de-identified datasets; not in production runtime path." "External,Workbench"
         operationalMetrics = softwareSystem "Operational Metrics" "Platform observability, SLIs/SLOs, dashboards, and alert rules." "External,Observability"
 
+        cdp = softwareSystem "Clinical Data Platform" "HIPAA-compliant clinical data platform for AI-assisted care coordination, patient engagement, risk detection, and clinician escalation." {
+            !docs docs
+            !adrs ../adrs
+
         # ---------------------------------------------------------------------------
         # Patient Engagement — channel adapters, push notifications, alerting
         # ---------------------------------------------------------------------------
 
-        patientEngagement = softwareSystem "Patient Engagement" "Channel adapters (app, web, SMS) and push notification dispatch." {
+        patientEngagement = group "Patient Engagement" {
             patientChatApp = container "Patient Chat App" "Flutter app for iOS, Android, and web. Patient chat, auth, and notifications." "Flutter" "App,MobileApp" {
                 authOnboarding = component "Auth & Onboarding" "Invite-link registration, identity verification, biometric/PIN login, and session token management." "Flutter / Dart" "Component"
                 chatThreadUI = component "Chat Thread UI" "Renders message thread, optimistic send, typing indicator, and streamed AI/clinician replies." "Flutter / Dart" "Component"
@@ -50,7 +54,7 @@ workspace "Clinical Data Platform (CDP)" "HIPAA-compliant clinical data platform
         # Clinical Workflow — clinician tools, patient records, care episodes, EMR
         # ---------------------------------------------------------------------------
 
-        clinicalWorkflow = softwareSystem "Clinical Workflow" "Clinician-facing tools, PII/PHI patient records, care episode management, and EMR integration." {
+        clinicalWorkflow = group "Clinical Workflow" {
             clinicianApp = container "Clinician App" "Web app for escalation handling, transcript review, patient record review, and quality feedback." "React SPA" "App,WebApp" {
                 clinicianAuth = component "Auth & SSO" "OAuth2 PKCE login with deep-link state preservation, delegating to Auth Service via WorkOS." "React / TypeScript" "Component"
                 alertQueuePanel = component "Alert Queue Panel" "Live queue of high-risk sessions with 60-second countdown and self-assign action." "React / TypeScript" "Component"
@@ -81,7 +85,7 @@ workspace "Clinical Data Platform (CDP)" "HIPAA-compliant clinical data platform
         # AI & Data Platform — risk evaluation, deidentification, clean chat store
         # ---------------------------------------------------------------------------
 
-        aiDataPlatform = softwareSystem "AI & Data Platform" "Asynchronous risk evaluation, PHI deidentification pipeline, and de-identified chat storage for ML workflows." {
+        aiDataPlatform = group "AI & Data Platform" {
             aiRiskAgent = container "AI Risk Agent Service" "Asynchronous risk-evaluation worker consuming message events and producing binary escalation decisions." "AWS Lambda + SQS" "Service" {
                 riskEvalQueue = component "Risk Eval Queue" "SQS queue carrying per-message risk-evaluation events." "AWS SQS" "Component,Queue"
                 sqsConsumer = component "SQS Consumer" "Consumes risk-evaluation events from the Risk Eval Queue." "Python / Lambda" "Component"
@@ -107,9 +111,7 @@ workspace "Clinical Data Platform (CDP)" "HIPAA-compliant clinical data platform
         # Platform Core — chat ingestion, authentication, API gateway
         # ---------------------------------------------------------------------------
 
-        platformCore = softwareSystem "Platform Core" "Real-time chat ingestion, platform authentication, and clinical alert escalation." {
-            !docs docs
-            !adrs ../adrs
+        platformCore = group "Platform Core" {
             chatService = container "Chat Service" "Raw chat ingestion and storage, chat interactions, and care-episode linkage." "Python / FastAPI + PostgreSQL" "Service" {
                 authzMiddleware = component "Authorization Middleware" "Interrogates caller identity and evaluates requested action against local Cedar policies via authorization-in-the-middle SDK." "Python" "Component"
                 localPolicies = component "Cedar Policy Files" "Service-owned policy bundle (.cedar) loaded from the filesystem." "Filesystem" "Component,Configuration"
@@ -269,6 +271,7 @@ workspace "Clinical Data Platform (CDP)" "HIPAA-compliant clinical data platform
         productManager -> operationalMetrics "Review engagement, channel, and satisfaction metrics" "Dashboards"
         clinicalLead -> operationalMetrics "Review AI response quality ratings and clinician feedback trends" "Dashboards"
 
+        }
         !include deployments.dsl
     }
 
@@ -285,6 +288,6 @@ workspace "Clinical Data Platform (CDP)" "HIPAA-compliant clinical data platform
     }
 
     configuration {
-        scope none
+        scope SoftwareSystem
     }
 }
