@@ -31,6 +31,7 @@ server {
         proxy_redirect     http://localhost/ /;
 
         proxy_set_header   Accept-Encoding   "";
+        sub_filter         'http://localhost:80' '';
         sub_filter         'http://localhost' '';
         sub_filter_once    off;
         sub_filter_types   text/html text/javascript application/javascript application/json;
