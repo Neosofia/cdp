@@ -10,11 +10,12 @@
             exclude apns
             exclude fcm
             exclude webPush
+            exclude corporateIdP
         }
 
         container cdp "PatientEngagementContainers" {
             title "Patient Engagement - Containers"
-            autolayout tb
+            autolayout lr
             include patientEngagement
             include patient
             include smsProvider
@@ -29,7 +30,6 @@
             include clinicalWorkflow
             include clinician
             include emrSystems
-            include corporateIdP
             include patient
         }
 
@@ -43,7 +43,7 @@
 
         container cdp "PlatformCoreContainers" {
             title "Platform Core - Containers"
-            autolayout tb
+            autolayout lr
             include platformCore
             include workOS
             include pagerDuty
@@ -59,6 +59,7 @@
             title "Clinician App - Components"
             autolayout tb
             include *
+            exclude AuthService
         }
 
         component smsService "SMSServiceComponents" {
@@ -93,7 +94,8 @@
 
         component devicesService "DevicesServiceComponents" {
             title "Devices Service - Components"
-            autolayout tb
+            autolayout lr 150 150
+
             include *
         }
 
@@ -107,6 +109,8 @@
             title "Chat Service - Components"
             autolayout tb
             include *
+            exclude AuthZMiddleware
+            exclude LocalPolicies
         }
 
         component aiRiskAgent "AIRiskAgentComponents" {
@@ -297,15 +301,6 @@
             }
             element "Component" {
                 background #AACCEE
-                color #000000
-            }
-
-            element "DeploymentNode" {
-                background #F5F5F5
-                color #000000
-            }
-            element "InfrastructureNode" {
-                background #CFD8DC
                 color #000000
             }
 

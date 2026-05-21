@@ -5,8 +5,8 @@
   "description" : "HIPAA-compliant clinical data platform for AI-assisted care coordination, patient engagement, risk detection, and clinician escalation",
   "documentation" : { },
   "id" : 1,
-  "lastModifiedAgent" : "structurizr/diagrams/4d28ff47-42e0-4592-91d5-ba9c07d0f640",
-  "lastModifiedDate" : "2026-05-21T15:09:54Z",
+  "lastModifiedAgent" : "structurizr/diagrams/c39cc188-6aa0-4112-ade7-21a61408d6ec",
+  "lastModifiedDate" : "2026-05-21T15:52:52Z",
   "lastModifiedUser" : "99983401",
   "model" : {
     "deploymentNodes" : [ {
@@ -3039,7 +3039,7 @@
   "properties" : {
     "structurizr.inspection.info" : "0",
     "structurizr.inspection.ignore" : "0",
-    "structurizr.inspection.error" : "0",
+    "structurizr.inspection.error" : "1",
     "structurizr.inspection.warning" : "0"
   },
   "views" : {
@@ -3177,10 +3177,6 @@
         "x" : 0,
         "y" : 0
       }, {
-        "id" : "78",
-        "x" : 0,
-        "y" : 0
-      }, {
         "id" : "85",
         "x" : 0,
         "y" : 0
@@ -3190,8 +3186,6 @@
       "name" : "Component View: Clinical Data Platform - Clinician App",
       "order" : 7,
       "relationships" : [ {
-        "id" : "118"
-      }, {
         "id" : "124"
       }, {
         "id" : "128"
@@ -3207,8 +3201,6 @@
         "id" : "149"
       }, {
         "id" : "152"
-      }, {
-        "id" : "179"
       }, {
         "id" : "185"
       }, {
@@ -3538,9 +3530,9 @@
     }, {
       "automaticLayout" : {
         "edgeSeparation" : 50,
-        "nodeSeparation" : 50,
-        "rankDirection" : "TopBottom",
-        "rankSeparation" : 100,
+        "nodeSeparation" : 150,
+        "rankDirection" : "LeftRight",
+        "rankSeparation" : 150,
         "vertices" : true
       },
       "containerId" : "30",
@@ -3673,14 +3665,6 @@
         "x" : 0,
         "y" : 0
       }, {
-        "id" : "35",
-        "x" : 0,
-        "y" : 0
-      }, {
-        "id" : "36",
-        "x" : 0,
-        "y" : 0
-      }, {
         "id" : "37",
         "x" : 0,
         "y" : 0
@@ -3739,12 +3723,6 @@
         "id" : "148"
       }, {
         "id" : "161"
-      }, {
-        "id" : "220"
-      }, {
-        "id" : "221"
-      }, {
-        "id" : "222"
       }, {
         "id" : "223"
       }, {
@@ -3933,7 +3911,7 @@
       "title" : "Clean Chat Service - Components"
     } ],
     "configuration" : {
-      "lastSavedView" : "Landscape",
+      "lastSavedView" : "ProdDeployment",
       "metadataSymbols" : "SquareBrackets",
       "properties" : {
         "structurizr.metadata" : "false"
@@ -3944,39 +3922,15 @@
           "color" : "#ffffff",
           "tag" : "App"
         }, {
-          "background" : "#455a64",
-          "color" : "#ffffff",
-          "tag" : "AwsCdn"
-        }, {
           "background" : "#8c4fff",
           "color" : "#ffffff",
           "shape" : "RoundedBox",
           "tag" : "AwsCdnNode"
         }, {
-          "background" : "#455a64",
-          "color" : "#ffffff",
-          "tag" : "AwsCompute"
-        }, {
-          "background" : "#455a64",
-          "color" : "#ffffff",
-          "tag" : "AwsDatabase"
-        }, {
-          "background" : "#455a64",
-          "color" : "#ffffff",
-          "tag" : "AwsGateway"
-        }, {
           "background" : "#ff9900",
           "color" : "#000000",
           "shape" : "RoundedBox",
           "tag" : "AwsSecurityNode"
-        }, {
-          "background" : "#455a64",
-          "color" : "#ffffff",
-          "tag" : "AwsService"
-        }, {
-          "background" : "#37474f",
-          "color" : "#ffffff",
-          "tag" : "AwsVpc"
         }, {
           "background" : "#ff9900",
           "color" : "#000000",
@@ -3986,17 +3940,9 @@
           "color" : "#ffffff",
           "tag" : "Clinician"
         }, {
-          "background" : "#232f3e",
-          "color" : "#ffffff",
-          "tag" : "Cloud"
-        }, {
           "background" : "#aaccee",
           "color" : "#000000",
           "tag" : "Component"
-        }, {
-          "background" : "#546e7a",
-          "color" : "#ffffff",
-          "tag" : "ComposeStack"
         }, {
           "background" : "#438dd5",
           "color" : "#ffffff",
@@ -4006,14 +3952,6 @@
           "color" : "#ffffff",
           "shape" : "Cylinder",
           "tag" : "Database"
-        }, {
-          "background" : "#f5f5f5",
-          "color" : "#000000",
-          "tag" : "DeploymentNode"
-        }, {
-          "background" : "#f6821f",
-          "color" : "#ffffff",
-          "tag" : "Edge"
         }, {
           "tag" : "Element"
         }, {
@@ -4027,37 +3965,17 @@
           "color" : "#ffffff",
           "tag" : "Gateway"
         }, {
-          "background" : "#24292e",
-          "color" : "#ffffff",
-          "tag" : "GitHub"
-        }, {
-          "background" : "#2c6fad",
-          "color" : "#ffffff",
-          "tag" : "GitHubActions"
-        }, {
           "background" : "#30363d",
           "color" : "#ffffff",
           "shape" : "Cylinder",
           "tag" : "GitHubRegistry"
         }, {
-          "background" : "#cfd8dc",
-          "color" : "#000000",
-          "tag" : "InfrastructureNode"
-        }, {
           "background" : "#37474f",
           "color" : "#ffffff",
           "tag" : "Internal"
         }, {
-          "background" : "#455a64",
-          "color" : "#ffffff",
-          "tag" : "LXC"
-        }, {
           "shape" : "MobileDeviceLandscape",
           "tag" : "MobileApp"
-        }, {
-          "background" : "#ff6b35",
-          "color" : "#ffffff",
-          "tag" : "NetBirdNode"
         }, {
           "background" : "#ff8c5a",
           "color" : "#000000",
@@ -4072,10 +3990,6 @@
           "color" : "#ffffff",
           "shape" : "RoundedBox",
           "tag" : "OciImage"
-        }, {
-          "background" : "#37474f",
-          "color" : "#ffffff",
-          "tag" : "OnPrem"
         }, {
           "background" : "#13bef9",
           "color" : "#000000",
@@ -4108,10 +4022,6 @@
           "background" : "#6f42c1",
           "color" : "#ffffff",
           "tag" : "Registry"
-        }, {
-          "background" : "#3d3d3d",
-          "color" : "#ffffff",
-          "tag" : "SaaSNode"
         }, {
           "background" : "#6363f1",
           "color" : "#ffffff",
@@ -4164,7 +4074,7 @@
       "automaticLayout" : {
         "edgeSeparation" : 50,
         "nodeSeparation" : 50,
-        "rankDirection" : "TopBottom",
+        "rankDirection" : "LeftRight",
         "rankSeparation" : 100,
         "vertices" : true
       },
@@ -4263,10 +4173,6 @@
         "x" : 0,
         "y" : 0
       }, {
-        "id" : "14",
-        "x" : 0,
-        "y" : 0
-      }, {
         "id" : "42",
         "x" : 0,
         "y" : 0
@@ -4362,7 +4268,7 @@
       "automaticLayout" : {
         "edgeSeparation" : 50,
         "nodeSeparation" : 50,
-        "rankDirection" : "TopBottom",
+        "rankDirection" : "LeftRight",
         "rankSeparation" : 100,
         "vertices" : true
       },
@@ -4396,6 +4302,10 @@
       "title" : "Platform Core - Containers"
     } ],
     "deploymentViews" : [ {
+      "dimensions" : {
+        "height" : 2845,
+        "width" : 3441
+      },
       "elements" : [ {
         "id" : "292",
         "x" : 0,
@@ -4406,44 +4316,44 @@
         "y" : 0
       }, {
         "id" : "294",
-        "x" : 0,
-        "y" : 0
+        "x" : 315,
+        "y" : 307
       }, {
         "id" : "295",
-        "x" : 0,
-        "y" : 0
+        "x" : 911,
+        "y" : 299
       }, {
         "id" : "296",
-        "x" : 0,
-        "y" : 0
+        "x" : 1591,
+        "y" : 299
       }, {
         "id" : "297",
-        "x" : 0,
-        "y" : 0
+        "x" : 2141,
+        "y" : 339
       }, {
         "id" : "298",
         "x" : 0,
         "y" : 0
       }, {
         "id" : "299",
-        "x" : 0,
-        "y" : 0
+        "x" : 2820,
+        "y" : 315
       }, {
         "id" : "300",
         "x" : 0,
         "y" : 0
       }, {
         "id" : "301",
-        "x" : 0,
-        "y" : 0
+        "x" : 250,
+        "y" : 1695
       }, {
         "id" : "302",
         "x" : 0,
         "y" : 0
       }, {
         "id" : "303",
-        "x" : 0,
-        "y" : 0
+        "x" : 270,
+        "y" : 1055
       }, {
         "id" : "304",
         "x" : 0,
@@ -4454,16 +4364,16 @@
         "y" : 0
       }, {
         "id" : "306",
-        "x" : 0,
-        "y" : 0
+        "x" : 989,
+        "y" : 1060
       }, {
         "id" : "307",
         "x" : 0,
         "y" : 0
       }, {
         "id" : "308",
-        "x" : 0,
-        "y" : 0
+        "x" : 988,
+        "y" : 1863
       }, {
         "id" : "309",
         "x" : 0,
@@ -4474,20 +4384,20 @@
         "y" : 0
       }, {
         "id" : "311",
-        "x" : 0,
-        "y" : 0
+        "x" : 1676,
+        "y" : 1179
       }, {
         "id" : "312",
-        "x" : 0,
-        "y" : 0
+        "x" : 2486,
+        "y" : 1934
       }, {
         "id" : "313",
-        "x" : 0,
-        "y" : 0
+        "x" : 2486,
+        "y" : 1159
       }, {
         "id" : "314",
-        "x" : 0,
-        "y" : 0
+        "x" : 1654,
+        "y" : 1955
       } ],
       "environment" : "earth",
       "key" : "DevDeployment",
@@ -4496,7 +4406,11 @@
       "relationships" : [ {
         "id" : "328"
       }, {
-        "id" : "329"
+        "id" : "329",
+        "vertices" : [ {
+          "x" : 1811,
+          "y" : 174
+        } ]
       }, {
         "id" : "330"
       }, {
@@ -4525,6 +4439,10 @@
       "softwareSystemId" : "19",
       "title" : "Authentication Service — Dev Deployment (Proxmox on-prem)"
     }, {
+      "dimensions" : {
+        "height" : 2756,
+        "width" : 3271
+      },
       "elements" : [ {
         "id" : "292",
         "x" : 0,
@@ -4535,28 +4453,28 @@
         "y" : 0
       }, {
         "id" : "294",
-        "x" : 0,
-        "y" : 0
+        "x" : 305,
+        "y" : 288
       }, {
         "id" : "295",
-        "x" : 0,
-        "y" : 0
+        "x" : 991,
+        "y" : 298
       }, {
         "id" : "296",
-        "x" : 0,
-        "y" : 0
+        "x" : 1721,
+        "y" : 283
       }, {
         "id" : "297",
-        "x" : 0,
-        "y" : 0
+        "x" : 2341,
+        "y" : 328
       }, {
         "id" : "298",
         "x" : 0,
         "y" : 0
       }, {
         "id" : "299",
-        "x" : 0,
-        "y" : 0
+        "x" : 2571,
+        "y" : 978
       }, {
         "id" : "315",
         "x" : 0,
@@ -4567,8 +4485,8 @@
         "y" : 0
       }, {
         "id" : "317",
-        "x" : 0,
-        "y" : 0
+        "x" : 300,
+        "y" : 1369
       }, {
         "id" : "318",
         "x" : 0,
@@ -4579,8 +4497,8 @@
         "y" : 0
       }, {
         "id" : "320",
-        "x" : 0,
-        "y" : 0
+        "x" : 1101,
+        "y" : 1068
       }, {
         "id" : "321",
         "x" : 0,
@@ -4591,24 +4509,24 @@
         "y" : 0
       }, {
         "id" : "323",
-        "x" : 0,
-        "y" : 0
+        "x" : 1110,
+        "y" : 1717
       }, {
         "id" : "324",
         "x" : 0,
         "y" : 0
       }, {
         "id" : "325",
-        "x" : 0,
-        "y" : 0
+        "x" : 1825,
+        "y" : 1714
       }, {
         "id" : "326",
         "x" : 0,
         "y" : 0
       }, {
         "id" : "327",
-        "x" : 0,
-        "y" : 0
+        "x" : 305,
+        "y" : 1969
       } ],
       "environment" : "earth",
       "key" : "ProdDeployment",
@@ -4617,7 +4535,14 @@
       "relationships" : [ {
         "id" : "328"
       }, {
-        "id" : "329"
+        "id" : "329",
+        "vertices" : [ {
+          "x" : 1622,
+          "y" : 207
+        }, {
+          "x" : 2542,
+          "y" : 207
+        } ]
       }, {
         "id" : "330"
       }, {
@@ -4629,7 +4554,11 @@
       }, {
         "id" : "345"
       }, {
-        "id" : "346"
+        "id" : "346",
+        "vertices" : [ {
+          "x" : 2566,
+          "y" : 793
+        } ]
       }, {
         "id" : "347"
       }, {
@@ -4764,35 +4693,39 @@
       } ],
       "title" : "Audit & Immutability Process Flow (PostgreSQL Templates)"
     }, {
+      "dimensions" : {
+        "height" : 2061,
+        "width" : 3268
+      },
       "elementId" : "19",
       "elements" : [ {
         "id" : "2",
-        "x" : 0,
-        "y" : 0
+        "x" : 204,
+        "y" : 887
       }, {
         "id" : "8",
-        "x" : 0,
-        "y" : 0
+        "x" : 235,
+        "y" : 177
       }, {
         "id" : "20",
-        "x" : 0,
-        "y" : 0
+        "x" : 2518,
+        "y" : 1296
       }, {
         "id" : "34",
-        "x" : 0,
-        "y" : 0
+        "x" : 1678,
+        "y" : 1296
       }, {
         "id" : "42",
-        "x" : 0,
-        "y" : 0
+        "x" : 788,
+        "y" : 1217
       }, {
         "id" : "62",
-        "x" : 0,
-        "y" : 0
+        "x" : 788,
+        "y" : 463
       }, {
         "id" : "85",
-        "x" : 0,
-        "y" : 0
+        "x" : 1678,
+        "y" : 638
       } ],
       "externalBoundariesVisible" : false,
       "key" : "ClinicianAlertFlow",
@@ -4802,27 +4735,56 @@
         "description" : "Escalate high-risk signal",
         "id" : "254",
         "order" : "1",
-        "response" : false
+        "response" : false,
+        "vertices" : [ {
+          "x" : 1628,
+          "y" : 613
+        } ]
       }, {
         "description" : "Subscribe to live escalation queue",
         "id" : "126",
         "order" : "2",
-        "response" : false
+        "response" : false,
+        "vertices" : [ {
+          "x" : 1288,
+          "y" : 963
+        }, {
+          "x" : 1628,
+          "y" : 963
+        } ]
       }, {
         "description" : "Clinician self-assigns and opens transcript",
         "id" : "136",
         "order" : "3",
-        "response" : false
+        "response" : false,
+        "vertices" : [ {
+          "x" : 1288,
+          "y" : 1288
+        }, {
+          "x" : 1628,
+          "y" : 1288
+        } ]
       }, {
         "description" : "Stream transcript and live patient messages",
         "id" : "136",
         "order" : "4",
-        "response" : true
+        "response" : true,
+        "vertices" : [ {
+          "x" : 1628,
+          "y" : 1604
+        }, {
+          "x" : 1288,
+          "y" : 1604
+        } ]
       }, {
         "description" : "Create incident if unclaimed after 60s",
         "id" : "218",
         "order" : "5",
-        "response" : false
+        "response" : false,
+        "vertices" : [ {
+          "x" : 1903,
+          "y" : 284
+        } ]
       }, {
         "description" : "Page on-call clinician",
         "id" : "281",
@@ -4832,12 +4794,20 @@
         "description" : "Open escalated session",
         "id" : "273",
         "order" : "7",
-        "response" : false
+        "response" : false,
+        "vertices" : [ {
+          "x" : 404,
+          "y" : 1368
+        } ]
       }, {
         "description" : "Read transcript and send clinician reply",
         "id" : "136",
         "order" : "8",
-        "response" : false
+        "response" : false,
+        "vertices" : [ {
+          "x" : 1288,
+          "y" : 1446
+        } ]
       }, {
         "description" : "Deliver clinician reply to patient",
         "id" : "234",
@@ -4906,47 +4876,51 @@
       } ],
       "title" : "Authentication - Process Flow"
     }, {
+      "dimensions" : {
+        "height" : 2565,
+        "width" : 3428
+      },
       "elementId" : "19",
       "elements" : [ {
         "id" : "1",
-        "x" : 0,
-        "y" : 0
+        "x" : 237,
+        "y" : 1007
       }, {
         "id" : "8",
-        "x" : 0,
-        "y" : 0
+        "x" : 268,
+        "y" : 1775
       }, {
         "id" : "9",
-        "x" : 0,
-        "y" : 0
+        "x" : 283,
+        "y" : 360
       }, {
         "id" : "20",
-        "x" : 0,
-        "y" : 0
+        "x" : 1112,
+        "y" : 657
       }, {
         "id" : "25",
-        "x" : 0,
-        "y" : 0
+        "x" : 2678,
+        "y" : 675
       }, {
         "id" : "34",
-        "x" : 0,
-        "y" : 0
+        "x" : 1897,
+        "y" : 667
       }, {
         "id" : "53",
-        "x" : 0,
-        "y" : 0
+        "x" : 2613,
+        "y" : 1340
       }, {
         "id" : "62",
-        "x" : 0,
-        "y" : 0
+        "x" : 1838,
+        "y" : 1260
       }, {
         "id" : "77",
-        "x" : 0,
-        "y" : 0
+        "x" : 1828,
+        "y" : 1800
       }, {
         "id" : "85",
-        "x" : 0,
-        "y" : 0
+        "x" : 1058,
+        "y" : 1725
       } ],
       "externalBoundariesVisible" : false,
       "key" : "PatientChatFlow",
@@ -4956,47 +4930,83 @@
         "description" : "Opens chat and sends message",
         "id" : "265",
         "order" : "1",
-        "response" : false
+        "response" : false,
+        "vertices" : [ {
+          "x" : 863,
+          "y" : 1100
+        } ]
       }, {
         "description" : "Sends message via SMS",
         "id" : "269",
         "order" : "1",
-        "response" : false
+        "response" : false,
+        "vertices" : [ {
+          "x" : 283,
+          "y" : 820
+        } ]
       }, {
         "description" : "Fetch raw interaction context",
         "id" : "247",
         "order" : "16",
-        "response" : false
+        "response" : false,
+        "vertices" : [ {
+          "x" : 2122,
+          "y" : 1140
+        } ]
       }, {
         "description" : "Run risk model inference",
         "id" : "249",
         "order" : "17",
-        "response" : false
+        "response" : false,
+        "vertices" : [ {
+          "x" : 1953,
+          "y" : 1660
+        } ]
       }, {
         "description" : "Return risk score",
         "id" : "249",
         "order" : "18",
-        "response" : true
+        "response" : true,
+        "vertices" : [ {
+          "x" : 2218,
+          "y" : 1670
+        } ]
       }, {
         "description" : "Escalate on high-risk outcome",
         "id" : "254",
         "order" : "19",
-        "response" : false
+        "response" : false,
+        "vertices" : [ {
+          "x" : 1283,
+          "y" : 1410
+        } ]
       }, {
         "description" : "POST message",
         "id" : "103",
         "order" : "2",
-        "response" : false
+        "response" : false,
+        "vertices" : [ {
+          "x" : 1718,
+          "y" : 870
+        } ]
       }, {
         "description" : "POST message",
         "id" : "162",
         "order" : "2",
-        "response" : false
+        "response" : false,
+        "vertices" : [ {
+          "x" : 2525,
+          "y" : 870
+        } ]
       }, {
         "description" : "Inbound SMS webhook",
         "id" : "271",
         "order" : "2",
-        "response" : false
+        "response" : false,
+        "vertices" : [ {
+          "x" : 2780,
+          "y" : 472
+        } ]
       }, {
         "description" : "Create incident for unclaimed alert",
         "id" : "218",
@@ -5006,42 +5016,77 @@
         "description" : "Lookup active care episode",
         "id" : "228",
         "order" : "3",
-        "response" : false
+        "response" : false,
+        "vertices" : [ {
+          "x" : 2630,
+          "y" : 1070
+        } ]
       }, {
         "description" : "Return care episode ID",
         "id" : "228",
         "order" : "4",
-        "response" : true
+        "response" : true,
+        "vertices" : [ {
+          "x" : 2455,
+          "y" : 1200
+        } ]
       }, {
         "description" : "ACK + AI reply",
         "id" : "162",
         "order" : "5",
-        "response" : true
+        "response" : true,
+        "vertices" : [ {
+          "x" : 2513,
+          "y" : 730
+        } ]
       }, {
         "description" : "ACK + stream AI reply",
         "id" : "234",
         "order" : "5",
-        "response" : false
+        "response" : false,
+        "vertices" : [ {
+          "x" : 1713,
+          "y" : 675
+        } ]
       }, {
         "description" : "Deliver outbound SMS",
         "id" : "164",
         "order" : "6",
-        "response" : false
+        "response" : false,
+        "vertices" : [ {
+          "x" : 2903,
+          "y" : 330
+        }, {
+          "x" : 1130,
+          "y" : 330
+        } ]
       }, {
         "description" : "message response stream",
         "id" : "265",
         "order" : "7",
-        "response" : true
+        "response" : true,
+        "vertices" : [ {
+          "x" : 823,
+          "y" : 890
+        } ]
       }, {
         "description" : "message response stream",
         "id" : "269",
         "order" : "7",
-        "response" : true
+        "response" : true,
+        "vertices" : [ {
+          "x" : 623,
+          "y" : 830
+        } ]
       }, {
         "description" : "Publish risk-eval event (async)",
         "id" : "238",
         "order" : "A5",
-        "response" : false
+        "response" : false,
+        "vertices" : [ {
+          "x" : 1860,
+          "y" : 1105
+        } ]
       } ],
       "title" : "Patient Chat - Process Flow"
     }, {
@@ -5132,10 +5177,6 @@
         "x" : 3061,
         "y" : 1049
       }, {
-        "id" : "14",
-        "x" : 2170,
-        "y" : 770
-      }, {
         "id" : "15",
         "x" : 2881,
         "y" : 1771
@@ -5188,10 +5229,6 @@
         "id" : "282"
       }, {
         "id" : "283"
-      }, {
-        "id" : "284"
-      }, {
-        "id" : "285"
       }, {
         "id" : "286"
       }, {
