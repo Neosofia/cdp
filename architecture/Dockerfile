@@ -15,6 +15,9 @@ COPY adrs/ /usr/local/adrs/
 
 # nginx proxies to structurizr's internal port and rewrites the Host header to
 # "localhost" so that structurizr activates local mode (read-only, single workspace).
+# proxy_redirect rewrites the absolute Location header structurizr emits on redirect.
+# sub_filter strips "http://localhost" from response bodies so the browser resolves
+# all API/asset paths relative to the public URL instead of trying to reach localhost.
 RUN cat > /etc/nginx/sites-available/default <<'NGINX'
 server {
     listen 8080;
@@ -24,6 +27,13 @@ server {
         proxy_set_header   X-Real-IP         $remote_addr;
         proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
         proxy_set_header   X-Forwarded-Proto $scheme;
+
+        proxy_redirect     http://localhost/ /;
+
+        proxy_set_header   Accept-Encoding   "";
+        sub_filter         'http://localhost' '';
+        sub_filter_once    off;
+        sub_filter_types   text/html text/javascript application/javascript application/json;
     }
 }
 NGINX
