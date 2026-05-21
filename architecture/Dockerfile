@@ -45,6 +45,13 @@ server {
         sub_filter         'http://localhost' '';
         sub_filter_once    off;
         sub_filter_types   text/javascript application/javascript application/json;
+
+        # Railway's edge makes a separate upstream request for headers and body,
+        # causing the per-request CSP nonce in the header to diverge from the nonce
+        # baked into the HTML body — blocking all inline scripts.
+        # Replace the nonce-based CSP with a self + unsafe-inline policy so scripts run.
+        proxy_hide_header  Content-Security-Policy;
+        add_header         Content-Security-Policy "script-src 'self' 'unsafe-inline'; worker-src blob:" always;
     }
 }
 NGINX
