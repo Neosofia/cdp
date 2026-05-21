@@ -5,7 +5,9 @@
   "description" : "HIPAA-compliant clinical data platform for AI-assisted care coordination, patient engagement, risk detection, and clinician escalation",
   "documentation" : { },
   "id" : 1,
-  "lastModifiedDate" : "2026-05-21T11:37:26Z",
+  "lastModifiedAgent" : "structurizr/diagrams/4d28ff47-42e0-4592-91d5-ba9c07d0f640",
+  "lastModifiedDate" : "2026-05-21T15:09:54Z",
+  "lastModifiedUser" : "99983401",
   "model" : {
     "deploymentNodes" : [ {
       "children" : [ {
@@ -458,8 +460,8 @@
               "properties" : {
                 "structurizr.dsl.identifier" : "authSvcProd",
                 "image" : "ghcr.io/byoung/cdp/authentication:{tag}",
-                "memory" : "1024 MiB",
-                "cpu" : "512"
+                "cpu" : "512",
+                "memory" : "1024 MiB"
               },
               "relationships" : [ {
                 "description" : "reads/writes (private subnet)",
@@ -3035,9 +3037,9 @@
   },
   "name" : "Clinical Data Platform (CDP)",
   "properties" : {
-    "structurizr.inspection.error" : "0",
     "structurizr.inspection.info" : "0",
     "structurizr.inspection.ignore" : "0",
+    "structurizr.inspection.error" : "0",
     "structurizr.inspection.warning" : "0"
   },
   "views" : {
@@ -3931,6 +3933,8 @@
       "title" : "Clean Chat Service - Components"
     } ],
     "configuration" : {
+      "lastSavedView" : "Landscape",
+      "metadataSymbols" : "SquareBrackets",
       "properties" : {
         "structurizr.metadata" : "false"
       },
@@ -4134,10 +4138,6 @@
           "shape" : "WebBrowser",
           "tag" : "WebApp"
         }, {
-          "background" : "#6363f1",
-          "color" : "#ffffff",
-          "tag" : "WorkOS"
-        }, {
           "background" : "#6a1b9a",
           "color" : "#ffffff",
           "height" : 300,
@@ -4148,6 +4148,14 @@
           "color" : "#ffffff",
           "shape" : "RoundedBox",
           "tag" : "Workflow"
+        }, {
+          "background" : "#6363f1",
+          "color" : "#ffffff",
+          "tag" : "WorkOS"
+        } ],
+        "relationships" : [ {
+          "position" : 50,
+          "tag" : "Relationship"
         } ]
       },
       "terminology" : { }
@@ -5079,70 +5087,74 @@
       "title" : "App (Service) Token Issuance and Validation"
     } ],
     "systemLandscapeViews" : [ {
+      "dimensions" : {
+        "height" : 2308,
+        "width" : 3599
+      },
       "elements" : [ {
         "id" : "1",
-        "x" : 0,
-        "y" : 0
+        "x" : 1741,
+        "y" : 1684
       }, {
         "id" : "2",
-        "x" : 0,
-        "y" : 0
+        "x" : 690,
+        "y" : 1665
       }, {
         "id" : "3",
-        "x" : 0,
-        "y" : 0
+        "x" : 2150,
+        "y" : 176
       }, {
         "id" : "4",
-        "x" : 0,
-        "y" : 0
+        "x" : 1680,
+        "y" : 176
       }, {
         "id" : "5",
-        "x" : 0,
-        "y" : 0
+        "x" : 740,
+        "y" : 176
       }, {
         "id" : "6",
-        "x" : 0,
-        "y" : 0
+        "x" : 1210,
+        "y" : 176
       }, {
         "id" : "7",
-        "x" : 0,
-        "y" : 0
+        "x" : 200,
+        "y" : 176
       }, {
         "id" : "8",
-        "x" : 0,
-        "y" : 0
+        "x" : 1710,
+        "y" : 1001
       }, {
         "id" : "9",
-        "x" : 0,
-        "y" : 0
+        "x" : 2401,
+        "y" : 1771
       }, {
         "id" : "13",
-        "x" : 0,
-        "y" : 0
+        "x" : 3061,
+        "y" : 1049
       }, {
         "id" : "14",
-        "x" : 0,
-        "y" : 0
+        "x" : 2170,
+        "y" : 770
       }, {
         "id" : "15",
-        "x" : 0,
-        "y" : 0
+        "x" : 2881,
+        "y" : 1771
       }, {
         "id" : "16",
-        "x" : 0,
-        "y" : 0
+        "x" : 230,
+        "y" : 975
       }, {
         "id" : "17",
-        "x" : 0,
-        "y" : 0
+        "x" : 2896,
+        "y" : 344
       }, {
         "id" : "18",
-        "x" : 0,
-        "y" : 0
+        "x" : 850,
+        "y" : 1000
       }, {
         "id" : "19",
-        "x" : 0,
-        "y" : 0
+        "x" : 2306,
+        "y" : 1129
       } ],
       "enterpriseBoundaryVisible" : true,
       "key" : "Landscape",
@@ -5165,7 +5177,11 @@
       }, {
         "id" : "274"
       }, {
-        "id" : "280"
+        "id" : "280",
+        "vertices" : [ {
+          "x" : 936,
+          "y" : 1434
+        } ]
       }, {
         "id" : "281"
       }, {
