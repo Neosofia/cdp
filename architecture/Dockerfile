@@ -29,9 +29,13 @@ server {
         proxy_set_header   X-Forwarded-Proto $scheme;
 
         proxy_redirect     http://architecture.neosofia.tech:8080/ /;
+        proxy_redirect     https://architecture.neosofia.tech:8080/ /;
         proxy_redirect     http://architecture.neosofia.tech/ /;
+        proxy_redirect     https://architecture.neosofia.tech/ /;
         proxy_redirect     http://localhost:8080/ /;
+        proxy_redirect     https://localhost:8080/ /;
         proxy_redirect     http://localhost/ /;
+        proxy_redirect     https://localhost/ /;
 
         proxy_set_header   Accept-Encoding   "";
         sub_filter         'http://architecture.neosofia.tech:8080' '';
