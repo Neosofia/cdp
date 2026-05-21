@@ -43,8 +43,12 @@ server {
         sub_filter         'http://localhost:8080' '';
         sub_filter         'http://localhost:80' '';
         sub_filter         'http://localhost' '';
+        # Fix upstream Structurizr bug: dark thumbnail img tag has malformed CSS
+        # "margin-right: max-height: Xpx" — missing "auto;" before max-height.
+        # Chrome silently ignores it; Firefox collapses the image to near-zero size.
+        sub_filter         'margin-right: max-height:' 'margin-right: auto; max-height:';
         sub_filter_once    off;
-        sub_filter_types   text/javascript application/javascript application/json;
+        sub_filter_types   text/javascript application/javascript application/json text/html;
 
         # Railway's edge makes a separate upstream request for headers and body,
         # causing the per-request CSP nonce in the header to diverge from the nonce
