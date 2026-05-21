@@ -1,12 +1,17 @@
-FROM structurizr/structurizr@sha256:f2f00afe45c1981d557c5e1bd52fbcc8da0632d10a7c38038b6a1952db3e643b
+# Stage 1: extract the WAR from the official image
+FROM structurizr/structurizr@sha256:f2f00afe45c1981d557c5e1bd52fbcc8da0632d10a7c38038b6a1952db3e643b AS structurizr
 
-USER root
+# Stage 2: proper JRE base (Debian-based, has apt + shell)
+FROM eclipse-temurin:21-jre-jammy
+
 RUN apt-get update \
     && apt-get install -y --no-install-recommends nginx \
     && rm -rf /var/lib/apt/lists/*
 
-COPY architecture/structurizr/ /usr/local/structurizr/
-COPY architecture/adrs/ /usr/local/adrs/
+COPY --from=structurizr /usr/local/structurizr.war /usr/local/structurizr.war
+
+COPY structurizr/ /usr/local/structurizr/
+COPY adrs/ /usr/local/adrs/
 
 # nginx proxies to structurizr's internal port and rewrites the Host header to
 # "localhost" so that structurizr activates local mode (read-only, single workspace).
