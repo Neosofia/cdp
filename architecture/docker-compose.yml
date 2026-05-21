@@ -1,10 +1,9 @@
 services:
   structurizr:
     image: structurizr/structurizr:latest
-    command: local
     ports:
       - "8080:8080"
     volumes:
-      - ./structurizr:/usr/local/structurizr:cached
-      - ./adrs:/usr/local/adrs:cached
+      - ./structurizr:/usr/local/structurizr
+      - ./adrs:/usr/local/structurizr/adrs
 
