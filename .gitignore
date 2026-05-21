@@ -1,6 +1,5 @@
 # Structurizr
 architecture/structurizr/.structurizr/
-architecture/structurizr/workspace.json
 
 # Environment variables
 *.env

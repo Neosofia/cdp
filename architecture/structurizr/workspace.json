@@ -1,0 +1,5201 @@
+{
+  "configuration" : {
+    "scope" : "SoftwareSystem"
+  },
+  "description" : "HIPAA-compliant clinical data platform for AI-assisted care coordination, patient engagement, risk detection, and clinician escalation",
+  "documentation" : { },
+  "id" : 0,
+  "model" : {
+    "deploymentNodes" : [ {
+      "children" : [ {
+        "description" : "CI/CD pipeline",
+        "environment" : "earth",
+        "id" : "293",
+        "infrastructureNodes" : [ {
+          "description" : "pytest unit + integration tests on PRs and main; weekly Trivy CVE scan",
+          "environment" : "earth",
+          "id" : "294",
+          "name" : "authentication-ci",
+          "properties" : {
+            "structurizr.dsl.identifier" : "ci"
+          },
+          "relationships" : [ {
+            "description" : "gates",
+            "destinationId" : "295",
+            "id" : "328",
+            "sourceId" : "294",
+            "tags" : "Relationship",
+            "technology" : "GHA gate"
+          } ],
+          "tags" : "Element,Infrastructure Node,Workflow",
+          "technology" : "GHA Workflow"
+        }, {
+          "description" : "Build, test, scan, push to GHCR on authentication/* tag. Planned: manual approval gate for prod.",
+          "environment" : "earth",
+          "id" : "295",
+          "name" : "authentication-build-push",
+          "properties" : {
+            "structurizr.dsl.identifier" : "build"
+          },
+          "relationships" : [ {
+            "description" : "pushes image",
+            "destinationId" : "297",
+            "id" : "329",
+            "sourceId" : "295",
+            "tags" : "Relationship",
+            "technology" : "OCI registry push"
+          }, {
+            "description" : "triggers on same tag",
+            "destinationId" : "296",
+            "id" : "330",
+            "sourceId" : "295",
+            "tags" : "Relationship",
+            "technology" : "workflow trigger"
+          } ],
+          "tags" : "Element,Infrastructure Node,Workflow",
+          "technology" : "GHA Workflow"
+        }, {
+          "description" : "Pulls tagged image, retags :latest, runs docker compose up on CT 120 via self-hosted runner",
+          "environment" : "earth",
+          "id" : "296",
+          "name" : "authentication-deploy-dev",
+          "properties" : {
+            "structurizr.dsl.identifier" : "deploy"
+          },
+          "relationships" : [ {
+            "description" : "docker compose up --force-recreate via self-hosted runner",
+            "destinationId" : "311",
+            "id" : "331",
+            "sourceId" : "296",
+            "tags" : "Relationship",
+            "technology" : "Docker Compose deploy"
+          } ],
+          "tags" : "Element,Infrastructure Node,Workflow",
+          "technology" : "GHA Workflow"
+        } ],
+        "instances" : "1",
+        "name" : "GitHub Actions",
+        "properties" : {
+          "structurizr.dsl.identifier" : "actions"
+        },
+        "tags" : "Element,Deployment Node,GitHubActions",
+        "technology" : "GitHub Actions"
+      } ],
+      "description" : "github.com SaaS",
+      "environment" : "earth",
+      "id" : "292",
+      "infrastructureNodes" : [ {
+        "description" : "GitHub Container Registry — ghcr.io/byoung/cdp/authentication",
+        "environment" : "earth",
+        "id" : "297",
+        "name" : "GHCR",
+        "properties" : {
+          "structurizr.dsl.identifier" : "ghcr"
+        },
+        "relationships" : [ {
+          "description" : "image pulled by deploy workflow before compose up",
+          "destinationId" : "311",
+          "id" : "332",
+          "sourceId" : "297",
+          "tags" : "Relationship",
+          "technology" : "OCI image pull"
+        } ],
+        "tags" : "Element,Infrastructure Node,GitHubRegistry",
+        "technology" : "OCI Registry"
+      } ],
+      "instances" : "1",
+      "name" : "GitHub",
+      "properties" : {
+        "structurizr.dsl.identifier" : "github"
+      },
+      "tags" : "Element,Deployment Node,GitHub",
+      "technology" : "SaaS"
+    }, {
+      "description" : "External identity provider",
+      "environment" : "earth",
+      "id" : "298",
+      "infrastructureNodes" : [ {
+        "description" : "OAuth2 PKCE flows and SSO session management",
+        "environment" : "earth",
+        "id" : "299",
+        "name" : "WorkOS SSO",
+        "properties" : {
+          "structurizr.dsl.identifier" : "wosSso"
+        },
+        "relationships" : [ {
+          "description" : "OAuth2 callback",
+          "destinationId" : "311",
+          "id" : "341",
+          "sourceId" : "299",
+          "tags" : "Relationship",
+          "technology" : "HTTPS"
+        }, {
+          "description" : "OAuth2 callback (inbound via CloudFront)",
+          "destinationId" : "323",
+          "id" : "348",
+          "sourceId" : "299",
+          "tags" : "Relationship",
+          "technology" : "HTTPS"
+        } ],
+        "tags" : "Element,Infrastructure Node,SaaSService",
+        "technology" : "WorkOS"
+      } ],
+      "instances" : "1",
+      "name" : "WorkOS",
+      "properties" : {
+        "structurizr.dsl.identifier" : "wosNode"
+      },
+      "tags" : "Element,Deployment Node,SaaSNode",
+      "technology" : "SaaS"
+    }, {
+      "description" : "DNS and DDoS protection",
+      "environment" : "earth",
+      "id" : "300",
+      "infrastructureNodes" : [ {
+        "description" : "CNAME -> NetBird peer IP. Proxied for DDoS protection.",
+        "environment" : "earth",
+        "id" : "301",
+        "name" : "auth.dev.cdp.neosofia.tech",
+        "properties" : {
+          "structurizr.dsl.identifier" : "dns"
+        },
+        "relationships" : [ {
+          "description" : "CNAME → NetBird peer IP (proxied)",
+          "destinationId" : "303",
+          "id" : "333",
+          "sourceId" : "301",
+          "tags" : "Relationship",
+          "technology" : "DNS"
+        } ],
+        "tags" : "Element,Infrastructure Node,Proxy",
+        "technology" : "Cloudflare DNS"
+      } ],
+      "instances" : "1",
+      "name" : "Cloudflare",
+      "properties" : {
+        "structurizr.dsl.identifier" : "cloudflare"
+      },
+      "tags" : "Element,Deployment Node,Edge",
+      "technology" : "Cloudflare"
+    }, {
+      "description" : "WireGuard mesh VPN and reverse-proxy relay",
+      "environment" : "earth",
+      "id" : "302",
+      "infrastructureNodes" : [ {
+        "description" : "Routes encrypted traffic from Cloudflare peer IP to CT 110 NB client",
+        "environment" : "earth",
+        "id" : "303",
+        "name" : "NetBird relay",
+        "properties" : {
+          "structurizr.dsl.identifier" : "nbRelay"
+        },
+        "relationships" : [ {
+          "description" : "routes via WireGuard mesh",
+          "destinationId" : "306",
+          "id" : "334",
+          "sourceId" : "303",
+          "tags" : "Relationship",
+          "technology" : "WireGuard"
+        } ],
+        "tags" : "Element,Infrastructure Node,NetBirdService",
+        "technology" : "NetBird"
+      } ],
+      "instances" : "1",
+      "name" : "NetBird",
+      "properties" : {
+        "structurizr.dsl.identifier" : "netbird"
+      },
+      "tags" : "Element,Deployment Node,SaaSNode,NetBirdNode",
+      "technology" : "NetBird SaaS"
+    }, {
+      "children" : [ {
+        "description" : "Edge LXC: NetBird client. Manually provisioned — no IaC script yet.",
+        "environment" : "earth",
+        "id" : "305",
+        "infrastructureNodes" : [ {
+          "description" : "Joins the NetBird mesh; receives ingress from relay",
+          "environment" : "earth",
+          "id" : "306",
+          "name" : "NetBird client",
+          "properties" : {
+            "structurizr.dsl.identifier" : "nbClient"
+          },
+          "relationships" : [ {
+            "description" : "routes to :8000",
+            "destinationId" : "311",
+            "id" : "335",
+            "sourceId" : "306",
+            "tags" : "Relationship",
+            "technology" : "TCP/8000"
+          } ],
+          "tags" : "Element,Infrastructure Node,Proxy,NetBirdService",
+          "technology" : "NetBird"
+        } ],
+        "instances" : "1",
+        "name" : "CT 110 - netbird",
+        "properties" : {
+          "structurizr.dsl.identifier" : "ct110"
+        },
+        "tags" : "Element,Deployment Node,LXC",
+        "technology" : "Debian 13"
+      }, {
+        "description" : "Ops visibility LXC  1 vCPU / 512 MiB",
+        "environment" : "earth",
+        "id" : "307",
+        "infrastructureNodes" : [ {
+          "description" : "Container ops console. :9443 / :9000",
+          "environment" : "earth",
+          "id" : "308",
+          "name" : "Portainer CE",
+          "properties" : {
+            "structurizr.dsl.identifier" : "portainer"
+          },
+          "relationships" : [ {
+            "description" : "manages via agent :9001",
+            "destinationId" : "314",
+            "id" : "336",
+            "sourceId" : "308",
+            "tags" : "Relationship",
+            "technology" : "Portainer Agent API"
+          } ],
+          "tags" : "Element,Infrastructure Node,OpsNode",
+          "technology" : "portainer/portainer-ce:2.39.1"
+        } ],
+        "instances" : "1",
+        "name" : "CT 114 - portainer",
+        "properties" : {
+          "structurizr.dsl.identifier" : "ct114"
+        },
+        "tags" : "Element,Deployment Node,LXC",
+        "technology" : "Debian 13 / Docker CE"
+      }, {
+        "children" : [ {
+          "containerInstances" : [ {
+            "containerId" : "78",
+            "environment" : "earth",
+            "id" : "311",
+            "instanceId" : 1,
+            "properties" : {
+              "structurizr.dsl.identifier" : "authSvcDev",
+              "image" : "ghcr.io/byoung/cdp/authentication:latest",
+              "port" : "8000",
+              "pull_policy" : "never (pre-pulled by deploy workflow)"
+            },
+            "relationships" : [ {
+              "description" : "reads/writes",
+              "destinationId" : "312",
+              "id" : "338",
+              "sourceId" : "311",
+              "tags" : "Relationship",
+              "technology" : "PostgreSQL"
+            }, {
+              "description" : "fetches secret bundle at startup (AWS_ENDPOINT_URL)",
+              "destinationId" : "313",
+              "id" : "339",
+              "sourceId" : "311",
+              "tags" : "Relationship",
+              "technology" : "AWS SDK"
+            } ],
+            "tags" : "Container Instance"
+          } ],
+          "description" : "Service and its database",
+          "environment" : "earth",
+          "id" : "310",
+          "infrastructureNodes" : [ {
+            "description" : "Auth database — bind-mount at /var/lib/cdp-auth/postgres",
+            "environment" : "earth",
+            "id" : "312",
+            "name" : "cdp-auth-postgres",
+            "properties" : {
+              "structurizr.dsl.identifier" : "postgres"
+            },
+            "tags" : "Element,Infrastructure Node,Database",
+            "technology" : "postgres:16"
+          }, {
+            "description" : "LocalStack Secrets Manager — seeds cdp/authentication/dev/env bundle via init hook",
+            "environment" : "earth",
+            "id" : "313",
+            "name" : "cdp-auth-localstack",
+            "properties" : {
+              "structurizr.dsl.identifier" : "localstack"
+            },
+            "relationships" : [ {
+              "description" : "init hook probes DB availability",
+              "destinationId" : "312",
+              "id" : "340",
+              "sourceId" : "313",
+              "tags" : "Relationship",
+              "technology" : "PostgreSQL"
+            } ],
+            "tags" : "Element,Infrastructure Node,SecretsNode",
+            "technology" : "localstack/localstack:4"
+          } ],
+          "instances" : "1",
+          "name" : "Docker Compose: authentication",
+          "properties" : {
+            "structurizr.dsl.identifier" : "compose"
+          },
+          "tags" : "Element,Deployment Node,ComposeStack",
+          "technology" : "Docker Compose"
+        } ],
+        "description" : "Authentication LXC  2 vCPU / 4 GiB / 10.0.0.120",
+        "environment" : "earth",
+        "id" : "309",
+        "infrastructureNodes" : [ {
+          "description" : "Exposes Docker socket to CT 114 on :9001",
+          "environment" : "earth",
+          "id" : "314",
+          "name" : "Portainer Agent",
+          "properties" : {
+            "structurizr.dsl.identifier" : "portainerAgent"
+          },
+          "relationships" : [ {
+            "description" : "monitors",
+            "destinationId" : "311",
+            "id" : "337",
+            "sourceId" : "314",
+            "tags" : "Relationship",
+            "technology" : "Docker API"
+          } ],
+          "tags" : "Element,Infrastructure Node,OpsNode",
+          "technology" : "portainer/agent:latest"
+        } ],
+        "instances" : "1",
+        "name" : "CT 120 - cdp-auth-dev",
+        "properties" : {
+          "structurizr.dsl.identifier" : "ct120"
+        },
+        "tags" : "Element,Deployment Node,LXC",
+        "technology" : "Debian 13 / Docker CE"
+      } ],
+      "description" : "On-prem bare-metal hypervisor",
+      "environment" : "earth",
+      "id" : "304",
+      "instances" : "1",
+      "name" : "Proxmox VE",
+      "properties" : {
+        "structurizr.dsl.identifier" : "pve"
+      },
+      "tags" : "Element,Deployment Node,OnPrem",
+      "technology" : "Proxmox VE 9.x"
+    }, {
+      "children" : [ {
+        "description" : "Global CDN and TLS termination",
+        "environment" : "earth",
+        "id" : "316",
+        "infrastructureNodes" : [ {
+          "description" : "ACM certificate. WAF OWASP Top 10 rules.",
+          "environment" : "earth",
+          "id" : "317",
+          "name" : "auth.cdp.example.com",
+          "properties" : {
+            "structurizr.dsl.identifier" : "cfDist"
+          },
+          "relationships" : [ {
+            "description" : "routes to Authentication Service",
+            "destinationId" : "323",
+            "id" : "342",
+            "sourceId" : "317",
+            "tags" : "Relationship",
+            "technology" : "HTTP/HTTPS"
+          } ],
+          "tags" : "Element,Infrastructure Node,AwsCdnNode",
+          "technology" : "CloudFront Distribution"
+        } ],
+        "instances" : "1",
+        "name" : "CloudFront",
+        "properties" : {
+          "structurizr.dsl.identifier" : "cfEdge"
+        },
+        "tags" : "Element,Deployment Node,AwsCdn",
+        "technology" : "AWS CloudFront"
+      }, {
+        "children" : [ {
+          "description" : "Hosts NAT Gateway; no application workloads",
+          "environment" : "earth",
+          "id" : "319",
+          "infrastructureNodes" : [ {
+            "description" : "Provides outbound internet access for private subnet resources (GHCR pulls, WorkOS API calls)",
+            "environment" : "earth",
+            "id" : "320",
+            "name" : "NAT Gateway",
+            "properties" : {
+              "structurizr.dsl.identifier" : "natGw"
+            },
+            "relationships" : [ {
+              "description" : "pulls image on deploy",
+              "destinationId" : "297",
+              "id" : "346",
+              "sourceId" : "320",
+              "tags" : "Relationship",
+              "technology" : "HTTPS"
+            }, {
+              "description" : "WorkOS API calls (OAuth2 initiation)",
+              "destinationId" : "299",
+              "id" : "347",
+              "sourceId" : "320",
+              "tags" : "Relationship",
+              "technology" : "HTTPS"
+            } ],
+            "tags" : "Element,Infrastructure Node,AwsGateway",
+            "technology" : "AWS NAT Gateway"
+          } ],
+          "instances" : "1",
+          "name" : "Public Subnet",
+          "properties" : {
+            "structurizr.dsl.identifier" : "publicSubnet"
+          },
+          "tags" : "Element,Deployment Node,AwsVpc",
+          "technology" : "AWS Subnet"
+        }, {
+          "children" : [ {
+            "containerInstances" : [ {
+              "containerId" : "78",
+              "environment" : "earth",
+              "id" : "323",
+              "instanceId" : 1,
+              "properties" : {
+                "structurizr.dsl.identifier" : "authSvcProd",
+                "image" : "ghcr.io/byoung/cdp/authentication:{tag}",
+                "memory" : "1024 MiB",
+                "cpu" : "512"
+              },
+              "relationships" : [ {
+                "description" : "reads/writes (private subnet)",
+                "destinationId" : "325",
+                "id" : "343",
+                "sourceId" : "323",
+                "tags" : "Relationship",
+                "technology" : "PostgreSQL"
+              }, {
+                "description" : "reads secrets at startup (VPC endpoint)",
+                "destinationId" : "327",
+                "id" : "344",
+                "sourceId" : "323",
+                "tags" : "Relationship",
+                "technology" : "AWS Secrets Manager"
+              }, {
+                "description" : "outbound internet traffic",
+                "destinationId" : "320",
+                "id" : "345",
+                "sourceId" : "323",
+                "tags" : "Relationship",
+                "technology" : "NAT"
+              } ],
+              "tags" : "Container Instance"
+            } ],
+            "description" : "Serverless container runtime - no EC2 to patch",
+            "environment" : "earth",
+            "id" : "322",
+            "instances" : "1",
+            "name" : "ECS Fargate",
+            "properties" : {
+              "structurizr.dsl.identifier" : "fargate"
+            },
+            "tags" : "Element,Deployment Node,AwsCompute",
+            "technology" : "AWS ECS Fargate"
+          }, {
+            "description" : "Multi-AZ, encrypted at rest",
+            "environment" : "earth",
+            "id" : "324",
+            "infrastructureNodes" : [ {
+              "description" : "Authentication service database",
+              "environment" : "earth",
+              "id" : "325",
+              "name" : "auth-db",
+              "properties" : {
+                "structurizr.dsl.identifier" : "db"
+              },
+              "tags" : "Element,Infrastructure Node,Database",
+              "technology" : "PostgreSQL 18"
+            } ],
+            "instances" : "1",
+            "name" : "RDS",
+            "properties" : {
+              "structurizr.dsl.identifier" : "rds"
+            },
+            "tags" : "Element,Deployment Node,AwsDatabase",
+            "technology" : "AWS RDS PostgreSQL 18"
+          } ],
+          "description" : "No inbound internet routes; only reachable via API GW and NAT GW",
+          "environment" : "earth",
+          "id" : "321",
+          "instances" : "1",
+          "name" : "Private Subnet",
+          "properties" : {
+            "structurizr.dsl.identifier" : "privateSubnet"
+          },
+          "tags" : "Element,Deployment Node,AwsVpc",
+          "technology" : "AWS Subnet"
+        } ],
+        "description" : "Isolated private network",
+        "environment" : "earth",
+        "id" : "318",
+        "instances" : "1",
+        "name" : "VPC",
+        "properties" : {
+          "structurizr.dsl.identifier" : "vpc"
+        },
+        "tags" : "Element,Deployment Node,AwsVpc",
+        "technology" : "AWS VPC"
+      }, {
+        "description" : "Secure secrets at rest",
+        "environment" : "earth",
+        "id" : "326",
+        "infrastructureNodes" : [ {
+          "description" : "DB credentials, WorkOS client secret, JWT RS256 private key",
+          "environment" : "earth",
+          "id" : "327",
+          "name" : "auth service secrets",
+          "properties" : {
+            "structurizr.dsl.identifier" : "secretsInst"
+          },
+          "tags" : "Element,Infrastructure Node,AwsSecurityNode",
+          "technology" : "AWS Secrets Manager"
+        } ],
+        "instances" : "1",
+        "name" : "Secrets Manager",
+        "properties" : {
+          "structurizr.dsl.identifier" : "secretsMgr"
+        },
+        "tags" : "Element,Deployment Node,AwsService",
+        "technology" : "AWS Secrets Manager"
+      } ],
+      "description" : "Amazon Web Services",
+      "environment" : "earth",
+      "id" : "315",
+      "instances" : "1",
+      "name" : "AWS",
+      "properties" : {
+        "structurizr.dsl.identifier" : "aws"
+      },
+      "tags" : "Element,Deployment Node,Cloud",
+      "technology" : "Cloud"
+    } ],
+    "people" : [ {
+      "description" : "Patient receiving coordinated care via app, web, or SMS",
+      "id" : "1",
+      "name" : "Patient",
+      "properties" : {
+        "structurizr.dsl.identifier" : "patient"
+      },
+      "relationships" : [ {
+        "description" : "Chat via app or web",
+        "destinationId" : "20",
+        "id" : "265",
+        "sourceId" : "1",
+        "tags" : "Relationship",
+        "technology" : "HTTPS"
+      }, {
+        "description" : "Chat via app or web",
+        "destinationId" : "19",
+        "id" : "266",
+        "linkedRelationshipId" : "265",
+        "sourceId" : "1",
+        "technology" : "HTTPS"
+      }, {
+        "description" : "Register and log in via invite link",
+        "destinationId" : "21",
+        "id" : "267",
+        "sourceId" : "1",
+        "tags" : "Relationship",
+        "technology" : "HTTPS"
+      }, {
+        "description" : "Chat with care team",
+        "destinationId" : "22",
+        "id" : "268",
+        "sourceId" : "1",
+        "tags" : "Relationship",
+        "technology" : "HTTPS + WebSocket/SSE"
+      }, {
+        "description" : "Send and receive SMS",
+        "destinationId" : "9",
+        "id" : "269",
+        "sourceId" : "1",
+        "tags" : "Relationship",
+        "technology" : "SMS"
+      } ],
+      "tags" : "Element,Person,Patient"
+    }, {
+      "description" : "Clinician handling escalations and patient follow-up",
+      "id" : "2",
+      "name" : "Clinician",
+      "properties" : {
+        "structurizr.dsl.identifier" : "clinician"
+      },
+      "relationships" : [ {
+        "description" : "Handle escalations and patient follow-up",
+        "destinationId" : "42",
+        "id" : "273",
+        "sourceId" : "2",
+        "tags" : "Relationship",
+        "technology" : "HTTPS"
+      }, {
+        "description" : "Handle escalations and patient follow-up",
+        "destinationId" : "19",
+        "id" : "274",
+        "linkedRelationshipId" : "273",
+        "sourceId" : "2",
+        "technology" : "HTTPS"
+      }, {
+        "description" : "Log in via SSO",
+        "destinationId" : "43",
+        "id" : "275",
+        "sourceId" : "2",
+        "tags" : "Relationship",
+        "technology" : "HTTPS"
+      }, {
+        "description" : "View and claim escalation alerts",
+        "destinationId" : "44",
+        "id" : "276",
+        "sourceId" : "2",
+        "tags" : "Relationship",
+        "technology" : "HTTPS"
+      }, {
+        "description" : "Review transcript and EMR context",
+        "destinationId" : "45",
+        "id" : "277",
+        "sourceId" : "2",
+        "tags" : "Relationship",
+        "technology" : "HTTPS"
+      }, {
+        "description" : "Send replies and manage care session",
+        "destinationId" : "46",
+        "id" : "278",
+        "sourceId" : "2",
+        "tags" : "Relationship",
+        "technology" : "HTTPS"
+      }, {
+        "description" : "Rate closed sessions",
+        "destinationId" : "47",
+        "id" : "279",
+        "sourceId" : "2",
+        "tags" : "Relationship",
+        "technology" : "HTTPS"
+      }, {
+        "description" : "Receive and acknowledge incidents",
+        "destinationId" : "8",
+        "id" : "280",
+        "sourceId" : "2",
+        "tags" : "Relationship",
+        "technology" : "PagerDuty UI"
+      }, {
+        "description" : "Initiate phone/video call after consent",
+        "destinationId" : "1",
+        "id" : "282",
+        "sourceId" : "2",
+        "tags" : "Relationship",
+        "technology" : "Phone/Video"
+      } ],
+      "tags" : "Element,Person,Clinician"
+    }, {
+      "description" : "Internal engineer using Bedrock AI Workbench",
+      "id" : "3",
+      "name" : "ML Engineer / Data Scientist",
+      "properties" : {
+        "structurizr.dsl.identifier" : "mlEngineer"
+      },
+      "relationships" : [ {
+        "description" : "Run EDA and model workflows",
+        "destinationId" : "17",
+        "id" : "283",
+        "sourceId" : "3",
+        "tags" : "Relationship",
+        "technology" : "AWS Console / SDK"
+      }, {
+        "description" : "SSO authentication",
+        "destinationId" : "14",
+        "id" : "284",
+        "sourceId" : "3",
+        "tags" : "Relationship",
+        "technology" : "OIDC/SAML"
+      } ],
+      "tags" : "Element,Person,Internal"
+    }, {
+      "description" : "Engineer responding to operational incidents",
+      "id" : "4",
+      "name" : "On-call Engineer",
+      "properties" : {
+        "structurizr.dsl.identifier" : "onCallEngineer"
+      },
+      "relationships" : [ {
+        "description" : "Respond to incidents",
+        "destinationId" : "8",
+        "id" : "286",
+        "sourceId" : "4",
+        "tags" : "Relationship",
+        "technology" : "PagerDuty UI"
+      }, {
+        "description" : "Monitor SLIs/SLOs and investigate incidents",
+        "destinationId" : "18",
+        "id" : "287",
+        "sourceId" : "4",
+        "tags" : "Relationship",
+        "technology" : "Dashboards/Alerts"
+      } ],
+      "tags" : "Element,Person,Internal"
+    }, {
+      "description" : "Reviews AI quality metrics and clinician feedback",
+      "id" : "5",
+      "name" : "Clinical Lead",
+      "properties" : {
+        "structurizr.dsl.identifier" : "clinicalLead"
+      },
+      "relationships" : [ {
+        "description" : "Review AI response quality ratings and clinician feedback trends",
+        "destinationId" : "18",
+        "id" : "291",
+        "sourceId" : "5",
+        "tags" : "Relationship",
+        "technology" : "Dashboards"
+      } ],
+      "tags" : "Element,Person,Internal"
+    }, {
+      "description" : "Reviews engagement and satisfaction trends",
+      "id" : "6",
+      "name" : "Product Manager",
+      "properties" : {
+        "structurizr.dsl.identifier" : "productManager"
+      },
+      "relationships" : [ {
+        "description" : "Review engagement, channel, and satisfaction metrics",
+        "destinationId" : "18",
+        "id" : "290",
+        "sourceId" : "6",
+        "tags" : "Relationship",
+        "technology" : "Dashboards"
+      } ],
+      "tags" : "Element,Person,Internal"
+    }, {
+      "description" : "Runs independent SIEM checks for PHI/PII leakage",
+      "id" : "7",
+      "name" : "InfoSec Team",
+      "properties" : {
+        "structurizr.dsl.identifier" : "infoSecTeam"
+      },
+      "relationships" : [ {
+        "description" : "Run independent PHI/PII leak scans",
+        "destinationId" : "16",
+        "id" : "288",
+        "sourceId" : "7",
+        "tags" : "Relationship",
+        "technology" : "SIEM UI"
+      }, {
+        "description" : "Review automated PHI-pattern scan alerts",
+        "destinationId" : "18",
+        "id" : "289",
+        "sourceId" : "7",
+        "tags" : "Relationship",
+        "technology" : "Dashboards/Alerts"
+      } ],
+      "tags" : "Element,Person,Internal"
+    } ],
+    "softwareSystems" : [ {
+      "description" : "On-call incident management and escalation routing",
+      "documentation" : { },
+      "id" : "8",
+      "name" : "PagerDuty",
+      "properties" : {
+        "structurizr.dsl.identifier" : "pagerDuty"
+      },
+      "relationships" : [ {
+        "description" : "Page on-call clinician",
+        "destinationId" : "2",
+        "id" : "281",
+        "sourceId" : "8",
+        "tags" : "Relationship",
+        "technology" : "PagerDuty incident notification"
+      } ],
+      "tags" : "Element,Software System,External,PagerDuty"
+    }, {
+      "description" : "Twilio or AWS Pinpoint for inbound/outbound SMS",
+      "documentation" : { },
+      "id" : "9",
+      "name" : "SMS Provider",
+      "properties" : {
+        "structurizr.dsl.identifier" : "smsProvider"
+      },
+      "relationships" : [ {
+        "description" : "Inbound SMS webhook",
+        "destinationId" : "26",
+        "id" : "270",
+        "sourceId" : "9",
+        "tags" : "Relationship",
+        "technology" : "HTTPS Webhook"
+      }, {
+        "description" : "Inbound SMS webhook",
+        "destinationId" : "25",
+        "id" : "271",
+        "linkedRelationshipId" : "270",
+        "sourceId" : "9",
+        "technology" : "HTTPS Webhook"
+      }, {
+        "description" : "Inbound SMS webhook",
+        "destinationId" : "19",
+        "id" : "272",
+        "linkedRelationshipId" : "270",
+        "sourceId" : "9",
+        "technology" : "HTTPS Webhook"
+      } ],
+      "tags" : "Element,Software System,External"
+    }, {
+      "description" : "Apple Push Notification service",
+      "documentation" : { },
+      "id" : "10",
+      "name" : "APNS",
+      "properties" : {
+        "structurizr.dsl.identifier" : "apns"
+      },
+      "relationships" : [ {
+        "description" : "Stale token feedback",
+        "destinationId" : "33",
+        "id" : "209",
+        "sourceId" : "10",
+        "tags" : "Relationship",
+        "technology" : "APNS Feedback"
+      }, {
+        "description" : "Stale token feedback",
+        "destinationId" : "30",
+        "id" : "210",
+        "linkedRelationshipId" : "209",
+        "sourceId" : "10",
+        "technology" : "APNS Feedback"
+      }, {
+        "description" : "Stale token feedback",
+        "destinationId" : "19",
+        "id" : "211",
+        "linkedRelationshipId" : "209",
+        "sourceId" : "10",
+        "technology" : "APNS Feedback"
+      } ],
+      "tags" : "Element,Software System,External"
+    }, {
+      "description" : "Firebase Cloud Messaging for Android",
+      "documentation" : { },
+      "id" : "11",
+      "name" : "FCM",
+      "properties" : {
+        "structurizr.dsl.identifier" : "fcm"
+      },
+      "relationships" : [ {
+        "description" : "Stale token feedback",
+        "destinationId" : "33",
+        "id" : "212",
+        "sourceId" : "11",
+        "tags" : "Relationship",
+        "technology" : "FCM Feedback"
+      }, {
+        "description" : "Stale token feedback",
+        "destinationId" : "30",
+        "id" : "213",
+        "linkedRelationshipId" : "212",
+        "sourceId" : "11",
+        "technology" : "FCM Feedback"
+      }, {
+        "description" : "Stale token feedback",
+        "destinationId" : "19",
+        "id" : "214",
+        "linkedRelationshipId" : "212",
+        "sourceId" : "11",
+        "technology" : "FCM Feedback"
+      } ],
+      "tags" : "Element,Software System,External"
+    }, {
+      "description" : "Browser push service endpoints",
+      "documentation" : { },
+      "id" : "12",
+      "name" : "Web Push API",
+      "properties" : {
+        "structurizr.dsl.identifier" : "webPush"
+      },
+      "tags" : "Element,Software System,External"
+    }, {
+      "description" : "Upstream EMR vendors via FHIR R4",
+      "documentation" : { },
+      "id" : "13",
+      "name" : "EMR / EHR Systems",
+      "properties" : {
+        "structurizr.dsl.identifier" : "emrSystems"
+      },
+      "tags" : "Element,Software System,External"
+    }, {
+      "description" : "Okta or equivalent enterprise identity provider",
+      "documentation" : { },
+      "id" : "14",
+      "name" : "Corporate IdP",
+      "properties" : {
+        "structurizr.dsl.identifier" : "corporateIdP"
+      },
+      "relationships" : [ {
+        "description" : "Federated SSO",
+        "destinationId" : "17",
+        "id" : "285",
+        "sourceId" : "14",
+        "tags" : "Relationship",
+        "technology" : "OIDC/SAML"
+      } ],
+      "tags" : "Element,Software System,External"
+    }, {
+      "description" : "External identity/auth provider used by Auth Service",
+      "documentation" : { },
+      "id" : "15",
+      "name" : "WorkOS",
+      "properties" : {
+        "structurizr.dsl.identifier" : "workOS"
+      },
+      "tags" : "Element,Software System,External,WorkOS"
+    }, {
+      "description" : "Independent InfoSec scanning of platform logs",
+      "documentation" : { },
+      "id" : "16",
+      "name" : "Third-party SIEM",
+      "properties" : {
+        "structurizr.dsl.identifier" : "thirdPartySiem"
+      },
+      "tags" : "Element,Software System,External"
+    }, {
+      "description" : "Isolated AWS account for ML experimentation on approved de-identified datasets; not in production runtime path.",
+      "documentation" : { },
+      "id" : "17",
+      "name" : "Bedrock AI Workbench",
+      "properties" : {
+        "structurizr.dsl.identifier" : "bedrockWorkbench"
+      },
+      "relationships" : [ {
+        "description" : "Read-only de-identified chat data",
+        "destinationId" : "76",
+        "id" : "90",
+        "sourceId" : "17",
+        "tags" : "Relationship",
+        "technology" : "RDS read replica"
+      }, {
+        "description" : "Read-only de-identified chat data",
+        "destinationId" : "74",
+        "id" : "91",
+        "linkedRelationshipId" : "90",
+        "sourceId" : "17",
+        "technology" : "RDS read replica"
+      }, {
+        "description" : "Read-only de-identified chat data",
+        "destinationId" : "19",
+        "id" : "92",
+        "linkedRelationshipId" : "90",
+        "sourceId" : "17",
+        "technology" : "RDS read replica"
+      }, {
+        "description" : "Read anonymized medical records dataset output",
+        "destinationId" : "68",
+        "id" : "93",
+        "sourceId" : "17",
+        "tags" : "Relationship",
+        "technology" : "S3 cross-account"
+      } ],
+      "tags" : "Element,Software System,External,Workbench"
+    }, {
+      "description" : "Platform observability, SLIs/SLOs, dashboards, and alert rules.",
+      "documentation" : { },
+      "id" : "18",
+      "name" : "Operational Metrics",
+      "properties" : {
+        "structurizr.dsl.identifier" : "operationalMetrics"
+      },
+      "tags" : "Element,Software System,External,Observability"
+    }, {
+      "containers" : [ {
+        "components" : [ {
+          "description" : "Invite-link registration, identity verification, biometric/PIN login, and session token management.",
+          "documentation" : { },
+          "id" : "21",
+          "name" : "Auth & Onboarding",
+          "properties" : {
+            "structurizr.dsl.identifier" : "authOnboarding"
+          },
+          "relationships" : [ {
+            "description" : "Receive OAuth callback (POST /auth/callback)",
+            "destinationId" : "79",
+            "id" : "94",
+            "sourceId" : "21",
+            "tags" : "Relationship",
+            "technology" : "HTTPS"
+          }, {
+            "description" : "Receive OAuth callback (POST /auth/callback)",
+            "destinationId" : "78",
+            "id" : "95",
+            "linkedRelationshipId" : "94",
+            "sourceId" : "21",
+            "technology" : "HTTPS"
+          }, {
+            "description" : "Request platform JWT (POST /api/token with session grant)",
+            "destinationId" : "81",
+            "id" : "98",
+            "sourceId" : "21",
+            "tags" : "Relationship",
+            "technology" : "HTTPS"
+          } ],
+          "tags" : "Element,Component",
+          "technology" : "Flutter / Dart"
+        }, {
+          "description" : "Renders message thread, optimistic send, typing indicator, and streamed AI/clinician replies.",
+          "documentation" : { },
+          "id" : "22",
+          "name" : "Chat Thread UI",
+          "properties" : {
+            "structurizr.dsl.identifier" : "chatThreadUI"
+          },
+          "relationships" : [ {
+            "description" : "Send messages",
+            "destinationId" : "37",
+            "id" : "100",
+            "sourceId" : "22",
+            "tags" : "Relationship",
+            "technology" : "HTTPS"
+          }, {
+            "description" : "Send messages",
+            "destinationId" : "34",
+            "id" : "101",
+            "linkedRelationshipId" : "100",
+            "sourceId" : "22",
+            "technology" : "HTTPS"
+          }, {
+            "description" : "Receive streamed AI and clinician replies",
+            "destinationId" : "39",
+            "id" : "104",
+            "sourceId" : "22",
+            "tags" : "Relationship",
+            "technology" : "WebSocket/SSE"
+          } ],
+          "tags" : "Element,Component",
+          "technology" : "Flutter / Dart"
+        }, {
+          "description" : "Registers device token with Devices Service and handles incoming push notifications and deep links.",
+          "documentation" : { },
+          "id" : "23",
+          "name" : "Push Notification Handler",
+          "properties" : {
+            "structurizr.dsl.identifier" : "pushHandler"
+          },
+          "relationships" : [ {
+            "description" : "Register device token",
+            "destinationId" : "31",
+            "id" : "106",
+            "sourceId" : "23",
+            "tags" : "Relationship",
+            "technology" : "HTTPS"
+          }, {
+            "description" : "Register device token",
+            "destinationId" : "30",
+            "id" : "107",
+            "linkedRelationshipId" : "106",
+            "sourceId" : "23",
+            "technology" : "HTTPS"
+          }, {
+            "description" : "Register web push subscription",
+            "destinationId" : "12",
+            "id" : "110",
+            "sourceId" : "23",
+            "tags" : "Relationship",
+            "technology" : "Web Push"
+          } ],
+          "tags" : "Element,Component",
+          "technology" : "Flutter / Dart"
+        }, {
+          "description" : "Reads and caches the patient's own profile from Patient Service.",
+          "documentation" : { },
+          "id" : "24",
+          "name" : "Patient Profile Client",
+          "properties" : {
+            "structurizr.dsl.identifier" : "patientProfileClient"
+          },
+          "relationships" : [ {
+            "description" : "Read own patient profile",
+            "destinationId" : "50",
+            "id" : "113",
+            "sourceId" : "24",
+            "tags" : "Relationship",
+            "technology" : "HTTPS"
+          }, {
+            "description" : "Read own patient profile",
+            "destinationId" : "48",
+            "id" : "114",
+            "linkedRelationshipId" : "113",
+            "sourceId" : "24",
+            "technology" : "HTTPS"
+          } ],
+          "tags" : "Element,Component",
+          "technology" : "Flutter / Dart"
+        } ],
+        "description" : "Flutter app for iOS, Android, and web. Patient chat, auth, and notifications.",
+        "documentation" : { },
+        "group" : "Patient Engagement",
+        "id" : "20",
+        "name" : "Patient Chat App",
+        "properties" : {
+          "structurizr.dsl.identifier" : "patientChatApp"
+        },
+        "relationships" : [ {
+          "description" : "Receive OAuth callback (POST /auth/callback)",
+          "destinationId" : "79",
+          "id" : "96",
+          "linkedRelationshipId" : "94",
+          "sourceId" : "20",
+          "technology" : "HTTPS"
+        }, {
+          "description" : "Receive OAuth callback (POST /auth/callback)",
+          "destinationId" : "78",
+          "id" : "97",
+          "linkedRelationshipId" : "94",
+          "sourceId" : "20",
+          "technology" : "HTTPS"
+        }, {
+          "description" : "Request platform JWT (POST /api/token with session grant)",
+          "destinationId" : "81",
+          "id" : "99",
+          "linkedRelationshipId" : "98",
+          "sourceId" : "20",
+          "technology" : "HTTPS"
+        }, {
+          "description" : "Send messages",
+          "destinationId" : "37",
+          "id" : "102",
+          "linkedRelationshipId" : "100",
+          "sourceId" : "20",
+          "technology" : "HTTPS"
+        }, {
+          "description" : "Send messages",
+          "destinationId" : "34",
+          "id" : "103",
+          "linkedRelationshipId" : "100",
+          "sourceId" : "20",
+          "technology" : "HTTPS"
+        }, {
+          "description" : "Receive streamed AI and clinician replies",
+          "destinationId" : "39",
+          "id" : "105",
+          "linkedRelationshipId" : "104",
+          "sourceId" : "20",
+          "technology" : "WebSocket/SSE"
+        }, {
+          "description" : "Register device token",
+          "destinationId" : "31",
+          "id" : "108",
+          "linkedRelationshipId" : "106",
+          "sourceId" : "20",
+          "technology" : "HTTPS"
+        }, {
+          "description" : "Register device token",
+          "destinationId" : "30",
+          "id" : "109",
+          "linkedRelationshipId" : "106",
+          "sourceId" : "20",
+          "technology" : "HTTPS"
+        }, {
+          "description" : "Register web push subscription",
+          "destinationId" : "12",
+          "id" : "111",
+          "linkedRelationshipId" : "110",
+          "sourceId" : "20",
+          "technology" : "Web Push"
+        }, {
+          "description" : "Read own patient profile",
+          "destinationId" : "50",
+          "id" : "115",
+          "linkedRelationshipId" : "113",
+          "sourceId" : "20",
+          "technology" : "HTTPS"
+        }, {
+          "description" : "Read own patient profile",
+          "destinationId" : "48",
+          "id" : "116",
+          "linkedRelationshipId" : "113",
+          "sourceId" : "20",
+          "technology" : "HTTPS"
+        } ],
+        "tags" : "Element,Container,App,MobileApp",
+        "technology" : "Flutter"
+      }, {
+        "components" : [ {
+          "description" : "Receives HTTPS webhooks from the SMS provider and normalises inbound messages.",
+          "documentation" : { },
+          "id" : "26",
+          "name" : "Inbound Webhook Handler",
+          "properties" : {
+            "structurizr.dsl.identifier" : "smsWebhookHandler"
+          },
+          "relationships" : [ {
+            "description" : "Check TCPA opt-out status before processing",
+            "destinationId" : "29",
+            "id" : "153",
+            "sourceId" : "26",
+            "tags" : "Relationship",
+            "technology" : "Internal"
+          }, {
+            "description" : "Pass normalised inbound message",
+            "destinationId" : "27",
+            "id" : "154",
+            "sourceId" : "26",
+            "tags" : "Relationship",
+            "technology" : "Internal"
+          } ],
+          "tags" : "Element,Component",
+          "technology" : "Python"
+        }, {
+          "description" : "Resolves phone number to patient identity and creates or resumes a chat session.",
+          "documentation" : { },
+          "id" : "27",
+          "name" : "Session Resolver",
+          "properties" : {
+            "structurizr.dsl.identifier" : "smsSessionResolver"
+          },
+          "relationships" : [ {
+            "description" : "Resolve phone number to patient identity",
+            "destinationId" : "50",
+            "id" : "155",
+            "sourceId" : "27",
+            "tags" : "Relationship",
+            "technology" : "HTTPS"
+          }, {
+            "description" : "Resolve phone number to patient identity",
+            "destinationId" : "48",
+            "id" : "156",
+            "linkedRelationshipId" : "155",
+            "sourceId" : "27",
+            "technology" : "HTTPS"
+          }, {
+            "description" : "Forward inbound SMS as chat message",
+            "destinationId" : "37",
+            "id" : "159",
+            "sourceId" : "27",
+            "tags" : "Relationship",
+            "technology" : "HTTPS"
+          }, {
+            "description" : "Forward inbound SMS as chat message",
+            "destinationId" : "34",
+            "id" : "160",
+            "linkedRelationshipId" : "159",
+            "sourceId" : "27",
+            "technology" : "HTTPS"
+          } ],
+          "tags" : "Element,Component",
+          "technology" : "Python"
+        }, {
+          "description" : "Delivers AI and clinician reply messages via the SMS provider API.",
+          "documentation" : { },
+          "id" : "28",
+          "name" : "Outbound SMS Sender",
+          "properties" : {
+            "structurizr.dsl.identifier" : "smsOutboundSender"
+          },
+          "relationships" : [ {
+            "description" : "Deliver outbound SMS",
+            "destinationId" : "9",
+            "id" : "163",
+            "sourceId" : "28",
+            "tags" : "Relationship",
+            "technology" : "Provider API"
+          } ],
+          "tags" : "Element,Component",
+          "technology" : "Python"
+        }, {
+          "description" : "Enforces STOP/START opt-out rules and suppresses outbound SMS for opted-out numbers.",
+          "documentation" : { },
+          "id" : "29",
+          "name" : "TCPA Compliance Handler",
+          "properties" : {
+            "structurizr.dsl.identifier" : "tcpaHandler"
+          },
+          "tags" : "Element,Component",
+          "technology" : "Python"
+        } ],
+        "description" : "Inbound/outbound SMS adapter, session continuity, OTP gate, and TCPA STOP/START handling.",
+        "documentation" : { },
+        "group" : "Patient Engagement",
+        "id" : "25",
+        "name" : "SMS Service",
+        "properties" : {
+          "structurizr.dsl.identifier" : "smsService"
+        },
+        "relationships" : [ {
+          "description" : "Resolve phone number to patient identity",
+          "destinationId" : "50",
+          "id" : "157",
+          "linkedRelationshipId" : "155",
+          "sourceId" : "25",
+          "technology" : "HTTPS"
+        }, {
+          "description" : "Resolve phone number to patient identity",
+          "destinationId" : "48",
+          "id" : "158",
+          "linkedRelationshipId" : "155",
+          "sourceId" : "25",
+          "technology" : "HTTPS"
+        }, {
+          "description" : "Forward inbound SMS as chat message",
+          "destinationId" : "37",
+          "id" : "161",
+          "linkedRelationshipId" : "159",
+          "sourceId" : "25",
+          "technology" : "HTTPS"
+        }, {
+          "description" : "Forward inbound SMS as chat message",
+          "destinationId" : "34",
+          "id" : "162",
+          "linkedRelationshipId" : "159",
+          "sourceId" : "25",
+          "technology" : "HTTPS"
+        }, {
+          "description" : "Deliver outbound SMS",
+          "destinationId" : "9",
+          "id" : "164",
+          "linkedRelationshipId" : "163",
+          "sourceId" : "25",
+          "technology" : "Provider API"
+        } ],
+        "tags" : "Element,Container,Service",
+        "technology" : "Python / FastAPI"
+      }, {
+        "components" : [ {
+          "description" : "Stores encrypted push tokens keyed by opaque device UUIDs with idempotent upsert.",
+          "documentation" : { },
+          "id" : "31",
+          "name" : "Device Registry",
+          "properties" : {
+            "structurizr.dsl.identifier" : "deviceRegistry"
+          },
+          "relationships" : [ {
+            "description" : "Validate caller credentials",
+            "destinationId" : "82",
+            "id" : "198",
+            "sourceId" : "31",
+            "tags" : "Relationship",
+            "technology" : "HTTPS"
+          }, {
+            "description" : "Validate caller credentials",
+            "destinationId" : "78",
+            "id" : "199",
+            "linkedRelationshipId" : "198",
+            "sourceId" : "31",
+            "technology" : "HTTPS"
+          } ],
+          "tags" : "Element,Component",
+          "technology" : "Python"
+        }, {
+          "description" : "Decrypts token, selects provider (APNS/FCM/Web Push), calls provider, and returns outcome.",
+          "documentation" : { },
+          "id" : "32",
+          "name" : "Push Dispatcher",
+          "properties" : {
+            "structurizr.dsl.identifier" : "pushDispatcher"
+          },
+          "relationships" : [ {
+            "description" : "Deliver iOS push",
+            "destinationId" : "10",
+            "id" : "201",
+            "sourceId" : "32",
+            "tags" : "Relationship",
+            "technology" : "APNS"
+          }, {
+            "description" : "Deliver Android push",
+            "destinationId" : "11",
+            "id" : "204",
+            "sourceId" : "32",
+            "tags" : "Relationship",
+            "technology" : "FCM"
+          }, {
+            "description" : "Deliver browser push",
+            "destinationId" : "12",
+            "id" : "207",
+            "sourceId" : "32",
+            "tags" : "Relationship",
+            "technology" : "Web Push"
+          } ],
+          "tags" : "Element,Component",
+          "technology" : "Python"
+        }, {
+          "description" : "Handles stale-token feedback from providers and hard-deletes tokens on account deactivation.",
+          "documentation" : { },
+          "id" : "33",
+          "name" : "Token Lifecycle Manager",
+          "properties" : {
+            "structurizr.dsl.identifier" : "tokenLifecycleManager"
+          },
+          "tags" : "Element,Component",
+          "technology" : "Python"
+        } ],
+        "description" : "Encrypted device token registry and push dispatch proxy for APNS/FCM/Web Push.",
+        "documentation" : { },
+        "group" : "Patient Engagement",
+        "id" : "30",
+        "name" : "Devices Service",
+        "properties" : {
+          "structurizr.dsl.identifier" : "devicesService"
+        },
+        "relationships" : [ {
+          "description" : "Validate service JWT via Auth Service JWKS",
+          "destinationId" : "78",
+          "id" : "181",
+          "sourceId" : "30",
+          "tags" : "Relationship",
+          "technology" : "HTTPS"
+        }, {
+          "description" : "Validate caller credentials",
+          "destinationId" : "82",
+          "id" : "200",
+          "linkedRelationshipId" : "198",
+          "sourceId" : "30",
+          "technology" : "HTTPS"
+        }, {
+          "description" : "Deliver iOS push",
+          "destinationId" : "10",
+          "id" : "202",
+          "linkedRelationshipId" : "201",
+          "sourceId" : "30",
+          "technology" : "APNS"
+        }, {
+          "description" : "Deliver Android push",
+          "destinationId" : "11",
+          "id" : "205",
+          "linkedRelationshipId" : "204",
+          "sourceId" : "30",
+          "technology" : "FCM"
+        }, {
+          "description" : "Deliver browser push",
+          "destinationId" : "12",
+          "id" : "208",
+          "linkedRelationshipId" : "207",
+          "sourceId" : "30",
+          "technology" : "Web Push"
+        } ],
+        "tags" : "Element,Container,Service",
+        "technology" : "Python / FastAPI"
+      }, {
+        "components" : [ {
+          "description" : "Interrogates caller identity and evaluates requested action against local Cedar policies via authorization-in-the-middle SDK.",
+          "documentation" : { },
+          "id" : "35",
+          "name" : "Authorization Middleware",
+          "properties" : {
+            "structurizr.dsl.identifier" : "authzMiddleware"
+          },
+          "relationships" : [ {
+            "description" : "Evaluate request via local Cedar engine",
+            "destinationId" : "35",
+            "id" : "221",
+            "sourceId" : "35",
+            "tags" : "Relationship",
+            "technology" : "Internal"
+          }, {
+            "description" : "Read Cedar policies (if not cached)",
+            "destinationId" : "36",
+            "id" : "222",
+            "sourceId" : "35",
+            "tags" : "Relationship",
+            "technology" : "Filesystem / Internal"
+          } ],
+          "tags" : "Element,Component",
+          "technology" : "Python"
+        }, {
+          "description" : "Service-owned policy bundle (.cedar) loaded from the filesystem.",
+          "documentation" : { },
+          "id" : "36",
+          "name" : "Cedar Policy Files",
+          "properties" : {
+            "structurizr.dsl.identifier" : "localPolicies"
+          },
+          "tags" : "Element,Component,Configuration",
+          "technology" : "Filesystem"
+        }, {
+          "description" : "Accepts inbound messages from app, web, and SMS channels with durable persistence.",
+          "documentation" : { },
+          "id" : "37",
+          "name" : "Message Ingestion API",
+          "properties" : {
+            "structurizr.dsl.identifier" : "messageIngestionAPI"
+          },
+          "relationships" : [ {
+            "description" : "Delegate access control check",
+            "destinationId" : "35",
+            "id" : "220",
+            "sourceId" : "37",
+            "tags" : "Relationship",
+            "technology" : "Internal"
+          }, {
+            "description" : "Create or resume chat interaction",
+            "destinationId" : "38",
+            "id" : "223",
+            "sourceId" : "37",
+            "tags" : "Relationship",
+            "technology" : "Internal"
+          }, {
+            "description" : "Trigger risk evaluation",
+            "destinationId" : "40",
+            "id" : "224",
+            "sourceId" : "37",
+            "tags" : "Relationship",
+            "technology" : "Internal"
+          } ],
+          "tags" : "Element,Component",
+          "technology" : "Python"
+        }, {
+          "description" : "Creates and manages ChatInteraction sessions linked to care episodes.",
+          "documentation" : { },
+          "id" : "38",
+          "name" : "Chat Interaction Manager",
+          "properties" : {
+            "structurizr.dsl.identifier" : "chatInteractionManager"
+          },
+          "relationships" : [ {
+            "description" : "Lookup active care episode",
+            "destinationId" : "55",
+            "id" : "225",
+            "sourceId" : "38",
+            "tags" : "Relationship",
+            "technology" : "HTTPS"
+          }, {
+            "description" : "Lookup active care episode",
+            "destinationId" : "53",
+            "id" : "226",
+            "linkedRelationshipId" : "225",
+            "sourceId" : "38",
+            "technology" : "HTTPS"
+          }, {
+            "description" : "Generate inline AI response",
+            "destinationId" : "77",
+            "id" : "229",
+            "sourceId" : "38",
+            "tags" : "Relationship",
+            "technology" : "Bedrock API"
+          } ],
+          "tags" : "Element,Component",
+          "technology" : "Python"
+        }, {
+          "description" : "Streams AI and clinician replies to patients via WebSocket/SSE.",
+          "documentation" : { },
+          "id" : "39",
+          "name" : "Message Streaming",
+          "properties" : {
+            "structurizr.dsl.identifier" : "messageStreaming"
+          },
+          "relationships" : [ {
+            "description" : "Stream AI and clinician replies",
+            "destinationId" : "22",
+            "id" : "231",
+            "sourceId" : "39",
+            "tags" : "Relationship",
+            "technology" : "WebSocket/SSE"
+          }, {
+            "description" : "Stream AI and clinician replies",
+            "destinationId" : "20",
+            "id" : "232",
+            "linkedRelationshipId" : "231",
+            "sourceId" : "39",
+            "technology" : "WebSocket/SSE"
+          } ],
+          "tags" : "Element,Component",
+          "technology" : "Python"
+        }, {
+          "description" : "Publishes per-message risk-evaluation events to the Risk Eval Queue.",
+          "documentation" : { },
+          "id" : "40",
+          "name" : "Risk Event Publisher",
+          "properties" : {
+            "structurizr.dsl.identifier" : "riskEventPublisher"
+          },
+          "relationships" : [ {
+            "description" : "Publish risk-eval event",
+            "destinationId" : "63",
+            "id" : "235",
+            "sourceId" : "40",
+            "tags" : "Relationship",
+            "technology" : "SQS Publish"
+          }, {
+            "description" : "Publish risk-eval event",
+            "destinationId" : "62",
+            "id" : "236",
+            "linkedRelationshipId" : "235",
+            "sourceId" : "40",
+            "technology" : "SQS Publish"
+          } ],
+          "tags" : "Element,Component",
+          "technology" : "Python"
+        }, {
+          "description" : "Publishes session-end events to the Session Close Queue for deidentification.",
+          "documentation" : { },
+          "id" : "41",
+          "name" : "Session Close Publisher",
+          "properties" : {
+            "structurizr.dsl.identifier" : "sessionClosePublisher"
+          },
+          "relationships" : [ {
+            "description" : "Publish session-end event",
+            "destinationId" : "69",
+            "id" : "239",
+            "sourceId" : "41",
+            "tags" : "Relationship",
+            "technology" : "SQS Publish"
+          }, {
+            "description" : "Publish session-end event",
+            "destinationId" : "68",
+            "id" : "240",
+            "linkedRelationshipId" : "239",
+            "sourceId" : "41",
+            "technology" : "SQS Publish"
+          } ],
+          "tags" : "Element,Component",
+          "technology" : "Python"
+        } ],
+        "description" : "Raw chat ingestion and storage, chat interactions, and care-episode linkage.",
+        "documentation" : { },
+        "group" : "Patient Engagement",
+        "id" : "34",
+        "name" : "Chat Service",
+        "properties" : {
+          "structurizr.dsl.identifier" : "chatService"
+        },
+        "relationships" : [ {
+          "description" : "Request machine JWT for service authentication",
+          "destinationId" : "78",
+          "id" : "179",
+          "sourceId" : "34",
+          "tags" : "Relationship",
+          "technology" : "HTTPS"
+        }, {
+          "description" : "Call device registry API with Bearer JWT",
+          "destinationId" : "30",
+          "id" : "180",
+          "sourceId" : "34",
+          "tags" : "Relationship",
+          "technology" : "HTTPS"
+        }, {
+          "description" : "Lookup active care episode",
+          "destinationId" : "55",
+          "id" : "227",
+          "linkedRelationshipId" : "225",
+          "sourceId" : "34",
+          "technology" : "HTTPS"
+        }, {
+          "description" : "Lookup active care episode",
+          "destinationId" : "53",
+          "id" : "228",
+          "linkedRelationshipId" : "225",
+          "sourceId" : "34",
+          "technology" : "HTTPS"
+        }, {
+          "description" : "Generate inline AI response",
+          "destinationId" : "77",
+          "id" : "230",
+          "linkedRelationshipId" : "229",
+          "sourceId" : "34",
+          "technology" : "Bedrock API"
+        }, {
+          "description" : "Stream AI and clinician replies",
+          "destinationId" : "22",
+          "id" : "233",
+          "linkedRelationshipId" : "231",
+          "sourceId" : "34",
+          "technology" : "WebSocket/SSE"
+        }, {
+          "description" : "Stream AI and clinician replies",
+          "destinationId" : "20",
+          "id" : "234",
+          "linkedRelationshipId" : "231",
+          "sourceId" : "34",
+          "technology" : "WebSocket/SSE"
+        }, {
+          "description" : "Publish risk-eval event",
+          "destinationId" : "63",
+          "id" : "237",
+          "linkedRelationshipId" : "235",
+          "sourceId" : "34",
+          "technology" : "SQS Publish"
+        }, {
+          "description" : "Publish risk-eval event",
+          "destinationId" : "62",
+          "id" : "238",
+          "linkedRelationshipId" : "235",
+          "sourceId" : "34",
+          "technology" : "SQS Publish"
+        }, {
+          "description" : "Publish session-end event",
+          "destinationId" : "69",
+          "id" : "241",
+          "linkedRelationshipId" : "239",
+          "sourceId" : "34",
+          "technology" : "SQS Publish"
+        }, {
+          "description" : "Publish session-end event",
+          "destinationId" : "68",
+          "id" : "242",
+          "linkedRelationshipId" : "239",
+          "sourceId" : "34",
+          "technology" : "SQS Publish"
+        } ],
+        "tags" : "Element,Container,Service",
+        "technology" : "Python / FastAPI + PostgreSQL"
+      }, {
+        "components" : [ {
+          "description" : "OAuth2 PKCE login with deep-link state preservation, delegating to Auth Service via WorkOS.",
+          "documentation" : { },
+          "id" : "43",
+          "name" : "Auth & SSO",
+          "properties" : {
+            "structurizr.dsl.identifier" : "clinicianAuth"
+          },
+          "relationships" : [ {
+            "description" : "Authenticate via OAuth2 PKCE callback (POST /auth/callback)",
+            "destinationId" : "79",
+            "id" : "117",
+            "sourceId" : "43",
+            "tags" : "Relationship",
+            "technology" : "HTTPS"
+          }, {
+            "description" : "Authenticate via OAuth2 PKCE callback (POST /auth/callback)",
+            "destinationId" : "78",
+            "id" : "118",
+            "linkedRelationshipId" : "117",
+            "sourceId" : "43",
+            "technology" : "HTTPS"
+          }, {
+            "description" : "Request platform JWT (POST /api/token with session grant)",
+            "destinationId" : "81",
+            "id" : "121",
+            "sourceId" : "43",
+            "tags" : "Relationship",
+            "technology" : "HTTPS"
+          } ],
+          "tags" : "Element,Component",
+          "technology" : "React / TypeScript"
+        }, {
+          "description" : "Live queue of high-risk sessions with 60-second countdown and self-assign action.",
+          "documentation" : { },
+          "id" : "44",
+          "name" : "Alert Queue Panel",
+          "properties" : {
+            "structurizr.dsl.identifier" : "alertQueuePanel"
+          },
+          "relationships" : [ {
+            "description" : "Subscribe to live escalation queue",
+            "destinationId" : "89",
+            "id" : "123",
+            "sourceId" : "44",
+            "tags" : "Relationship",
+            "technology" : "WebSocket/SSE"
+          }, {
+            "description" : "Subscribe to live escalation queue",
+            "destinationId" : "85",
+            "id" : "124",
+            "linkedRelationshipId" : "123",
+            "sourceId" : "44",
+            "technology" : "WebSocket/SSE"
+          }, {
+            "description" : "List active care episodes",
+            "destinationId" : "55",
+            "id" : "127",
+            "sourceId" : "44",
+            "tags" : "Relationship",
+            "technology" : "HTTPS"
+          }, {
+            "description" : "List active care episodes",
+            "destinationId" : "53",
+            "id" : "128",
+            "linkedRelationshipId" : "127",
+            "sourceId" : "44",
+            "technology" : "HTTPS"
+          }, {
+            "description" : "Create care episode and patient invite",
+            "destinationId" : "54",
+            "id" : "131",
+            "sourceId" : "44",
+            "tags" : "Relationship",
+            "technology" : "HTTPS"
+          } ],
+          "tags" : "Element,Component",
+          "technology" : "React / TypeScript"
+        }, {
+          "description" : "Left: live streaming chat transcript. Right: patient EMR records since discharge.",
+          "documentation" : { },
+          "id" : "45",
+          "name" : "Two-Panel Alert Detail",
+          "properties" : {
+            "structurizr.dsl.identifier" : "alertDetail"
+          },
+          "relationships" : [ {
+            "description" : "Stream live chat transcript",
+            "destinationId" : "39",
+            "id" : "133",
+            "sourceId" : "45",
+            "tags" : "Relationship",
+            "technology" : "WebSocket/SSE"
+          }, {
+            "description" : "Stream live chat transcript",
+            "destinationId" : "34",
+            "id" : "134",
+            "linkedRelationshipId" : "133",
+            "sourceId" : "45",
+            "technology" : "WebSocket/SSE"
+          }, {
+            "description" : "Fetch transcript history",
+            "destinationId" : "38",
+            "id" : "137",
+            "sourceId" : "45",
+            "tags" : "Relationship",
+            "technology" : "HTTPS"
+          }, {
+            "description" : "Read patient EMR records",
+            "destinationId" : "58",
+            "id" : "139",
+            "sourceId" : "45",
+            "tags" : "Relationship",
+            "technology" : "HTTPS"
+          }, {
+            "description" : "Read patient EMR records",
+            "destinationId" : "57",
+            "id" : "140",
+            "linkedRelationshipId" : "139",
+            "sourceId" : "45",
+            "technology" : "HTTPS"
+          }, {
+            "description" : "Close care episode",
+            "destinationId" : "56",
+            "id" : "143",
+            "sourceId" : "45",
+            "tags" : "Relationship",
+            "technology" : "HTTPS"
+          }, {
+            "description" : "Close care episode",
+            "destinationId" : "53",
+            "id" : "144",
+            "linkedRelationshipId" : "143",
+            "sourceId" : "45",
+            "technology" : "HTTPS"
+          }, {
+            "description" : "Search patients by name or identifier",
+            "destinationId" : "51",
+            "id" : "186",
+            "sourceId" : "45",
+            "tags" : "Relationship",
+            "technology" : "HTTPS"
+          }, {
+            "description" : "Search patients by name or identifier",
+            "destinationId" : "48",
+            "id" : "187",
+            "linkedRelationshipId" : "186",
+            "sourceId" : "45",
+            "technology" : "HTTPS"
+          }, {
+            "description" : "Read patient record",
+            "destinationId" : "50",
+            "id" : "190",
+            "sourceId" : "45",
+            "tags" : "Relationship",
+            "technology" : "HTTPS"
+          } ],
+          "tags" : "Element,Component",
+          "technology" : "React / TypeScript"
+        }, {
+          "description" : "Send clinician replies, stop-AI-and-take-over, and request-consent-to-call actions.",
+          "documentation" : { },
+          "id" : "46",
+          "name" : "Clinician Chat Interface",
+          "properties" : {
+            "structurizr.dsl.identifier" : "clinicianChatInterface"
+          },
+          "relationships" : [ {
+            "description" : "Send clinician messages and stop-AI signal",
+            "destinationId" : "37",
+            "id" : "146",
+            "sourceId" : "46",
+            "tags" : "Relationship",
+            "technology" : "HTTPS"
+          }, {
+            "description" : "Send clinician messages and stop-AI signal",
+            "destinationId" : "34",
+            "id" : "147",
+            "linkedRelationshipId" : "146",
+            "sourceId" : "46",
+            "technology" : "HTTPS"
+          }, {
+            "description" : "Register clinician web push subscription",
+            "destinationId" : "12",
+            "id" : "149",
+            "sourceId" : "46",
+            "tags" : "Relationship",
+            "technology" : "Web Push"
+          } ],
+          "tags" : "Element,Component",
+          "technology" : "React / TypeScript"
+        }, {
+          "description" : "Browse closed sessions and submit thumbs-up/down ratings with optional free-text comments.",
+          "documentation" : { },
+          "id" : "47",
+          "name" : "Quality Review",
+          "properties" : {
+            "structurizr.dsl.identifier" : "qualityReview"
+          },
+          "relationships" : [ {
+            "description" : "Read closed session transcripts",
+            "destinationId" : "38",
+            "id" : "151",
+            "sourceId" : "47",
+            "tags" : "Relationship",
+            "technology" : "HTTPS"
+          }, {
+            "description" : "Read closed session transcripts",
+            "destinationId" : "34",
+            "id" : "152",
+            "linkedRelationshipId" : "151",
+            "sourceId" : "47",
+            "technology" : "HTTPS"
+          } ],
+          "tags" : "Element,Component",
+          "technology" : "React / TypeScript"
+        } ],
+        "description" : "Web app for escalation handling, transcript review, patient record review, and quality feedback.",
+        "documentation" : { },
+        "group" : "Clinical Workflow",
+        "id" : "42",
+        "name" : "Clinician App",
+        "properties" : {
+          "structurizr.dsl.identifier" : "clinicianApp"
+        },
+        "relationships" : [ {
+          "description" : "Authenticate via OAuth2 PKCE callback (POST /auth/callback)",
+          "destinationId" : "79",
+          "id" : "119",
+          "linkedRelationshipId" : "117",
+          "sourceId" : "42",
+          "technology" : "HTTPS"
+        }, {
+          "description" : "Authenticate via OAuth2 PKCE callback (POST /auth/callback)",
+          "destinationId" : "78",
+          "id" : "120",
+          "linkedRelationshipId" : "117",
+          "sourceId" : "42",
+          "technology" : "HTTPS"
+        }, {
+          "description" : "Request platform JWT (POST /api/token with session grant)",
+          "destinationId" : "81",
+          "id" : "122",
+          "linkedRelationshipId" : "121",
+          "sourceId" : "42",
+          "technology" : "HTTPS"
+        }, {
+          "description" : "Subscribe to live escalation queue",
+          "destinationId" : "89",
+          "id" : "125",
+          "linkedRelationshipId" : "123",
+          "sourceId" : "42",
+          "technology" : "WebSocket/SSE"
+        }, {
+          "description" : "Subscribe to live escalation queue",
+          "destinationId" : "85",
+          "id" : "126",
+          "linkedRelationshipId" : "123",
+          "sourceId" : "42",
+          "technology" : "WebSocket/SSE"
+        }, {
+          "description" : "List active care episodes",
+          "destinationId" : "55",
+          "id" : "129",
+          "linkedRelationshipId" : "127",
+          "sourceId" : "42",
+          "technology" : "HTTPS"
+        }, {
+          "description" : "List active care episodes",
+          "destinationId" : "53",
+          "id" : "130",
+          "linkedRelationshipId" : "127",
+          "sourceId" : "42",
+          "technology" : "HTTPS"
+        }, {
+          "description" : "Create care episode and patient invite",
+          "destinationId" : "54",
+          "id" : "132",
+          "linkedRelationshipId" : "131",
+          "sourceId" : "42",
+          "technology" : "HTTPS"
+        }, {
+          "description" : "Stream live chat transcript",
+          "destinationId" : "39",
+          "id" : "135",
+          "linkedRelationshipId" : "133",
+          "sourceId" : "42",
+          "technology" : "WebSocket/SSE"
+        }, {
+          "description" : "Stream live chat transcript",
+          "destinationId" : "34",
+          "id" : "136",
+          "linkedRelationshipId" : "133",
+          "sourceId" : "42",
+          "technology" : "WebSocket/SSE"
+        }, {
+          "description" : "Fetch transcript history",
+          "destinationId" : "38",
+          "id" : "138",
+          "linkedRelationshipId" : "137",
+          "sourceId" : "42",
+          "technology" : "HTTPS"
+        }, {
+          "description" : "Read patient EMR records",
+          "destinationId" : "58",
+          "id" : "141",
+          "linkedRelationshipId" : "139",
+          "sourceId" : "42",
+          "technology" : "HTTPS"
+        }, {
+          "description" : "Read patient EMR records",
+          "destinationId" : "57",
+          "id" : "142",
+          "linkedRelationshipId" : "139",
+          "sourceId" : "42",
+          "technology" : "HTTPS"
+        }, {
+          "description" : "Close care episode",
+          "destinationId" : "56",
+          "id" : "145",
+          "linkedRelationshipId" : "143",
+          "sourceId" : "42",
+          "technology" : "HTTPS"
+        }, {
+          "description" : "Send clinician messages and stop-AI signal",
+          "destinationId" : "37",
+          "id" : "148",
+          "linkedRelationshipId" : "146",
+          "sourceId" : "42",
+          "technology" : "HTTPS"
+        }, {
+          "description" : "Register clinician web push subscription",
+          "destinationId" : "12",
+          "id" : "150",
+          "linkedRelationshipId" : "149",
+          "sourceId" : "42",
+          "technology" : "Web Push"
+        }, {
+          "description" : "Search patients by name or identifier",
+          "destinationId" : "51",
+          "id" : "188",
+          "linkedRelationshipId" : "186",
+          "sourceId" : "42",
+          "technology" : "HTTPS"
+        }, {
+          "description" : "Search patients by name or identifier",
+          "destinationId" : "48",
+          "id" : "189",
+          "linkedRelationshipId" : "186",
+          "sourceId" : "42",
+          "technology" : "HTTPS"
+        }, {
+          "description" : "Read patient record",
+          "destinationId" : "50",
+          "id" : "191",
+          "linkedRelationshipId" : "190",
+          "sourceId" : "42",
+          "technology" : "HTTPS"
+        } ],
+        "tags" : "Element,Container,App,WebApp",
+        "technology" : "React SPA"
+      }, {
+        "components" : [ {
+          "description" : "Processes invite-gated patient registration with duplicate detection and care episode association.",
+          "documentation" : { },
+          "id" : "49",
+          "name" : "Registration Handler",
+          "properties" : {
+            "structurizr.dsl.identifier" : "registrationHandler"
+          },
+          "relationships" : [ {
+            "description" : "Confirm patient-to-episode association on registration",
+            "destinationId" : "55",
+            "id" : "182",
+            "sourceId" : "49",
+            "tags" : "Relationship",
+            "technology" : "HTTPS"
+          }, {
+            "description" : "Confirm patient-to-episode association on registration",
+            "destinationId" : "53",
+            "id" : "183",
+            "linkedRelationshipId" : "182",
+            "sourceId" : "49",
+            "technology" : "HTTPS"
+          } ],
+          "tags" : "Element,Component",
+          "technology" : "Python"
+        }, {
+          "description" : "Create and read PII/PHI patient records with atomic audit logging.",
+          "documentation" : { },
+          "id" : "50",
+          "name" : "Patient Record Store",
+          "properties" : {
+            "structurizr.dsl.identifier" : "patientRecordStore"
+          },
+          "relationships" : [ {
+            "description" : "Reads/Writes with implicit Who (jwt_uid variable) and What (app data) context",
+            "destinationId" : "52",
+            "id" : "192",
+            "sourceId" : "50",
+            "tags" : "Relationship",
+            "technology" : "SQL"
+          } ],
+          "tags" : "Element,Component",
+          "technology" : "Python"
+        }, {
+          "description" : "Name and identifier search for authenticated clinicians.",
+          "documentation" : { },
+          "id" : "51",
+          "name" : "Patient Search",
+          "properties" : {
+            "structurizr.dsl.identifier" : "patientSearch"
+          },
+          "tags" : "Element,Component",
+          "technology" : "Python"
+        }, {
+          "description" : "PostgreSQL 18. Enforces atomic full-row snapshots for all updates and blocks hard deletes using triggers.",
+          "documentation" : { },
+          "id" : "52",
+          "name" : "Patient Database",
+          "properties" : {
+            "structurizr.dsl.identifier" : "patientDatabase"
+          },
+          "relationships" : [ {
+            "description" : "Execute internal triggers for immutable audit logging",
+            "destinationId" : "52",
+            "id" : "193",
+            "sourceId" : "52",
+            "tags" : "Relationship",
+            "technology" : "PL/pgSQL"
+          } ],
+          "tags" : "Element,Component,Database",
+          "technology" : "PostgreSQL"
+        } ],
+        "description" : "PII/PHI patient records with invite-based registration and duplicate detection.",
+        "documentation" : { },
+        "group" : "Clinical Workflow",
+        "id" : "48",
+        "name" : "Patient Service",
+        "properties" : {
+          "structurizr.dsl.identifier" : "patientService"
+        },
+        "relationships" : [ {
+          "description" : "Confirm patient-to-episode association on registration",
+          "destinationId" : "55",
+          "id" : "184",
+          "linkedRelationshipId" : "182",
+          "sourceId" : "48",
+          "technology" : "HTTPS"
+        }, {
+          "description" : "Confirm patient-to-episode association on registration",
+          "destinationId" : "53",
+          "id" : "185",
+          "linkedRelationshipId" : "182",
+          "sourceId" : "48",
+          "technology" : "HTTPS"
+        } ],
+        "tags" : "Element,Container,Service",
+        "technology" : "Python / FastAPI"
+      }, {
+        "components" : [ {
+          "description" : "Atomically creates a care episode and an invite token on clinician request.",
+          "documentation" : { },
+          "id" : "54",
+          "name" : "Invite & Episode Creator",
+          "properties" : {
+            "structurizr.dsl.identifier" : "inviteCreator"
+          },
+          "relationships" : [ {
+            "description" : "Verify patient record exists before creating invite",
+            "destinationId" : "50",
+            "id" : "194",
+            "sourceId" : "54",
+            "tags" : "Relationship",
+            "technology" : "HTTPS"
+          }, {
+            "description" : "Verify patient record exists before creating invite",
+            "destinationId" : "48",
+            "id" : "195",
+            "linkedRelationshipId" : "194",
+            "sourceId" : "54",
+            "technology" : "HTTPS"
+          } ],
+          "tags" : "Element,Component",
+          "technology" : "Python"
+        }, {
+          "description" : "Returns the current active care episode for a given patient ID.",
+          "documentation" : { },
+          "id" : "55",
+          "name" : "Active Episode Lookup",
+          "properties" : {
+            "structurizr.dsl.identifier" : "activeEpisodeLookup"
+          },
+          "tags" : "Element,Component",
+          "technology" : "Python"
+        }, {
+          "description" : "Scheduled auto-closure job and manual clinician-close endpoint with event emission.",
+          "documentation" : { },
+          "id" : "56",
+          "name" : "Episode Lifecycle Manager",
+          "properties" : {
+            "structurizr.dsl.identifier" : "episodeLifecycleManager"
+          },
+          "tags" : "Element,Component",
+          "technology" : "Python"
+        } ],
+        "description" : "Creates and manages procedure-scoped care episodes and active episode lookup.",
+        "documentation" : { },
+        "group" : "Clinical Workflow",
+        "id" : "53",
+        "name" : "Care Episode Service",
+        "properties" : {
+          "structurizr.dsl.identifier" : "careEpisodeService"
+        },
+        "relationships" : [ {
+          "description" : "Verify patient record exists before creating invite",
+          "destinationId" : "50",
+          "id" : "196",
+          "linkedRelationshipId" : "194",
+          "sourceId" : "53",
+          "technology" : "HTTPS"
+        }, {
+          "description" : "Verify patient record exists before creating invite",
+          "destinationId" : "48",
+          "id" : "197",
+          "linkedRelationshipId" : "194",
+          "sourceId" : "53",
+          "technology" : "HTTPS"
+        } ],
+        "tags" : "Element,Container,Service",
+        "technology" : "Python / FastAPI"
+      }, {
+        "components" : [ {
+          "description" : "Unified FHIR R4 API surface consumed by all platform services.",
+          "documentation" : { },
+          "id" : "58",
+          "name" : "FHIR Facade",
+          "properties" : {
+            "structurizr.dsl.identifier" : "fhirFacade"
+          },
+          "relationships" : [ {
+            "description" : "Route request by tenant",
+            "destinationId" : "59",
+            "id" : "166",
+            "sourceId" : "58",
+            "tags" : "Relationship",
+            "technology" : "Internal"
+          } ],
+          "tags" : "Element,Component",
+          "technology" : "Python"
+        }, {
+          "description" : "Routes requests to the correct upstream EMR endpoint based on tenant configuration.",
+          "documentation" : { },
+          "id" : "59",
+          "name" : "Tenant Router",
+          "properties" : {
+            "structurizr.dsl.identifier" : "tenantRouter"
+          },
+          "relationships" : [ {
+            "description" : "Lookup tenant EMR endpoint",
+            "destinationId" : "61",
+            "id" : "167",
+            "sourceId" : "59",
+            "tags" : "Relationship",
+            "technology" : "Internal"
+          }, {
+            "description" : "FHIR read operations",
+            "destinationId" : "13",
+            "id" : "168",
+            "sourceId" : "59",
+            "tags" : "Relationship",
+            "technology" : "FHIR R4 / HTTPS"
+          }, {
+            "description" : "Normalise vendor response",
+            "destinationId" : "60",
+            "id" : "171",
+            "sourceId" : "59",
+            "tags" : "Relationship",
+            "technology" : "Internal"
+          } ],
+          "tags" : "Element,Component",
+          "technology" : "Python"
+        }, {
+          "description" : "Transforms vendor-specific FHIR responses into the platform's canonical internal schema.",
+          "documentation" : { },
+          "id" : "60",
+          "name" : "Schema Normaliser",
+          "properties" : {
+            "structurizr.dsl.identifier" : "schemaNormaliser"
+          },
+          "tags" : "Element,Component",
+          "technology" : "Python"
+        }, {
+          "description" : "Stores per-tenant EMR endpoint URLs, credentials, and integration configuration.",
+          "documentation" : { },
+          "id" : "61",
+          "name" : "EMR Connection Registry",
+          "properties" : {
+            "structurizr.dsl.identifier" : "emrConnectionRegistry"
+          },
+          "tags" : "Element,Component",
+          "technology" : "Python"
+        } ],
+        "description" : "Vendor-agnostic FHIR facade for patient records and procedure context.",
+        "documentation" : { },
+        "group" : "Clinical Workflow",
+        "id" : "57",
+        "name" : "EMR Service",
+        "properties" : {
+          "structurizr.dsl.identifier" : "emrService"
+        },
+        "relationships" : [ {
+          "description" : "FHIR read operations",
+          "destinationId" : "13",
+          "id" : "169",
+          "linkedRelationshipId" : "168",
+          "sourceId" : "57",
+          "technology" : "FHIR R4 / HTTPS"
+        } ],
+        "tags" : "Element,Container,Service",
+        "technology" : "Python / FastAPI"
+      }, {
+        "components" : [ {
+          "description" : "SQS queue carrying per-message risk-evaluation events.",
+          "documentation" : { },
+          "id" : "63",
+          "name" : "Risk Eval Queue",
+          "properties" : {
+            "structurizr.dsl.identifier" : "riskEvalQueue"
+          },
+          "tags" : "Element,Component,Queue",
+          "technology" : "AWS SQS"
+        }, {
+          "description" : "Consumes risk-evaluation events from the Risk Eval Queue.",
+          "documentation" : { },
+          "id" : "64",
+          "name" : "SQS Consumer",
+          "properties" : {
+            "structurizr.dsl.identifier" : "sqsConsumer"
+          },
+          "relationships" : [ {
+            "description" : "Pass event for evaluation",
+            "destinationId" : "65",
+            "id" : "243",
+            "sourceId" : "64",
+            "tags" : "Relationship",
+            "technology" : "Internal"
+          } ],
+          "tags" : "Element,Component",
+          "technology" : "Python / Lambda"
+        }, {
+          "description" : "Calls Bedrock inference with message context and returns a binary yes/no intervention signal.",
+          "documentation" : { },
+          "id" : "65",
+          "name" : "Risk Evaluator",
+          "properties" : {
+            "structurizr.dsl.identifier" : "riskEvaluator"
+          },
+          "relationships" : [ {
+            "description" : "Fetch raw interaction context",
+            "destinationId" : "38",
+            "id" : "244",
+            "sourceId" : "65",
+            "tags" : "Relationship",
+            "technology" : "HTTPS"
+          }, {
+            "description" : "Fetch raw interaction context",
+            "destinationId" : "34",
+            "id" : "245",
+            "linkedRelationshipId" : "244",
+            "sourceId" : "65",
+            "technology" : "HTTPS"
+          }, {
+            "description" : "Run risk model inference",
+            "destinationId" : "77",
+            "id" : "248",
+            "sourceId" : "65",
+            "tags" : "Relationship",
+            "technology" : "Bedrock API"
+          }, {
+            "description" : "Trigger escalation on yes outcome",
+            "destinationId" : "66",
+            "id" : "250",
+            "sourceId" : "65",
+            "tags" : "Relationship",
+            "technology" : "Internal"
+          }, {
+            "description" : "Log evaluation outcome and model version",
+            "destinationId" : "67",
+            "id" : "255",
+            "sourceId" : "65",
+            "tags" : "Relationship",
+            "technology" : "Internal"
+          } ],
+          "tags" : "Element,Component",
+          "technology" : "Python / Lambda"
+        }, {
+          "description" : "Calls the Notification Service when the risk outcome is yes.",
+          "documentation" : { },
+          "id" : "66",
+          "name" : "Escalation Dispatcher",
+          "properties" : {
+            "structurizr.dsl.identifier" : "escalationDispatcher"
+          },
+          "relationships" : [ {
+            "description" : "Escalate when risk outcome is yes",
+            "destinationId" : "86",
+            "id" : "251",
+            "sourceId" : "66",
+            "tags" : "Relationship",
+            "technology" : "HTTPS"
+          }, {
+            "description" : "Escalate when risk outcome is yes",
+            "destinationId" : "85",
+            "id" : "252",
+            "linkedRelationshipId" : "251",
+            "sourceId" : "66",
+            "technology" : "HTTPS"
+          } ],
+          "tags" : "Element,Component",
+          "technology" : "Python / Lambda"
+        }, {
+          "description" : "Persists binary evaluation outcome and model version for every message for audit purposes.",
+          "documentation" : { },
+          "id" : "67",
+          "name" : "Audit Logger",
+          "properties" : {
+            "structurizr.dsl.identifier" : "riskAuditLogger"
+          },
+          "tags" : "Element,Component",
+          "technology" : "Python / Lambda"
+        } ],
+        "description" : "Asynchronous risk-evaluation worker consuming message events and producing binary escalation decisions.",
+        "documentation" : { },
+        "group" : "AI & Data Platform",
+        "id" : "62",
+        "name" : "AI Risk Agent Service",
+        "properties" : {
+          "structurizr.dsl.identifier" : "aiRiskAgent"
+        },
+        "relationships" : [ {
+          "description" : "Fetch raw interaction context",
+          "destinationId" : "38",
+          "id" : "246",
+          "linkedRelationshipId" : "244",
+          "sourceId" : "62",
+          "technology" : "HTTPS"
+        }, {
+          "description" : "Fetch raw interaction context",
+          "destinationId" : "34",
+          "id" : "247",
+          "linkedRelationshipId" : "244",
+          "sourceId" : "62",
+          "technology" : "HTTPS"
+        }, {
+          "description" : "Run risk model inference",
+          "destinationId" : "77",
+          "id" : "249",
+          "linkedRelationshipId" : "248",
+          "sourceId" : "62",
+          "technology" : "Bedrock API"
+        }, {
+          "description" : "Escalate when risk outcome is yes",
+          "destinationId" : "86",
+          "id" : "253",
+          "linkedRelationshipId" : "251",
+          "sourceId" : "62",
+          "technology" : "HTTPS"
+        }, {
+          "description" : "Escalate when risk outcome is yes",
+          "destinationId" : "85",
+          "id" : "254",
+          "linkedRelationshipId" : "251",
+          "sourceId" : "62",
+          "technology" : "HTTPS"
+        } ],
+        "tags" : "Element,Container,Service",
+        "technology" : "AWS Lambda + SQS"
+      }, {
+        "components" : [ {
+          "description" : "SQS queue carrying chat-session-end events for deidentification.",
+          "documentation" : { },
+          "id" : "69",
+          "name" : "Session Close Queue",
+          "properties" : {
+            "structurizr.dsl.identifier" : "sessionCloseQueue"
+          },
+          "tags" : "Element,Component,Queue",
+          "technology" : "AWS SQS"
+        }, {
+          "description" : "Consumes session-end events from the Session Close Queue.",
+          "documentation" : { },
+          "id" : "70",
+          "name" : "Session Event Consumer",
+          "properties" : {
+            "structurizr.dsl.identifier" : "sessionEventConsumer"
+          },
+          "relationships" : [ {
+            "description" : "Pass raw messages for redaction",
+            "destinationId" : "71",
+            "id" : "256",
+            "sourceId" : "70",
+            "tags" : "Relationship",
+            "technology" : "Internal"
+          } ],
+          "tags" : "Element,Component",
+          "technology" : "Python / Lambda"
+        }, {
+          "description" : "Runs Bedrock NER to detect and replace PII/PHI tokens with placeholders.",
+          "documentation" : { },
+          "id" : "71",
+          "name" : "PHI Detector",
+          "properties" : {
+            "structurizr.dsl.identifier" : "phiDetector"
+          },
+          "relationships" : [ {
+            "description" : "PHI detection assist",
+            "destinationId" : "77",
+            "id" : "257",
+            "sourceId" : "71",
+            "tags" : "Relationship",
+            "technology" : "Bedrock API"
+          }, {
+            "description" : "Pass de-identified messages",
+            "destinationId" : "72",
+            "id" : "259",
+            "sourceId" : "71",
+            "tags" : "Relationship",
+            "technology" : "Internal"
+          }, {
+            "description" : "Route on failure",
+            "destinationId" : "73",
+            "id" : "264",
+            "sourceId" : "71",
+            "tags" : "Relationship",
+            "technology" : "Internal"
+          } ],
+          "tags" : "Element,Component",
+          "technology" : "Python / Lambda"
+        }, {
+          "description" : "Forwards de-identified messages to the Clean Chat Service.",
+          "documentation" : { },
+          "id" : "72",
+          "name" : "Clean Writer",
+          "properties" : {
+            "structurizr.dsl.identifier" : "cleanWriter"
+          },
+          "relationships" : [ {
+            "description" : "Write de-identified messages",
+            "destinationId" : "75",
+            "id" : "260",
+            "sourceId" : "72",
+            "tags" : "Relationship",
+            "technology" : "HTTPS"
+          }, {
+            "description" : "Write de-identified messages",
+            "destinationId" : "74",
+            "id" : "261",
+            "linkedRelationshipId" : "260",
+            "sourceId" : "72",
+            "technology" : "HTTPS"
+          } ],
+          "tags" : "Element,Component",
+          "technology" : "Python / Lambda"
+        }, {
+          "description" : "Routes failed or unprocessable messages to the quarantine queue for human review.",
+          "documentation" : { },
+          "id" : "73",
+          "name" : "Quarantine Handler",
+          "properties" : {
+            "structurizr.dsl.identifier" : "quarantineHandler"
+          },
+          "tags" : "Element,Component",
+          "technology" : "Python / Lambda"
+        } ],
+        "description" : "Session-end PHI/PII stripping pipeline writing de-identified records to clean store.",
+        "documentation" : { },
+        "group" : "AI & Data Platform",
+        "id" : "68",
+        "name" : "Deidentification Pipeline",
+        "properties" : {
+          "structurizr.dsl.identifier" : "deidentPipeline"
+        },
+        "relationships" : [ {
+          "description" : "PHI detection assist",
+          "destinationId" : "77",
+          "id" : "258",
+          "linkedRelationshipId" : "257",
+          "sourceId" : "68",
+          "technology" : "Bedrock API"
+        }, {
+          "description" : "Write de-identified messages",
+          "destinationId" : "75",
+          "id" : "262",
+          "linkedRelationshipId" : "260",
+          "sourceId" : "68",
+          "technology" : "HTTPS"
+        }, {
+          "description" : "Write de-identified messages",
+          "destinationId" : "74",
+          "id" : "263",
+          "linkedRelationshipId" : "260",
+          "sourceId" : "68",
+          "technology" : "HTTPS"
+        } ],
+        "tags" : "Element,Container,Service",
+        "technology" : "AWS Lambda"
+      }, {
+        "components" : [ {
+          "description" : "Accepts de-identified message batches from the Deidentification Pipeline with deduplication.",
+          "documentation" : { },
+          "id" : "75",
+          "name" : "Write API",
+          "properties" : {
+            "structurizr.dsl.identifier" : "cleanWriteAPI"
+          },
+          "tags" : "Element,Component",
+          "technology" : "Python"
+        }, {
+          "description" : "Exposes interaction and message queries for ML training jobs, data scientists, and engineers.",
+          "documentation" : { },
+          "id" : "76",
+          "name" : "Query API",
+          "properties" : {
+            "structurizr.dsl.identifier" : "cleanQueryAPI"
+          },
+          "tags" : "Element,Component",
+          "technology" : "Python"
+        } ],
+        "description" : "De-identified chat store for internal analysis and model workflows.",
+        "documentation" : { },
+        "group" : "AI & Data Platform",
+        "id" : "74",
+        "name" : "Clean Chat Service",
+        "properties" : {
+          "structurizr.dsl.identifier" : "cleanChatService"
+        },
+        "tags" : "Element,Container,Service",
+        "technology" : "Python / FastAPI + PostgreSQL"
+      }, {
+        "description" : "Managed AWS Bedrock inference dependency used by internal AI workloads.",
+        "documentation" : { },
+        "group" : "AI & Data Platform",
+        "id" : "77",
+        "name" : "Bedrock Inference",
+        "properties" : {
+          "structurizr.dsl.identifier" : "bedrockService"
+        },
+        "tags" : "Element,Container,Service,Bedrock",
+        "technology" : "AWS Bedrock API"
+      }, {
+        "components" : [ {
+          "description" : "Processes WorkOS OAuth callback, validates assertion, seals session in httponly cookie.",
+          "documentation" : { },
+          "id" : "79",
+          "name" : "OAuth2 Callback Handler",
+          "properties" : {
+            "structurizr.dsl.identifier" : "oauthCallbackHandler"
+          },
+          "relationships" : [ {
+            "description" : "Receive OAuth callback assertion",
+            "destinationId" : "15",
+            "id" : "172",
+            "sourceId" : "79",
+            "tags" : "Relationship",
+            "technology" : "OIDC/OAuth2"
+          }, {
+            "description" : "Extract identity claims from assertion",
+            "destinationId" : "80",
+            "id" : "175",
+            "sourceId" : "79",
+            "tags" : "Relationship",
+            "technology" : "Internal"
+          } ],
+          "tags" : "Element,Component",
+          "technology" : "Python"
+        }, {
+          "description" : "Extracts identity, user type, roles, and tenant from WorkOS assertion; validates session authenticity.",
+          "documentation" : { },
+          "id" : "80",
+          "name" : "WorkOS Claims Extractor",
+          "properties" : {
+            "structurizr.dsl.identifier" : "workOSBridge"
+          },
+          "relationships" : [ {
+            "description" : "Pass validated claims for JWT issuance",
+            "destinationId" : "81",
+            "id" : "176",
+            "sourceId" : "80",
+            "tags" : "Relationship",
+            "technology" : "Internal"
+          } ],
+          "tags" : "Element,Component",
+          "technology" : "Python"
+        }, {
+          "description" : "Issues short-lived RS256 platform JWTs with identity, user type, roles, and tenant claims (15min default TTL for humans, 5min for services).",
+          "documentation" : { },
+          "id" : "81",
+          "name" : "Token Issuer",
+          "properties" : {
+            "structurizr.dsl.identifier" : "tokenIssuer"
+          },
+          "relationships" : [ {
+            "description" : "Sign token with private key (public key cached by JWKS)",
+            "destinationId" : "84",
+            "id" : "177",
+            "sourceId" : "81",
+            "tags" : "Relationship",
+            "technology" : "Internal"
+          } ],
+          "tags" : "Element,Component",
+          "technology" : "Python"
+        }, {
+          "description" : "Validates bearer token JWT, verifies RS256 signature, returns decoded claims.",
+          "documentation" : { },
+          "id" : "82",
+          "name" : "Token Validator",
+          "properties" : {
+            "structurizr.dsl.identifier" : "tokenValidator"
+          },
+          "tags" : "Element,Component",
+          "technology" : "Python"
+        }, {
+          "description" : "Issues short-lived service-to-service JWTs via OAuth2 client_credentials grant with bcrypt secret verification (5min TTL).",
+          "documentation" : { },
+          "id" : "83",
+          "name" : "Service Credential Issuer",
+          "properties" : {
+            "structurizr.dsl.identifier" : "machineCredentialIssuer"
+          },
+          "relationships" : [ {
+            "description" : "Verify bcrypt secret, issue machine JWT",
+            "destinationId" : "81",
+            "id" : "178",
+            "sourceId" : "83",
+            "tags" : "Relationship",
+            "technology" : "Internal"
+          } ],
+          "tags" : "Element,Component",
+          "technology" : "Python"
+        }, {
+          "description" : "Publishes RSA public key in JWK Set format (RFC 7517); 1-hour cache enables distributed JWT validation without Auth Service in critical path.",
+          "documentation" : { },
+          "id" : "84",
+          "name" : "JWKS Publisher",
+          "properties" : {
+            "structurizr.dsl.identifier" : "jwksPublisher"
+          },
+          "tags" : "Element,Component",
+          "technology" : "Python"
+        } ],
+        "description" : "Issues platform JWTs for human (via WorkOS) and machine authentication. Publishes public signing keys. Delegates session lifecycle to WorkOS.",
+        "documentation" : { },
+        "group" : "Platform Core",
+        "id" : "78",
+        "name" : "Authentication Service",
+        "properties" : {
+          "structurizr.dsl.identifier" : "authService"
+        },
+        "relationships" : [ {
+          "description" : "Receive OAuth callback assertion",
+          "destinationId" : "15",
+          "id" : "173",
+          "linkedRelationshipId" : "172",
+          "sourceId" : "78",
+          "technology" : "OIDC/OAuth2"
+        } ],
+        "tags" : "Element,Container,Service,Security",
+        "technology" : "Python / FastAPI"
+      }, {
+        "components" : [ {
+          "description" : "Accepts structured escalation events from the AI Risk Agent and validates payloads.",
+          "documentation" : { },
+          "id" : "86",
+          "name" : "Alert Receiver",
+          "properties" : {
+            "structurizr.dsl.identifier" : "alertReceiver"
+          },
+          "relationships" : [ {
+            "description" : "Pass validated alert",
+            "destinationId" : "87",
+            "id" : "215",
+            "sourceId" : "86",
+            "tags" : "Relationship",
+            "technology" : "Internal"
+          } ],
+          "tags" : "Element,Component",
+          "technology" : "Python"
+        }, {
+          "description" : "Holds alert for 60 seconds, publishes to clinician alert queue, and tracks self-assignment.",
+          "documentation" : { },
+          "id" : "87",
+          "name" : "Early Intervention Window",
+          "properties" : {
+            "structurizr.dsl.identifier" : "earlyInterventionWindow"
+          },
+          "relationships" : [ {
+            "description" : "Publish alert to portal queue",
+            "destinationId" : "89",
+            "id" : "216",
+            "sourceId" : "87",
+            "tags" : "Relationship",
+            "technology" : "Queue Publish"
+          } ],
+          "tags" : "Element,Component",
+          "technology" : "Python"
+        }, {
+          "description" : "Calls PagerDuty Events API for alerts unclaimed after the intervention window expires.",
+          "documentation" : { },
+          "id" : "88",
+          "name" : "PagerDuty Dispatcher",
+          "properties" : {
+            "structurizr.dsl.identifier" : "pagerDutyDispatcher"
+          },
+          "relationships" : [ {
+            "description" : "Create incident for unclaimed alert",
+            "destinationId" : "8",
+            "id" : "217",
+            "sourceId" : "88",
+            "tags" : "Relationship",
+            "technology" : "PagerDuty Events API"
+          } ],
+          "tags" : "Element,Component",
+          "technology" : "Python"
+        }, {
+          "description" : "SQS/PubSub queue for the early-intervention self-assign window before PagerDuty escalation.",
+          "documentation" : { },
+          "id" : "89",
+          "name" : "Clinician Alert Queue",
+          "properties" : {
+            "structurizr.dsl.identifier" : "clinicianAlertQueue"
+          },
+          "tags" : "Element,Component,Queue",
+          "technology" : "SQS / PubSub"
+        } ],
+        "description" : "Receives high-risk alerts, runs early-intervention window, escalates unclaimed alerts.",
+        "documentation" : { },
+        "group" : "Platform Core",
+        "id" : "85",
+        "name" : "Notification Service",
+        "properties" : {
+          "structurizr.dsl.identifier" : "notificationService"
+        },
+        "relationships" : [ {
+          "description" : "Create incident for unclaimed alert",
+          "destinationId" : "8",
+          "id" : "218",
+          "linkedRelationshipId" : "217",
+          "sourceId" : "85",
+          "technology" : "PagerDuty Events API"
+        } ],
+        "tags" : "Element,Container,Service",
+        "technology" : "Python / FastAPI"
+      } ],
+      "description" : "HIPAA-compliant clinical data platform for AI-assisted care coordination, patient engagement, risk detection, and clinician escalation.",
+      "documentation" : {
+        "decisions" : [ {
+          "content" : "# 01. Use ADRs and C4 Modeling for Specification and Architecture Governance\n\nDate: 2026-04-19\n\n## Status\n\nAccepted\n\n## Context\n\nThe Clinical Data Platform is a safety-critical, multi-service system operating under HIPAA and clinical-safety constraints. Decisions made early in the design process — about system boundaries, data flows, and integration patterns — have long-lived consequences that are difficult to reverse. The team needed a lightweight but disciplined governance approach that:\n\n- Makes architectural intent explicit and traceable\n- Keeps diagrams and specifications in sync with implementation\n- Supports AI-assisted development without losing human accountability\n- Is auditable by clinical, security, and compliance stakeholders\n\n## Decision\n\nAdopt three complementary practices as the governance foundation for CDP:\n\n1. **Architecture Decision Records (ADRs)** — Every significant architectural choice is recorded as a numbered ADR in `architecture/structurizr/decisions/`. ADRs capture context, decision, and consequences. Once accepted, an ADR is immutable; superseding it requires a new ADR.\n\n2. **Structured specification workflow** — All feature work begins with a structured specification and planning workflow (`specify → clarify → plan → tasks → implement`). Each service has a canonical `spec.md` under `specs/NNN-service-name/`. The constitution (`/architecture/constitution.md`) encodes non-negotiable platform principles that all specs must comply with.\n\n3. **C4 Model (Structurizr DSL)** — The architecture is expressed as a living C4 model in `architecture/structurizr/workspace.dsl`. System context, container, component, and dynamic views are generated from a single source of truth and kept in sync with the feature specs. Documentation and ADRs are embedded in the workspace via `!docs` and `!decisions` directives.\n\n## Consequences\n\n- Every architectural decision has a durable, auditable, and version controlled record\n- New contributors can understand system intent by reading specs and diagrams before touching code\n- Specs serve as the contract between design and implementation; divergence from a spec must be justified and documented\n- The C4 model must be updated whenever a service boundary, container, or significant component relationship changes\n- AI-assisted code generation is bounded by spec and constitution constraints, reducing drift\n",
+          "date" : "2026-04-19T00:00:00Z",
+          "format" : "Markdown",
+          "id" : "1",
+          "status" : "Accepted",
+          "title" : "Use ADRs and C4 Modeling for Specification and Architecture Governance"
+        }, {
+          "content" : "# 10. ADR 0010: Role Picker UI and Single Active Role Enforcement\n\nDate: 2026-05-06\n\n## Context\nWhen interacting with the system, users may possess multiple valid WorkOS organization roles (e.g., both `clinician` and `admin`). In a standard B2B setup, it can be convenient to load all roles into a single JWT and let policies sort out access. However, loading multiple cross-functional credentials simultaneously violates the principle of least privilege, opening the door for unintended destructive actions while a user is performing standard operational tasks. We need a way to maintain strict separation of duties while preserving flexibility for development and demonstration scenarios.\n\n## Decision\nWe will enforce a **Single Active Role** architecture in the user interface:\n1. When a user authenticates, the system will identify all their authorized roles.\n2. If a user possesses more than one authorized role, the UI will display a **Role Picker**. \n3. Only the selected active role will be utilized for interactions contextually. \n4. If a user possesses a single role (99% of users), the Role Picker is functionally suppressed to minimize UI clutter.\n\n## Rationale\n- **Principle of Least Privilege**: Users are forced to explicitly \"assume\" elevated or alternate roles, drastically reducing accidental configuration drift or data loss.\n- **Cleaner UI/UX**: The application interface only renders features explicitly relevant to the active role (e.g., the Clinical Dashboard vs the Admin Settings console), avoiding complex layout merges.\n- **Auditability**: Tracing explicitly logs not just who performed an action, but under what capacity they were actively acting when the action was invoked.\n- **Demonstration Capability**: Development and demo scenarios vastly benefit from rapid, explicit context switching to show boundary controls in real time.\n\n## Status\nAccepted\n",
+          "date" : "2026-05-06T00:00:00Z",
+          "format" : "Markdown",
+          "id" : "10",
+          "status" : "Accepted",
+          "title" : "ADR 0010: Role Picker UI and Single Active Role Enforcement"
+        }, {
+          "content" : "# 11. ADR 0011: Database Primary Keys and UUIDv7\n\nDate: 2026-05-12\n\n## Status\n\nAccepted\n\n## Context\n\nWhen designing database schemas, naming conventions for primary and foreign keys establish the foundation for developer expectations and system integrations. \n\nHistorically, relational databases default to auto-incrementing integers (e.g., `id` or `table_id`). Relying on integers or sequence numbers presents multiple issues:\n1. **Unpredictability in distributed systems:** Standard sequences require centralized coordination or locking, leading to bottlenecks.\n2. **Security/Enumeration risk:** Sequential integers allow predictable enumeration attacks, exposing volume and growth rates.\n3. **Ambiguity in schema design:** Naming a column `id` masks its underlying type, while naming it `<table_name>_id` creates redundancy.\n4. **Locality issues with v4 UUIDs:** While UUIDv4 solves the distributed and enumeration issues, it produces completely random hashes. Inserting random UUIDs into a B-Tree index causes severe fragmentation and performance degradation at scale due to lack of temporal locality.\n\nWe need a standardized convention that accurately conveys the data type, ensures temporal sorting for index performance, and maintains clarity across the data model.\n\n## Decision\n\n1. **Standardize on UUIDv7:** We will use UUIDv7 (`uuidv7()`) for all primary identifiers. UUIDv7 combines a Unix timestamp (millisecond precision) with random data. This strictly preserves time-ordering, resulting in ordered B-Tree inserts that solve the database fragmentation and performance issues typically associated with UUIDv4, while retaining global uniqueness and security against enumeration.\n2. **Primary Key Nomenclature:** The primary key column in every table must be explicitly named `uuid`. This completely breaks the assumption of an auto-incrementing integer and strictly signals the data type to developers. Redundant table-prefix naming (e.g., `user_uuid` in the `users` table) is prohibited.\n3. **Foreign Key Nomenclature:** Foreign keys referencing a primary identifier must be named using the format `<singular_target_table>_uuid` (e.g., `machine_credential_uuid`).\n\n## Consequences\n\n* **Improved Performance:** Time-ordered UUIDs guarantee index locality during `INSERT` heavy workloads.\n* **Developer Clarity:** Naming the primary key `uuid` acts as self-documenting code, enforcing type awareness immediately.\n* **Standardization:** Both code and documentation must align across the architecture. Migrations and ORM configurations must explicitly declare `uuid` as the primary key.\n* **Integration Overhead:** Any external system integrations must expect UUID generation based on the v7 standard instead of monotonically increasing sequences.\n",
+          "date" : "2026-05-12T00:00:00Z",
+          "format" : "Markdown",
+          "id" : "11",
+          "status" : "Accepted",
+          "title" : "ADR 0011: Database Primary Keys and UUIDv7"
+        }, {
+          "content" : "# 02. Use AWS Bedrock for AI Risk Inference\n\nDate: 2026-04-19\n\n## Status\n\nAccepted\n\n## Context\n\nThe platform requires a managed AI inference service for per-message clinical risk evaluation. The evaluation must be auditable, version-tracked, and isolated from PHI-handling components. Any AI provider processing data derived from patient interactions must operate under a signed HIPAA Business Associate Agreement (BAA); self-managed or third-party inference APIs that cannot provide a BAA are not eligible.\n\n## Decision\n\nUse AWS Bedrock as the managed inference provider for the AI Risk Agent. AWS signs a HIPAA BAA covering Bedrock, satisfying the platform's requirement that all AI inference operates under a BAA. Bedrock additionally provides model versioning, audit logging, and does not require self-managed model infrastructure.\n\n## Consequences\n\n- Risk evaluations are tied to AWS region availability\n- Model version is recorded per evaluation for audit purposes\n- The Bedrock AI Workbench (isolated account) is kept strictly separate from the production runtime path\n",
+          "date" : "2026-04-19T00:00:00Z",
+          "format" : "Markdown",
+          "id" : "2",
+          "status" : "Accepted",
+          "title" : "Use AWS Bedrock for AI Risk Inference"
+        }, {
+          "content" : "# 03. Store Categorical Columns as Integer Enums\n\nDate: 2026-04-19\n\n## Status\n\nAccepted\n\n## Context\n\nPostgreSQL `TEXT` columns with `CHECK IN (...)` constraints are commonly used for categorical data. They are human-readable at the database layer but have several drawbacks:\n\n- Storage is larger than necessary (TEXT vs SMALLINT).\n- Renaming or extending a value requires a DDL migration touching existing rows.\n- Cross-service consumers must hardcode string literals, creating a distributed constant-coupling problem.\n- There is no enforced, discoverable contract for valid values.\n\n## Decision\n\nAll categorical columns in service-owned databases MUST be stored as `SMALLINT NOT NULL`.\n\nEach such column MUST have a corresponding enum definition (Python `IntEnum` or equivalent) in the service codebase. The mapping is the single source of truth.\n\nEvery service that owns categorical columns MUST expose a `/meta/enums` endpoint (authenticated, read-only) that returns the current integer→label mapping for all registered enums. This endpoint:\n\n- MUST return a stable, versioned JSON structure.\n- MUST be additive-only: existing integer→label pairs MUST NOT be reused or removed (only new values added).\n- MUST be used by all consumers (other services, admin tooling, migration scripts) to decode stored integers.\n\n### Enum endpoint contract\n\n```\nGET /meta/enums\nAuthorization: Bearer <service-to-service token>\n\n200 OK\n{\n  \"version\": 1,\n  \"enums\": {\n    \"<EnumName>\": {\n      \"<integer>\": \"<label>\",\n      ...\n    }\n  }\n}\n```\n\n### Database convention\n\n| Instead of | Use |\n|---|---|\n| `TEXT CHECK IN ('a','b','c')` | `SMALLINT NOT NULL` with `CHECK (col IN (1,2,3))` |\n| `VARCHAR(50)` for a fixed set | `SMALLINT NOT NULL` |\n\nInteger values MUST start at 1 for normal values. The value `0` is reserved to mean `unknown`/`unset` where an unknown state is valid in the domain model (e.g., `user_type = 0` for unauthenticated actors in audit logs). Values are additive-only; integers MUST NOT be renumbered or reused.\n\n### Migration practice\n\nWhen introducing a new enum value, add a new integer and label to the enum definition and `GET /meta/enums`. Migration scripts MUST NOT perform back-fills that change existing integer values.\n\n## Consequences\n\n- All service teams MUST update existing TEXT categoricals to SMALLINT in their next major migration.\n- Service clients MUST NOT hardcode category labels in logic that persists data; they MUST use the integer constants from a shared enum or the decode endpoint.\n- Readability at the raw-SQL level is reduced; this is accepted in exchange for the benefits above.\n\n## Alternatives Considered\n\n- **PostgreSQL native `ENUM` type**: Rejected — DDL ALTER TABLE is required to add values, which is non-trivial in a zero-downtime migration strategy.\n- **TEXT with CHECK**: Rejected — see Context above.\n- **Lookup table per enum**: Considered but rejected for simplicity; the `/meta/enums` endpoint fulfils the discoverability need without extra joins on hot-path queries.\n",
+          "date" : "2026-04-19T00:00:00Z",
+          "format" : "Markdown",
+          "id" : "3",
+          "status" : "Accepted",
+          "title" : "Store Categorical Columns as Integer Enums"
+        }, {
+          "content" : "# 04. Store Full Row Snapshots in Audit History Tables, Not Sparse Deltas\n\nDate: 2026-04-19\n\n## Status\n\nAccepted\n\n## Context\n\nEvery service that persists mutable state needs an audit trail for HIPAA compliance, clinical-safety investigations, and operational debugging. Two patterns exist for capturing change history:\n\n1. **Full-row snapshot** — on every UPDATE or DELETE, a copy of the entire pre-change row is written to a paired `_audit` table. Each history record is self-contained.\n\n2. **Sparse delta** — only the columns that changed are written. The history table schema uses nullable columns for every field, and reconstructing the row at time T requires replaying all deltas from the initial insert.\n\nThe auth service (`014-authentication-service`) was the first service to adopt an audit strategy, using database triggers to copy full rows into `_audit` tables. As additional services are designed, a consistent platform-wide pattern must be established.\n\n## Decision\n\nAll CDP services that use the before-image history table pattern MUST store full-row snapshots, not sparse deltas.\n\n- On UPDATE: the complete pre-change row is copied atomically to the `_audit` table via a `BEFORE UPDATE` trigger.\n- On DELETE (soft): `change_type` is set to `3` on the main table row; the pre-change row is copied to `_audit` as usual.\n- The `_audit` table schema mirrors the main table schema exactly, plus a `history_uuid` UUIDv7 surrogate primary key.\n\n## Rationale\n\n**Query simplicity.** The dominant audit query is \"what did this row look like at time T?\" Full-row snapshots answer this with a single indexed lookup. Sparse deltas require replaying N records from the beginning, which is complex to implement correctly and degrades with history depth.\n\n**Diff at read time, not write time.** Identifying which columns changed between two history entries is done by comparing consecutive full rows in application code or a view. This is trivially correct. Computing deltas at write time requires column-by-column comparison inside the trigger, couples the trigger tightly to the schema, and makes every column in the audit table nullable — increasing schema complexity without a meaningful gain.\n\n**Storage is not a constraint at CDP's scale.** Auth service table rows are narrow (~200 bytes). Even at high write volumes, full-row history storage is negligible before Postgres compression. If a future service has genuinely wide tables (50+ columns) or high-frequency telemetry workloads, a new ADR should be raised to evaluate sparse deltas or a columnar store for that specific case.\n\n**Trigger simplicity and correctness.** A full-row copy trigger is ~10 lines of PL/pgSQL with no conditional logic. It is easy to read, test, and verify. A sparse delta trigger must enumerate columns and conditionally include fields — significantly more complex and a source of bugs.\n\n## Consequences\n\n- All `_audit` tables mirror the full schema of their main table plus `history_uuid`. No nullable-everything schemas.\n- The `cdp-audit` shared package (forward reference in `014-authentication-service/data-model.md`) must generate full-row triggers, not delta triggers.\n- Services with very wide tables (≥50 meaningful columns) or blob/large-text columns that rarely change should raise a new ADR before adopting this pattern, as the storage trade-off changes significantly in those cases.\n- History reconstruction is O(1): `SELECT * FROM <table>_audit WHERE <pk> = $1 AND changed_at <= $2 ORDER BY changed_at DESC LIMIT 1`.\n- Consumers of history data (audit UI, central audit service) can diff any two consecutive rows without additional infrastructure.\n",
+          "date" : "2026-04-19T00:00:00Z",
+          "format" : "Markdown",
+          "id" : "4",
+          "status" : "Accepted",
+          "title" : "Store Full Row Snapshots in Audit History Tables, Not Sparse Deltas"
+        }, {
+          "content" : "# 05. Use uv for Python Package Management\n\nDate: 2026-04-19\n\n## Status\n\nAccepted\n\n## Context\n\nCDP is a multi-service Python monorepo. Each service and shared package (e.g., `cdp-audit`) needs dependency resolution, virtual environment management, and reproducible lockfiles. The Python ecosystem offers several tools for this:\n\n- **pip + pip-tools** — ubiquitous but slow; requires separate tools for venv management and lockfile generation; no workspace support\n- **Poetry** — popular; slow resolver; non-standard `pyproject.toml` extensions; workspace support is limited and recently added\n- **Pipenv** — largely superseded; slow; no workspace support\n- **uv** — written in Rust by Astral (the `ruff` team); drop-in compatible with `pip` and `pyproject.toml` (PEP 517/518/621); significantly faster resolver; native workspace support; produces `uv.lock` lockfiles; actively maintained\n\nDeveloper experience and CI speed are operational concerns: slow dependency resolution compounds across many services and slows feedback loops. Consistency across services reduces cognitive overhead when switching between them.\n\n## Decision\n\nAll CDP Python services and packages MUST use **uv** for:\n\n- Virtual environment creation (`uv venv`)\n- Dependency installation (`uv sync`)\n- Adding/removing dependencies (`uv add`, `uv remove`)\n- Running commands in the project environment (`uv run`)\n- Lockfile generation and maintenance (`uv.lock`)\n\n`pip`, `pip-tools`, `Poetry`, and `Pipenv` are prohibited in this project. Direct `pip install` invocations (outside of `uv`-managed environments) are prohibited in CI and developer documentation.\n\nAll packages and services use standard `pyproject.toml` (PEP 621) for metadata. No tool-specific extensions outside the `[tool.uv]` table are permitted.\n\nThe monorepo is structured as a **uv workspace** with a root `pyproject.toml` declaring workspace members. Shared packages (e.g., `packages/cdp-audit`) are workspace members and referenced as path dependencies by services without being published to PyPI.\n\n## Consequences\n\n- `uv.lock` is committed to version control and updated via `uv lock`. Lock updates are reviewed in PRs.\n- CI installs dependencies with `uv sync --frozen` to enforce lockfile reproducibility.\n- Local development setup is `uv sync` — one command, no manual venv activation required for `uv run`.\n- New services scaffold with `uv init` inside the workspace.\n- Shared packages are added to a service with `uv add --workspace cdp-audit` rather than a path string.\n- Developers must have `uv` installed. Installation: `curl -LsSf https://astral.sh/uv/install.sh | sh` or `brew install uv`.\n",
+          "date" : "2026-04-19T00:00:00Z",
+          "format" : "Markdown",
+          "id" : "5",
+          "status" : "Accepted",
+          "title" : "Use uv for Python Package Management"
+        }, {
+          "content" : "# 06. API Response Shape and Resource Linking\n\nDate: 2026-04-19\n\n## Status\n\nProposed — deferred for decision when patient-facing and clinician-facing APIs are designed\n\n## Context\n\nCDP services expose HTTP APIs consumed by the Patient Chat App (Flutter), the Clinician App (React), and internal service-to-service calls. As services are designed, a consistent decision is needed on two related questions:\n\n1. **Object embedding vs. URI linking** — when a resource references another resource, should the response embed the related object inline, or return an identifier/URI the consumer can follow?\n2. **List response format** — for endpoints returning collections, should the response be JSON, CSV, or negotiated per use case?\n\nThese decisions affect every list and relational endpoint across the platform. Deferring them service-by-service will produce inconsistent APIs.\n\n### Object Embedding vs. URI Linking\n\n**Full embedding** — the response includes the full related object inline:\n```json\n{ \"session_uuid\": \"550e...\", \"user\": { \"id\": \"usr_01\", \"name\": \"Jane\", \"roles\": [\"clinician\"] } }\n```\n\n**ID-only** — the response returns just the foreign key; the consumer makes a second request to fetch the related resource:\n```json\n{ \"session_uuid\": \"550e...\", \"user_id\": \"usr_01\" }\n```\n\n**HATEOAS** — the response returns a URI the consumer follows:\n```json\n{ \"session_uuid\": \"550e...\", \"user\": { \"href\": \"/users/usr_01\" } }\n```\n\n**Selective expansion** — the response defaults to ID-only but accepts an `?expand=user` query parameter to opt into embedding:\n```json\nGET /sessions/550e...?expand=user\n```\n\n| Approach | Pros | Cons |\n|----------|------|------|\n| Full embedding | Single round trip; easy client code | Over-fetching; coupling between services; stale data if related resource changes |\n| ID-only | Minimal coupling; each resource fetched fresh | Multiple round trips; client must orchestrate; painful on high-latency mobile |\n| HATEOAS | Theoretically decoupled; API is self-describing | Rarely implemented fully in practice; clients still hardcode URIs; multiplies round trips |\n| Selective expansion | Flexible; clients opt into embedding when needed | More complex to implement; `?expand=` semantics must be consistent platform-wide |\n\n### List Response Format\n\n**JSON** — structured, supports nested objects, pagination metadata, and error envelopes natively:\n```json\n{ \"items\": [...], \"next_cursor\": \"abc\", \"total\": 142 }\n```\n\n**CSV** — compact, human-readable, familiar to data/analytics consumers; no nesting support:\n```\nsession_uuid,user_type,issued_at\n550e...,clinician,2026-04-19T10:00:00Z\n```\n\n| Approach | Pros | Cons |\n|----------|------|------|\n| JSON always | Consistent; supports nested objects, pagination, error envelopes; universal client support | Verbose for flat bulk data; higher CPU for large result sets |\n| CSV always | Compact for flat tabular data; ETL-friendly | No nesting; no standard error envelope; pagination is non-standard |\n| JSON default + CSV export variant | Best of both; API consumers get JSON; data/analytics consumers get CSV via `?format=csv` or a dedicated `/export` endpoint | Two code paths to maintain |\n\n## Decision\n\n*To be decided when the first patient-facing or clinician-facing list/relational API is designed.*\n\nCandidate recommendation for that decision point:\n\n- **Resource linking**: adopt **selective expansion** (`?expand=`) as the default pattern — ID-only by default, opt-in embedding for known high-value combinations. Avoid full HATEOAS; it has poor real-world adoption and multiplies mobile round trips.\n- **List format**: **JSON default with a dedicated `/export` endpoint returning CSV** for bulk data use cases (audit exports, operational metrics downloads). Do not mix formats on the same endpoint.\n\n## Consequences\n\n- This ADR must be resolved before any patient-facing or clinician-facing list endpoint is designed.\n- Resolution should produce a platform-wide API style guide covering pagination envelope shape, `?expand=` semantics, and export endpoint conventions.\n- Services designed before this ADR is resolved (auth, authorization) are narrow single-resource endpoints with no relational depth — they are not affected by this decision.\n",
+          "date" : "2026-04-19T00:00:00Z",
+          "format" : "Markdown",
+          "id" : "6",
+          "status" : "Proposed",
+          "title" : "API Response Shape and Resource Linking"
+        }, {
+          "content" : "# 07. Never Implement Custom Authentication; Use a Qualified Identity Provider\n\nDate: 2026-04-19\n\n## Status\n\nAccepted — WorkOS selected as the identity provider pending formal vendor qualification\n\n## Context\n\nAuthentication is one of the highest-risk components in any system handling sensitive medical data. Common failure modes — credential stuffing, session fixation, token forgery, timing attacks on password comparison, insecure password storage, missing MFA — are well-documented, frequently exploited, and catastrophic in a HIPAA-regulated context.\n\nThe engineering temptation to \"roll your own\" authentication exists because the basic flow (username + password → session token) appears simple. It is not. Secure authentication requires:\n\n- Constant-time credential comparison (to prevent timing attacks)\n- Secure password hashing (bcrypt/argon2 with correct cost parameters)\n- Brute-force and credential-stuffing protection\n- MFA (TOTP, WebAuthn, SMS fallback)\n- Enterprise SSO federation (SAML, OIDC)\n- Refresh token rotation with reuse detection\n- Session revocation and device management\n- Compliance with NIST SP 800-63B (Digital Identity Guidelines)\n- Ongoing security patching as vulnerabilities are discovered\n\nBuilding and maintaining all of this correctly is a full-time security engineering function. CDP does not have that function, and should not need to.\n\n## Decision\n\n**CDP MUST NEVER implement a custom authentication system.** This is a non-negotiable, permanent architectural constraint.\n\nAll human authentication (patient and clinician) MUST be delegated to a qualified external identity provider. The Auth Service acts as a relying party only: it validates assertions from the identity provider and issues platform-scoped tokens. No CDP service may implement password hashing, credential storage, login flows, MFA, or session management independently.\n\n**WorkOS** is the selected identity provider for v1, subject to successful completion of vendor qualification (see below). WorkOS provides:\n\n- OIDC-compliant authentication flows\n- Built-in MFA\n- Enterprise SSO (SAML, Google Workspace, Microsoft Entra)\n- Refresh token rotation with reuse detection\n- HIPAA BAA availability\n- Hosted AuthKit UI (reduces CDP surface area further)\n\n## Vendor Qualification Required\n\nWorkOS has been selected based on technical evaluation and architecture fit, but has **not yet been formally qualified** as a HIPAA vendor. Before WorkOS handles any production patient data, the following must be completed:\n\n- [ ] Execute a signed HIPAA Business Associate Agreement (BAA) with WorkOS\n- [ ] Review WorkOS SOC 2 Type II report\n- [ ] Confirm WorkOS data residency is US-only for patient identity data\n- [ ] Legal review of WorkOS data processing terms\n- [ ] Security review of WorkOS SDK dependency chain\n- [ ] Negotiate and execute a contractual SLA with defined uptime guarantee (minimum 99.9%), p99 authentication latency target, and financial penalties for breach (service credits or termination rights); SLA must be referenced in the vendor contract, not just a published status page commitment\n- [ ] Evaluate WorkOS read-replica / local caching mode for fault tolerance and latency reduction — specifically, whether WorkOS supports an AWS-hosted replica or JWKS/user-data cache that CDP can operate in-region to survive WorkOS availability events; document the supported architecture and its failure modes before production launch\n\nUntil qualification is complete, WorkOS may be used in development and staging environments only.\n\n## Replacing WorkOS\n\nIf WorkOS is ever disqualified or a superior provider is identified, the replacement MUST:\n\n1. Be an external identity provider — not an in-house implementation\n2. Support OIDC (so the Auth Service relying-party integration requires minimal changes)\n3. Execute a HIPAA BAA before handling production patient data\n4. Be adopted via a new ADR superseding this one\n\n## Consequences\n\n- No CDP engineer may implement password hashing, credential storage, or login flows. PRs containing such code MUST be rejected.\n- The Auth Service is intentionally thin — its only job is to validate WorkOS assertions and issue platform tokens. All authentication complexity lives in WorkOS.\n- WorkOS vendor qualification must be tracked as a hard dependency before production launch.\n- If WorkOS pricing, terms, or reliability become unacceptable, the migration path is to another qualified OIDC provider — not to an in-house system.\n",
+          "date" : "2026-04-19T00:00:00Z",
+          "format" : "Markdown",
+          "id" : "7",
+          "status" : "Accepted",
+          "title" : "Never Implement Custom Authentication; Use a Qualified Identity Provider"
+        }, {
+          "content" : "# 08. OpenAPI 3.0 Specification for API Documentation\n\nDate: 2026-04-21\n\n## Status\n\nAccepted — implemented in Authentication Service (014)\n\n## Context\n\nConstitution §V mandates a test pyramid with contract testing at the boundary between services and clients. However, the prior approach of writing 50+ assertions per test (thanks AI!) is:\n\n1. **Brittle** — assertions couple test code to response shape; any schema change requires finding and updating all assertions\n2. **Not publishable** — contracts are embedded in test code, so they cannot be versioned, documented, or consumed by client code generators\n3. **Imperative, not declarative** — tests describe \"check field X is string, check field Y is integer\" rather than \"response must conform to this schema\"\n4. **Duplicated across services** — multiple services repeat the same validation logic for error responses, pagination, etc.\n\n### OpenAPI as Single Source of Truth\n\nOpenAPI 3.0 is a standard, language-agnostic specification format that describes HTTP APIs, including endpoints, request/response schemas, authentication, and error codes. By storing the OpenAPI specification alongside each service, we enable:\n\n- **Contract-first development** — design the API spec first, then implement endpoints that conform to it\n- **Client code generation** — OpenAPI generators can consume the spec to produce type-safe client libraries (TypeScript, Python, etc.)\n- **API documentation** — OpenAPI powers Swagger UI, ReDoc, and other interactive documentation tools\n- **Version control** — specs are git-tracked and part of release artifacts\n- **Multi-service discoverability** — other services and client apps can fetch the spec at runtime to discover endpoints, schemas, and authentication requirements\n- **Standard tooling support** — recognized by Postman, API Gateway tools, contract testing frameworks, and monitoring solutions\n\n## Decision\n\nAll HTTP services in CDP MUST publish an **OpenAPI 3.0 specification** that documents the complete API. OpenAPI serves as the single source of truth for:\n\n1. **All endpoints** — URL path, HTTP method, request/response shapes, status codes\n2. **Request/response schemas** — JSON Schema definitions for all inputs and outputs\n3. **Authentication** — which endpoints require Bearer tokens, Basic auth, session cookies, etc.\n4. **Error responses** — error codes and their meanings\n5. **Server information** — development, staging, production URLs\n6. **API metadata** — title, description, version, contact information\n\nThe OpenAPI spec is:\n- **Required** — every service MUST publish an OpenAPI 3.0 document\n- **Complete** — MUST document all public endpoints and security schemes\n- **Discoverable** — MUST be served at `GET /openapi.json` (or `/openapi.yaml`)\n- **Versioned** — major API changes MUST update the version field in the spec\n- **Authoritative** — the spec is the single source of truth; implementation must conform to the published spec\n\n## Contract Testing Patterns\n\nSee [schemas/README.md](https://github.com/Neosofia/schemas/blob/main/README.md) for testing patterns and OpenAPI validation examples.\n\n## References\n\n- Constitution §V — Test Pyramid\n- OpenAPI 3.0.0 Specification — https://spec.openapis.org/oas/v3.0.0\n- JSON Schema — https://json-schema.org/\n- Shared Schemas — [schemas/README.md](https://github.com/Neosofia/schemas/blob/main/README.md)\n- Auth Service implementation — [authentication/openapi.json](https://github.com/Neosofia/authentication/blob/main/openapi.json), [tests/contract/test_api_contract.py](https://github.com/Neosofia/authentication/blob/main/tests/contract/test_api_contract.py)\n",
+          "date" : "2026-04-21T00:00:00Z",
+          "format" : "Markdown",
+          "id" : "8",
+          "status" : "Accepted",
+          "title" : "OpenAPI 3.0 Specification for API Documentation"
+        }, {
+          "content" : "# 09. Structured JSON Logging with Schema Validation\n\nDate: 2026-04-21\n\n## Status\n\nAccepted — implemented in Authentication Service (014)\n\n## Context\n\nConstitution §IV mandates operational observability. To enable this, logs must be:\n\n1. **Machine-readable** — so monitoring systems, log aggregators (ELK, Datadog), and observability platforms can parse them programmatically\n2. **Validated** — so log consumers don't encounter malformed entries, unexpected fields, or type mismatches\n3. **Consistent** — so all services emit logs in the same structure, enabling centralized querying and alerting\n\nPrior practice of unstructured string logs (`logger.info(\"User login: \" + username)`) prevents observability:\n- No schema enforcement → log format varies by developer\n- No machine parsing → monitoring tools resort to regex (brittle, slow)\n- No consistency → event details scattered across ad-hoc fields, making cross-service queries impossible\n\n## Decision\n\nAll services in CDP MUST emit logs as **JSON** with the following constraints:\n\n1. **JSON format** — every log entry is valid JSON with `timestamp`, `level`, `message`, and optional structured fields\n2. **Schema validation** — logs MUST conform to the schema defined in `schemas/log.json`\n3. **Structured fields** — logs SHOULD include contextual fields for debugging and observability:\n   - `event_type` — structured event identifier (e.g., `platform_token_issued`, `health_check_failed`)\n   - `user_id`, `user_type` — user context for debugging and incident response (NOT for audit trails)\n   - `error`, `reason`, `detail` — additional context for troubleshooting\n4. **Test validation** — contract tests MUST validate at least one request's logs against `schemas/log.json` using `jsonschema.validate()`\n\n### Important: Logs Are NOT Audit Trails\n\nLogs are **not durable or atomic** and must NOT be relied upon for audit trails, compliance, or forensics. Delivery is not guaranteed and entries may be lost, reordered, or duplicated. For audit requirements, use a dedicated audit event store (e.g., append-only event log in PostgreSQL).\n\n## Logging Pattern\n\nThe shared Python SDK plugin `logenvelope` enforces structured JSON formatting and schema consistency across Python platform services. See [schemas/README.md](https://github.com/Neosofia/schemas/blob/main/README.md) for testing patterns.\n\n## References\n\n- Constitution §IV — Operational Observability\n- Shared Schemas — [schemas/README.md](https://github.com/Neosofia/schemas/blob/main/README.md)\n- Log Schema — [schemas/log.json](https://github.com/Neosofia/schemas/blob/main/log-v1.0.0.json)\n- Auth Service implementation — [src/logging_config.py](https://github.com/Neosofia/authentication/blob/main/src/logging_config.py), [tests/contract/test_api_contract.py](https://github.com/Neosofia/authentication/blob/main/tests/contract/test_api_contract.py)\n",
+          "date" : "2026-04-21T00:00:00Z",
+          "format" : "Markdown",
+          "id" : "9",
+          "status" : "Accepted",
+          "title" : "Structured JSON Logging with Schema Validation"
+        } ],
+        "sections" : [ {
+          "content" : "# Clinical Data Platform (CDP)\n\n## Overview\n\nThe Clinical Data Platform (CDP) is a HIPAA-compliant system that supports coordinated clinical care through AI-assisted messaging, risk detection, and clinician escalation workflows. CDP enables care teams to maintain a communication channel with patients across care settings. Patients interact via a mobile app or SMS; an AI risk agent monitors conversations for clinical risk signals and escalates high-risk interactions to on-call clinicians via a structured alert and PagerDuty escalation pipeline.\n\nThis architecture was developed using a structured specification and planning workflow. Each platform service has a corresponding feature spec (see `specs/` in the repository root). The C4 diagrams in this workspace are derived directly from those specs and maintained in sync as the platform evolves.\n\n**Key Capabilities:**\n\n- **Patient Communication** — Secure chat via React web app and SMS\n- **AI Risk Detection** — Per-message risk evaluation using AWS Bedrock inference\n- **Clinician Escalation** — 60-second self-assign window before PagerDuty escalation\n- **De-identification Pipeline** — PHI/PII stripping for safe ML training datasets\n- **EMR Integration** — Vendor-agnostic FHIR R4 facade for patient record access\n- **Operational Observability** — SLI/SLO dashboards, alerting, and AI quality metrics\n\n## Requirements\n\nSee the `checklists/requirements.md` document within each individual service specification folder for functional and non-functional requirements.\n\n\n## Project Constitution\n\nThe platform is governed by a [constitution](../../../architecture/constitution.md) that defines non-negotiable principles for all design and implementation decisions.\n\n## Feature Specifications\n\nEach platform service has a full feature spec under `specs/` in the repository root:\n\n| # | Feature | Spec |\n|---|---------|------|\n| 001 | Chat Service | [spec.md](../../../specs/001-chat-service/spec.md) |\n| 002 | Deidentification Pipeline | [spec.md](../../../specs/002-deidentification-pipeline/spec.md) |\n| 003 | Clean Chat Service | [spec.md](../../../specs/003-clean-chat-service/spec.md) |\n| 004 | EMR Service | [spec.md](../../../specs/004-emr-service/spec.md) |\n| 005 | Notification Service | [spec.md](../../../specs/005-notification-service/spec.md) |\n| 006 | Bedrock AI Workbench | [spec.md](../../../specs/006-bedrock-ai-workbench/spec.md) |\n| 007 | Patient Chat App | [spec.md](../../../specs/007-patient-chat-app/spec.md) |\n| 008 | Clinician App | [spec.md](../../../specs/008-clinician-app/spec.md) |\n| 009 | SMS Service | [spec.md](../../../specs/009-sms-service/spec.md) |\n| 010 | AI Agent Service | [spec.md](../../../specs/010-ai-agent-service/spec.md) |\n| 011 | Operational Metrics | [spec.md](../../../specs/011-operational-metrics/spec.md) |\n| 012 | Patient Service | [spec.md](../../../specs/012-patient-service/spec.md) |\n| 013 | Devices Service | [spec.md](../../../specs/013-devices-service/spec.md) |\n| 014 | Authentication Service | [spec.md](../../../specs/014-authentication-service/spec.md) |\n| 015 | Care Episode Service | [spec.md](../../../specs/015-care-episode-service/spec.md) |\n| 016 | Authorization Service | [spec.md](../../../specs/016-authorization-service/spec.md) |\n| 017 | Audit Infrastructure | [spec.md](../../../specs/017-audit-infrastructure/spec.md) |\n\n",
+          "filename" : "01-overview.md",
+          "format" : "Markdown",
+          "order" : 1,
+          "title" : ""
+        } ]
+      },
+      "id" : "19",
+      "name" : "Clinical Data Platform",
+      "properties" : {
+        "structurizr.dsl.identifier" : "cdp"
+      },
+      "relationships" : [ {
+        "description" : "Register web push subscription",
+        "destinationId" : "12",
+        "id" : "112",
+        "linkedRelationshipId" : "110",
+        "sourceId" : "19",
+        "technology" : "Web Push"
+      }, {
+        "description" : "Deliver outbound SMS",
+        "destinationId" : "9",
+        "id" : "165",
+        "linkedRelationshipId" : "163",
+        "sourceId" : "19",
+        "technology" : "Provider API"
+      }, {
+        "description" : "FHIR read operations",
+        "destinationId" : "13",
+        "id" : "170",
+        "linkedRelationshipId" : "168",
+        "sourceId" : "19",
+        "technology" : "FHIR R4 / HTTPS"
+      }, {
+        "description" : "Receive OAuth callback assertion",
+        "destinationId" : "15",
+        "id" : "174",
+        "linkedRelationshipId" : "172",
+        "sourceId" : "19",
+        "technology" : "OIDC/OAuth2"
+      }, {
+        "description" : "Deliver iOS push",
+        "destinationId" : "10",
+        "id" : "203",
+        "linkedRelationshipId" : "201",
+        "sourceId" : "19",
+        "technology" : "APNS"
+      }, {
+        "description" : "Deliver Android push",
+        "destinationId" : "11",
+        "id" : "206",
+        "linkedRelationshipId" : "204",
+        "sourceId" : "19",
+        "technology" : "FCM"
+      }, {
+        "description" : "Create incident for unclaimed alert",
+        "destinationId" : "8",
+        "id" : "219",
+        "linkedRelationshipId" : "217",
+        "sourceId" : "19",
+        "technology" : "PagerDuty Events API"
+      } ],
+      "tags" : "Element,Software System"
+    } ]
+  },
+  "name" : "Clinical Data Platform (CDP)",
+  "properties" : {
+    "structurizr.inspection.error" : "0",
+    "structurizr.inspection.info" : "0",
+    "structurizr.inspection.ignore" : "0",
+    "structurizr.inspection.warning" : "0"
+  },
+  "views" : {
+    "componentViews" : [ {
+      "containerId" : "20",
+      "elements" : [ {
+        "id" : "1",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "12",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "21",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "22",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "23",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "24",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "30",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "34",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "48",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "78",
+        "x" : 0,
+        "y" : 0
+      } ],
+      "externalContainerBoundariesVisible" : false,
+      "key" : "PatientChatAppComponents",
+      "name" : "Component View: Clinical Data Platform - Patient Chat App",
+      "order" : 6,
+      "relationships" : [ {
+        "id" : "101"
+      }, {
+        "id" : "107"
+      }, {
+        "id" : "110"
+      }, {
+        "id" : "114"
+      }, {
+        "id" : "179"
+      }, {
+        "id" : "180"
+      }, {
+        "id" : "181"
+      }, {
+        "id" : "208"
+      }, {
+        "id" : "233"
+      }, {
+        "id" : "267"
+      }, {
+        "id" : "268"
+      }, {
+        "id" : "95"
+      } ],
+      "title" : "Patient Chat App - Components"
+    }, {
+      "containerId" : "42",
+      "elements" : [ {
+        "id" : "2",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "12",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "34",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "43",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "44",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "45",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "46",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "47",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "48",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "53",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "57",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "78",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "85",
+        "x" : 0,
+        "y" : 0
+      } ],
+      "externalContainerBoundariesVisible" : false,
+      "key" : "ClinicianAppComponents",
+      "name" : "Component View: Clinical Data Platform - Clinician App",
+      "order" : 7,
+      "relationships" : [ {
+        "id" : "118"
+      }, {
+        "id" : "124"
+      }, {
+        "id" : "128"
+      }, {
+        "id" : "134"
+      }, {
+        "id" : "140"
+      }, {
+        "id" : "144"
+      }, {
+        "id" : "147"
+      }, {
+        "id" : "149"
+      }, {
+        "id" : "152"
+      }, {
+        "id" : "179"
+      }, {
+        "id" : "185"
+      }, {
+        "id" : "187"
+      }, {
+        "id" : "197"
+      }, {
+        "id" : "228"
+      }, {
+        "id" : "275"
+      }, {
+        "id" : "276"
+      }, {
+        "id" : "277"
+      }, {
+        "id" : "278"
+      }, {
+        "id" : "279"
+      } ],
+      "title" : "Clinician App - Components"
+    }, {
+      "containerId" : "25",
+      "elements" : [ {
+        "id" : "9",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "26",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "27",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "28",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "29",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "34",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "48",
+        "x" : 0,
+        "y" : 0
+      } ],
+      "externalContainerBoundariesVisible" : false,
+      "key" : "SMSServiceComponents",
+      "name" : "Component View: Clinical Data Platform - SMS Service",
+      "order" : 8,
+      "relationships" : [ {
+        "id" : "153"
+      }, {
+        "id" : "154"
+      }, {
+        "id" : "156"
+      }, {
+        "id" : "160"
+      }, {
+        "id" : "163"
+      }, {
+        "id" : "270"
+      } ],
+      "title" : "SMS Service - Components"
+    }, {
+      "containerId" : "57",
+      "elements" : [ {
+        "id" : "13",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "42",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "58",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "59",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "60",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "61",
+        "x" : 0,
+        "y" : 0
+      } ],
+      "externalContainerBoundariesVisible" : false,
+      "key" : "EMRServiceComponents",
+      "name" : "Component View: Clinical Data Platform - EMR Service",
+      "order" : 9,
+      "relationships" : [ {
+        "id" : "141"
+      }, {
+        "id" : "166"
+      }, {
+        "id" : "167"
+      }, {
+        "id" : "168"
+      }, {
+        "id" : "171"
+      } ],
+      "title" : "EMR Service - Components"
+    }, {
+      "containerId" : "78",
+      "elements" : [ {
+        "id" : "15",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "20",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "30",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "42",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "79",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "80",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "81",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "82",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "83",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "84",
+        "x" : 0,
+        "y" : 0
+      } ],
+      "externalContainerBoundariesVisible" : false,
+      "key" : "AuthServiceComponents",
+      "name" : "Component View: Clinical Data Platform - Authentication Service",
+      "order" : 10,
+      "relationships" : [ {
+        "id" : "109"
+      }, {
+        "id" : "119"
+      }, {
+        "id" : "122"
+      }, {
+        "id" : "172"
+      }, {
+        "id" : "175"
+      }, {
+        "id" : "176"
+      }, {
+        "id" : "177"
+      }, {
+        "id" : "178"
+      }, {
+        "id" : "200"
+      }, {
+        "id" : "96"
+      }, {
+        "id" : "99"
+      } ],
+      "title" : "Auth Service - Components"
+    }, {
+      "containerId" : "48",
+      "elements" : [ {
+        "id" : "20",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "25",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "42",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "49",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "50",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "51",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "52",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "53",
+        "x" : 0,
+        "y" : 0
+      } ],
+      "externalContainerBoundariesVisible" : false,
+      "key" : "PatientServiceComponents",
+      "name" : "Component View: Clinical Data Platform - Patient Service",
+      "order" : 11,
+      "relationships" : [ {
+        "id" : "115"
+      }, {
+        "id" : "130"
+      }, {
+        "id" : "157"
+      }, {
+        "id" : "183"
+      }, {
+        "id" : "188"
+      }, {
+        "id" : "191"
+      }, {
+        "id" : "192"
+      }, {
+        "id" : "193"
+      }, {
+        "id" : "196"
+      } ],
+      "title" : "Patient Service - Components"
+    }, {
+      "containerId" : "53",
+      "elements" : [ {
+        "id" : "34",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "42",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "48",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "54",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "55",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "56",
+        "x" : 0,
+        "y" : 0
+      } ],
+      "externalContainerBoundariesVisible" : false,
+      "key" : "CareEpisodeServiceComponents",
+      "name" : "Component View: Clinical Data Platform - Care Episode Service",
+      "order" : 12,
+      "relationships" : [ {
+        "id" : "129"
+      }, {
+        "id" : "132"
+      }, {
+        "id" : "136"
+      }, {
+        "id" : "145"
+      }, {
+        "id" : "184"
+      }, {
+        "id" : "189"
+      }, {
+        "id" : "195"
+      }, {
+        "id" : "227"
+      } ],
+      "title" : "Care Episode Service - Components"
+    }, {
+      "containerId" : "30",
+      "elements" : [ {
+        "id" : "10",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "11",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "12",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "20",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "31",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "32",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "33",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "78",
+        "x" : 0,
+        "y" : 0
+      } ],
+      "externalContainerBoundariesVisible" : false,
+      "key" : "DevicesServiceComponents",
+      "name" : "Component View: Clinical Data Platform - Devices Service",
+      "order" : 13,
+      "relationships" : [ {
+        "id" : "108"
+      }, {
+        "id" : "111"
+      }, {
+        "id" : "199"
+      }, {
+        "id" : "201"
+      }, {
+        "id" : "204"
+      }, {
+        "id" : "207"
+      }, {
+        "id" : "209"
+      }, {
+        "id" : "212"
+      }, {
+        "id" : "97"
+      } ],
+      "title" : "Devices Service - Components"
+    }, {
+      "containerId" : "85",
+      "elements" : [ {
+        "id" : "8",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "42",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "62",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "86",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "87",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "88",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "89",
+        "x" : 0,
+        "y" : 0
+      } ],
+      "externalContainerBoundariesVisible" : false,
+      "key" : "NotificationServiceComponents",
+      "name" : "Component View: Clinical Data Platform - Notification Service",
+      "order" : 14,
+      "relationships" : [ {
+        "id" : "125"
+      }, {
+        "id" : "215"
+      }, {
+        "id" : "216"
+      }, {
+        "id" : "217"
+      }, {
+        "id" : "253"
+      } ],
+      "title" : "Notification Service - Components"
+    }, {
+      "containerId" : "34",
+      "elements" : [ {
+        "id" : "20",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "25",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "35",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "36",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "37",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "38",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "39",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "40",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "41",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "42",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "53",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "62",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "68",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "77",
+        "x" : 0,
+        "y" : 0
+      } ],
+      "externalContainerBoundariesVisible" : false,
+      "key" : "ChatServiceComponents",
+      "name" : "Component View: Clinical Data Platform - Chat Service",
+      "order" : 15,
+      "relationships" : [ {
+        "id" : "102"
+      }, {
+        "id" : "105"
+      }, {
+        "id" : "130"
+      }, {
+        "id" : "135"
+      }, {
+        "id" : "138"
+      }, {
+        "id" : "148"
+      }, {
+        "id" : "161"
+      }, {
+        "id" : "220"
+      }, {
+        "id" : "221"
+      }, {
+        "id" : "222"
+      }, {
+        "id" : "223"
+      }, {
+        "id" : "224"
+      }, {
+        "id" : "226"
+      }, {
+        "id" : "229"
+      }, {
+        "id" : "232"
+      }, {
+        "id" : "236"
+      }, {
+        "id" : "240"
+      }, {
+        "id" : "246"
+      }, {
+        "id" : "249"
+      }, {
+        "id" : "258"
+      } ],
+      "title" : "Chat Service - Components"
+    }, {
+      "containerId" : "62",
+      "elements" : [ {
+        "id" : "34",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "63",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "64",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "65",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "66",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "67",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "77",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "85",
+        "x" : 0,
+        "y" : 0
+      } ],
+      "externalContainerBoundariesVisible" : false,
+      "key" : "AIRiskAgentComponents",
+      "name" : "Component View: Clinical Data Platform - AI Risk Agent Service",
+      "order" : 16,
+      "relationships" : [ {
+        "id" : "230"
+      }, {
+        "id" : "237"
+      }, {
+        "id" : "243"
+      }, {
+        "id" : "245"
+      }, {
+        "id" : "248"
+      }, {
+        "id" : "250"
+      }, {
+        "id" : "252"
+      }, {
+        "id" : "255"
+      } ],
+      "title" : "AI Risk Agent - Components"
+    }, {
+      "containerId" : "68",
+      "elements" : [ {
+        "id" : "34",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "69",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "70",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "71",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "72",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "73",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "74",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "77",
+        "x" : 0,
+        "y" : 0
+      } ],
+      "externalContainerBoundariesVisible" : false,
+      "key" : "DeidentPipelineComponents",
+      "name" : "Component View: Clinical Data Platform - Deidentification Pipeline",
+      "order" : 17,
+      "relationships" : [ {
+        "id" : "230"
+      }, {
+        "id" : "241"
+      }, {
+        "id" : "256"
+      }, {
+        "id" : "257"
+      }, {
+        "id" : "259"
+      }, {
+        "id" : "261"
+      }, {
+        "id" : "264"
+      } ],
+      "title" : "Deidentification Pipeline - Components"
+    }, {
+      "containerId" : "74",
+      "elements" : [ {
+        "id" : "17",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "68",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "75",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "76",
+        "x" : 0,
+        "y" : 0
+      } ],
+      "externalContainerBoundariesVisible" : false,
+      "key" : "CleanChatServiceComponents",
+      "name" : "Component View: Clinical Data Platform - Clean Chat Service",
+      "order" : 18,
+      "relationships" : [ {
+        "id" : "262"
+      }, {
+        "id" : "90"
+      }, {
+        "id" : "93"
+      } ],
+      "title" : "Clean Chat Service - Components"
+    } ],
+    "configuration" : {
+      "properties" : {
+        "structurizr.metadata" : "false"
+      },
+      "styles" : {
+        "elements" : [ {
+          "background" : "#7ec8e3",
+          "color" : "#ffffff",
+          "tag" : "App"
+        }, {
+          "background" : "#455a64",
+          "color" : "#ffffff",
+          "tag" : "AwsCdn"
+        }, {
+          "background" : "#8c4fff",
+          "color" : "#ffffff",
+          "shape" : "RoundedBox",
+          "tag" : "AwsCdnNode"
+        }, {
+          "background" : "#455a64",
+          "color" : "#ffffff",
+          "tag" : "AwsCompute"
+        }, {
+          "background" : "#455a64",
+          "color" : "#ffffff",
+          "tag" : "AwsDatabase"
+        }, {
+          "background" : "#455a64",
+          "color" : "#ffffff",
+          "tag" : "AwsGateway"
+        }, {
+          "background" : "#ff9900",
+          "color" : "#000000",
+          "shape" : "RoundedBox",
+          "tag" : "AwsSecurityNode"
+        }, {
+          "background" : "#455a64",
+          "color" : "#ffffff",
+          "tag" : "AwsService"
+        }, {
+          "background" : "#37474f",
+          "color" : "#ffffff",
+          "tag" : "AwsVpc"
+        }, {
+          "background" : "#ff9900",
+          "color" : "#000000",
+          "tag" : "Bedrock"
+        }, {
+          "background" : "#0d47a1",
+          "color" : "#ffffff",
+          "tag" : "Clinician"
+        }, {
+          "background" : "#232f3e",
+          "color" : "#ffffff",
+          "tag" : "Cloud"
+        }, {
+          "background" : "#aaccee",
+          "color" : "#000000",
+          "tag" : "Component"
+        }, {
+          "background" : "#546e7a",
+          "color" : "#ffffff",
+          "tag" : "ComposeStack"
+        }, {
+          "background" : "#438dd5",
+          "color" : "#ffffff",
+          "tag" : "Container"
+        }, {
+          "background" : "#336791",
+          "color" : "#ffffff",
+          "shape" : "Cylinder",
+          "tag" : "Database"
+        }, {
+          "background" : "#f5f5f5",
+          "color" : "#000000",
+          "tag" : "DeploymentNode"
+        }, {
+          "background" : "#f6821f",
+          "color" : "#ffffff",
+          "tag" : "Edge"
+        }, {
+          "tag" : "Element"
+        }, {
+          "background" : "#999999",
+          "color" : "#ffffff",
+          "height" : 225,
+          "tag" : "External",
+          "width" : 338
+        }, {
+          "background" : "#006064",
+          "color" : "#ffffff",
+          "tag" : "Gateway"
+        }, {
+          "background" : "#24292e",
+          "color" : "#ffffff",
+          "tag" : "GitHub"
+        }, {
+          "background" : "#2c6fad",
+          "color" : "#ffffff",
+          "tag" : "GitHubActions"
+        }, {
+          "background" : "#30363d",
+          "color" : "#ffffff",
+          "shape" : "Cylinder",
+          "tag" : "GitHubRegistry"
+        }, {
+          "background" : "#cfd8dc",
+          "color" : "#000000",
+          "tag" : "InfrastructureNode"
+        }, {
+          "background" : "#37474f",
+          "color" : "#ffffff",
+          "tag" : "Internal"
+        }, {
+          "background" : "#455a64",
+          "color" : "#ffffff",
+          "tag" : "LXC"
+        }, {
+          "shape" : "MobileDeviceLandscape",
+          "tag" : "MobileApp"
+        }, {
+          "background" : "#ff6b35",
+          "color" : "#ffffff",
+          "tag" : "NetBirdNode"
+        }, {
+          "background" : "#ff8c5a",
+          "color" : "#000000",
+          "shape" : "RoundedBox",
+          "tag" : "NetBirdService"
+        }, {
+          "background" : "#ff9900",
+          "color" : "#000000",
+          "tag" : "Observability"
+        }, {
+          "background" : "#8a63d2",
+          "color" : "#ffffff",
+          "shape" : "RoundedBox",
+          "tag" : "OciImage"
+        }, {
+          "background" : "#37474f",
+          "color" : "#ffffff",
+          "tag" : "OnPrem"
+        }, {
+          "background" : "#13bef9",
+          "color" : "#000000",
+          "shape" : "RoundedBox",
+          "tag" : "OpsNode"
+        }, {
+          "background" : "#06ac38",
+          "color" : "#ffffff",
+          "tag" : "PagerDuty"
+        }, {
+          "background" : "#1565c0",
+          "color" : "#ffffff",
+          "tag" : "Patient"
+        }, {
+          "background" : "#08427b",
+          "color" : "#ffffff",
+          "shape" : "Person",
+          "tag" : "Person"
+        }, {
+          "background" : "#fbad41",
+          "color" : "#000000",
+          "shape" : "RoundedBox",
+          "tag" : "Proxy"
+        }, {
+          "background" : "#ef6c00",
+          "color" : "#ffffff",
+          "shape" : "Pipe",
+          "tag" : "Queue"
+        }, {
+          "background" : "#6f42c1",
+          "color" : "#ffffff",
+          "tag" : "Registry"
+        }, {
+          "background" : "#3d3d3d",
+          "color" : "#ffffff",
+          "tag" : "SaaSNode"
+        }, {
+          "background" : "#6363f1",
+          "color" : "#ffffff",
+          "shape" : "RoundedBox",
+          "tag" : "SaaSService"
+        }, {
+          "background" : "#4a235a",
+          "color" : "#ffffff",
+          "shape" : "RoundedBox",
+          "tag" : "SecretsNode"
+        }, {
+          "background" : "#455a64",
+          "color" : "#ffffff",
+          "tag" : "Security"
+        }, {
+          "background" : "#438dd5",
+          "color" : "#ffffff",
+          "tag" : "Service"
+        }, {
+          "background" : "#1168bd",
+          "color" : "#ffffff",
+          "tag" : "Software System"
+        }, {
+          "shape" : "WebBrowser",
+          "tag" : "WebApp"
+        }, {
+          "background" : "#6363f1",
+          "color" : "#ffffff",
+          "tag" : "WorkOS"
+        }, {
+          "background" : "#6a1b9a",
+          "color" : "#ffffff",
+          "height" : 300,
+          "tag" : "Workbench",
+          "width" : 450
+        }, {
+          "background" : "#2188ff",
+          "color" : "#ffffff",
+          "shape" : "RoundedBox",
+          "tag" : "Workflow"
+        } ]
+      },
+      "terminology" : { }
+    },
+    "containerViews" : [ {
+      "automaticLayout" : {
+        "edgeSeparation" : 50,
+        "nodeSeparation" : 50,
+        "rankDirection" : "TopBottom",
+        "rankSeparation" : 100,
+        "vertices" : true
+      },
+      "elements" : [ {
+        "id" : "1",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "2",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "8",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "9",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "13",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "15",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "17",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "20",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "25",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "30",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "34",
+        "x" : 0,
+        "y" : 0
+      } ],
+      "externalSoftwareSystemBoundariesVisible" : false,
+      "key" : "PatientEngagementContainers",
+      "name" : "Container View: Clinical Data Platform",
+      "order" : 2,
+      "relationships" : [ {
+        "id" : "103"
+      }, {
+        "id" : "109"
+      }, {
+        "id" : "162"
+      }, {
+        "id" : "164"
+      }, {
+        "id" : "180"
+      }, {
+        "id" : "234"
+      }, {
+        "id" : "265"
+      }, {
+        "id" : "269"
+      }, {
+        "id" : "271"
+      }, {
+        "id" : "280"
+      }, {
+        "id" : "281"
+      }, {
+        "id" : "282"
+      } ],
+      "softwareSystemId" : "19",
+      "title" : "Patient Engagement - Containers"
+    }, {
+      "automaticLayout" : {
+        "edgeSeparation" : 50,
+        "nodeSeparation" : 50,
+        "rankDirection" : "TopBottom",
+        "rankSeparation" : 100,
+        "vertices" : true
+      },
+      "elements" : [ {
+        "id" : "1",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "2",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "8",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "9",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "10",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "11",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "12",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "13",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "15",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "17",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "42",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "48",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "53",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "57",
+        "x" : 0,
+        "y" : 0
+      } ],
+      "externalSoftwareSystemBoundariesVisible" : false,
+      "key" : "ClinicalWorkflowContainers",
+      "name" : "Container View: Clinical Data Platform",
+      "order" : 3,
+      "relationships" : [ {
+        "id" : "130"
+      }, {
+        "id" : "142"
+      }, {
+        "id" : "150"
+      }, {
+        "id" : "169"
+      }, {
+        "id" : "185"
+      }, {
+        "id" : "189"
+      }, {
+        "id" : "197"
+      }, {
+        "id" : "269"
+      }, {
+        "id" : "273"
+      }, {
+        "id" : "280"
+      }, {
+        "id" : "281"
+      }, {
+        "id" : "282"
+      } ],
+      "softwareSystemId" : "19",
+      "title" : "Clinical Workflow - Containers"
+    }, {
+      "automaticLayout" : {
+        "edgeSeparation" : 50,
+        "nodeSeparation" : 50,
+        "rankDirection" : "TopBottom",
+        "rankSeparation" : 100,
+        "vertices" : true
+      },
+      "elements" : [ {
+        "id" : "1",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "2",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "8",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "9",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "10",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "11",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "12",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "13",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "15",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "17",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "62",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "68",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "74",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "77",
+        "x" : 0,
+        "y" : 0
+      } ],
+      "externalSoftwareSystemBoundariesVisible" : false,
+      "key" : "AiDataContainers",
+      "name" : "Container View: Clinical Data Platform",
+      "order" : 4,
+      "relationships" : [ {
+        "id" : "249"
+      }, {
+        "id" : "258"
+      }, {
+        "id" : "263"
+      }, {
+        "id" : "269"
+      }, {
+        "id" : "280"
+      }, {
+        "id" : "281"
+      }, {
+        "id" : "282"
+      }, {
+        "id" : "91"
+      }, {
+        "id" : "93"
+      } ],
+      "softwareSystemId" : "19",
+      "title" : "AI & Data Platform - Containers"
+    }, {
+      "automaticLayout" : {
+        "edgeSeparation" : 50,
+        "nodeSeparation" : 50,
+        "rankDirection" : "TopBottom",
+        "rankSeparation" : 100,
+        "vertices" : true
+      },
+      "elements" : [ {
+        "id" : "1",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "2",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "8",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "9",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "13",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "15",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "78",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "85",
+        "x" : 0,
+        "y" : 0
+      } ],
+      "externalSoftwareSystemBoundariesVisible" : false,
+      "key" : "PlatformCoreContainers",
+      "name" : "Container View: Clinical Data Platform",
+      "order" : 5,
+      "relationships" : [ {
+        "id" : "173"
+      }, {
+        "id" : "218"
+      }, {
+        "id" : "269"
+      }, {
+        "id" : "280"
+      }, {
+        "id" : "281"
+      }, {
+        "id" : "282"
+      } ],
+      "softwareSystemId" : "19",
+      "title" : "Platform Core - Containers"
+    } ],
+    "deploymentViews" : [ {
+      "elements" : [ {
+        "id" : "292",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "293",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "294",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "295",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "296",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "297",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "298",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "299",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "300",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "301",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "302",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "303",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "304",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "305",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "306",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "307",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "308",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "309",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "310",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "311",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "312",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "313",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "314",
+        "x" : 0,
+        "y" : 0
+      } ],
+      "environment" : "earth",
+      "key" : "DevDeployment",
+      "name" : "Deployment View: Clinical Data Platform - earth",
+      "order" : 25,
+      "relationships" : [ {
+        "id" : "328"
+      }, {
+        "id" : "329"
+      }, {
+        "id" : "330"
+      }, {
+        "id" : "331"
+      }, {
+        "id" : "332"
+      }, {
+        "id" : "333"
+      }, {
+        "id" : "334"
+      }, {
+        "id" : "335"
+      }, {
+        "id" : "336"
+      }, {
+        "id" : "337"
+      }, {
+        "id" : "338"
+      }, {
+        "id" : "339"
+      }, {
+        "id" : "340"
+      }, {
+        "id" : "341"
+      } ],
+      "softwareSystemId" : "19",
+      "title" : "Authentication Service — Dev Deployment (Proxmox on-prem)"
+    }, {
+      "elements" : [ {
+        "id" : "292",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "293",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "294",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "295",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "296",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "297",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "298",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "299",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "315",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "316",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "317",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "318",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "319",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "320",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "321",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "322",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "323",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "324",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "325",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "326",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "327",
+        "x" : 0,
+        "y" : 0
+      } ],
+      "environment" : "earth",
+      "key" : "ProdDeployment",
+      "name" : "Deployment View: Clinical Data Platform - earth",
+      "order" : 26,
+      "relationships" : [ {
+        "id" : "328"
+      }, {
+        "id" : "329"
+      }, {
+        "id" : "330"
+      }, {
+        "id" : "342"
+      }, {
+        "id" : "343"
+      }, {
+        "id" : "344"
+      }, {
+        "id" : "345"
+      }, {
+        "id" : "346"
+      }, {
+        "id" : "347"
+      }, {
+        "id" : "348"
+      } ],
+      "softwareSystemId" : "19",
+      "title" : "Authentication Service — Production Deployment (AWS, planned)"
+    } ],
+    "dynamicViews" : [ {
+      "elementId" : "34",
+      "elements" : [ {
+        "id" : "20",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "35",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "36",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "37",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "38",
+        "x" : 0,
+        "y" : 0
+      } ],
+      "externalBoundariesVisible" : false,
+      "key" : "LocalAuthorizationFlow",
+      "name" : "Dynamic View: Clinical Data Platform - Chat Service",
+      "order" : 19,
+      "relationships" : [ {
+        "description" : "HTTP POST /api/v1/messages (Bearer JWT)",
+        "id" : "102",
+        "order" : "1",
+        "response" : false
+      }, {
+        "description" : "Delegate access control check with requested action and resource",
+        "id" : "220",
+        "order" : "2",
+        "response" : false
+      }, {
+        "description" : "Read Cedar policies (if not cached)",
+        "id" : "222",
+        "order" : "3",
+        "response" : false
+      }, {
+        "description" : "Return policy bundle",
+        "id" : "222",
+        "order" : "4",
+        "response" : true
+      }, {
+        "description" : "Evaluate request (principal, action, resource) via local Cedar engine",
+        "id" : "221",
+        "order" : "5",
+        "response" : false
+      }, {
+        "description" : "Return Allow decision",
+        "id" : "220",
+        "order" : "6",
+        "response" : true
+      }, {
+        "description" : "Process request (Create or resume chat interaction)",
+        "id" : "223",
+        "order" : "7",
+        "response" : false
+      } ],
+      "title" : "Authorization Process Flow (Cedar & Middleware)"
+    }, {
+      "elementId" : "48",
+      "elements" : [ {
+        "id" : "42",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "50",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "52",
+        "x" : 0,
+        "y" : 0
+      } ],
+      "externalBoundariesVisible" : false,
+      "key" : "DatabaseAuditFlow",
+      "name" : "Dynamic View: Clinical Data Platform - Patient Service",
+      "order" : 20,
+      "relationships" : [ {
+        "description" : "HTTP PUT /api/v1/patients/{uuid} (Bearer JWT)",
+        "id" : "191",
+        "order" : "1",
+        "response" : false
+      }, {
+        "description" : "BEGIN TRANSACTION",
+        "id" : "192",
+        "order" : "2",
+        "response" : false
+      }, {
+        "description" : "UPDATE patient_records SET status = 'inactive', changed_by = 'clinician-uuid' WHERE patient_uuid = '...'",
+        "id" : "192",
+        "order" : "3",
+        "response" : false
+      }, {
+        "description" : "(optional) continue with more UPDATE clauses, e.g. updated_at = now(), notes = '...'",
+        "id" : "192",
+        "order" : "3a",
+        "response" : false
+      }, {
+        "description" : "Trigger: Update changed_at to now() and write before-image to _audit table (Who & When); uses SQL templates from https://github.com/Neosofia/templates/tree/main/sql/audit",
+        "id" : "193",
+        "order" : "4",
+        "response" : false
+      }, {
+        "description" : "COMMIT",
+        "id" : "192",
+        "order" : "5",
+        "response" : false
+      }, {
+        "description" : "Return success",
+        "id" : "192",
+        "order" : "6",
+        "response" : true
+      }, {
+        "description" : "Return 200 OK",
+        "id" : "191",
+        "order" : "7",
+        "response" : true
+      } ],
+      "title" : "Audit & Immutability Process Flow (PostgreSQL Templates)"
+    }, {
+      "elementId" : "19",
+      "elements" : [ {
+        "id" : "2",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "8",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "20",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "34",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "42",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "62",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "85",
+        "x" : 0,
+        "y" : 0
+      } ],
+      "externalBoundariesVisible" : false,
+      "key" : "ClinicianAlertFlow",
+      "name" : "Dynamic View: Clinical Data Platform",
+      "order" : 21,
+      "relationships" : [ {
+        "description" : "Escalate high-risk signal",
+        "id" : "254",
+        "order" : "1",
+        "response" : false
+      }, {
+        "description" : "Subscribe to live escalation queue",
+        "id" : "126",
+        "order" : "2",
+        "response" : false
+      }, {
+        "description" : "Clinician self-assigns and opens transcript",
+        "id" : "136",
+        "order" : "3",
+        "response" : false
+      }, {
+        "description" : "Stream transcript and live patient messages",
+        "id" : "136",
+        "order" : "4",
+        "response" : true
+      }, {
+        "description" : "Create incident if unclaimed after 60s",
+        "id" : "218",
+        "order" : "5",
+        "response" : false
+      }, {
+        "description" : "Page on-call clinician",
+        "id" : "281",
+        "order" : "6",
+        "response" : false
+      }, {
+        "description" : "Open escalated session",
+        "id" : "273",
+        "order" : "7",
+        "response" : false
+      }, {
+        "description" : "Read transcript and send clinician reply",
+        "id" : "136",
+        "order" : "8",
+        "response" : false
+      }, {
+        "description" : "Deliver clinician reply to patient",
+        "id" : "234",
+        "order" : "9",
+        "response" : false
+      } ],
+      "title" : "Clinician Alert and Chat Intercept - Process Flow"
+    }, {
+      "elementId" : "19",
+      "elements" : [ {
+        "id" : "2",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "15",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "42",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "78",
+        "x" : 0,
+        "y" : 0
+      } ],
+      "externalBoundariesVisible" : false,
+      "key" : "WorkOSLoginFlow",
+      "name" : "Dynamic View: Clinical Data Platform",
+      "order" : 22,
+      "relationships" : [ {
+        "description" : "Click Log in",
+        "id" : "273",
+        "order" : "1",
+        "response" : false
+      }, {
+        "description" : "Start WorkOS login (GET /login)",
+        "id" : "120",
+        "order" : "2",
+        "response" : false
+      }, {
+        "description" : "Redirect browser to WorkOS AuthKit",
+        "id" : "173",
+        "order" : "3",
+        "response" : false
+      }, {
+        "description" : "Return authorization code and state to /callback",
+        "id" : "173",
+        "order" : "4",
+        "response" : true
+      }, {
+        "description" : "Redirect browser back to the UI root with a sealed session cookie",
+        "id" : "120",
+        "order" : "5",
+        "response" : true
+      }, {
+        "description" : "Exchange sealed session cookie for platform JWT (POST /api/token, grant_type=session)",
+        "id" : "120",
+        "order" : "6",
+        "response" : false
+      }, {
+        "description" : "Return platform JWT to the UI",
+        "id" : "120",
+        "order" : "7",
+        "response" : true
+      } ],
+      "title" : "Authentication - Process Flow"
+    }, {
+      "elementId" : "19",
+      "elements" : [ {
+        "id" : "1",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "8",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "9",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "20",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "25",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "34",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "53",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "62",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "77",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "85",
+        "x" : 0,
+        "y" : 0
+      } ],
+      "externalBoundariesVisible" : false,
+      "key" : "PatientChatFlow",
+      "name" : "Dynamic View: Clinical Data Platform",
+      "order" : 23,
+      "relationships" : [ {
+        "description" : "Opens chat and sends message",
+        "id" : "265",
+        "order" : "1",
+        "response" : false
+      }, {
+        "description" : "Sends message via SMS",
+        "id" : "269",
+        "order" : "1",
+        "response" : false
+      }, {
+        "description" : "Fetch raw interaction context",
+        "id" : "247",
+        "order" : "16",
+        "response" : false
+      }, {
+        "description" : "Run risk model inference",
+        "id" : "249",
+        "order" : "17",
+        "response" : false
+      }, {
+        "description" : "Return risk score",
+        "id" : "249",
+        "order" : "18",
+        "response" : true
+      }, {
+        "description" : "Escalate on high-risk outcome",
+        "id" : "254",
+        "order" : "19",
+        "response" : false
+      }, {
+        "description" : "POST message",
+        "id" : "103",
+        "order" : "2",
+        "response" : false
+      }, {
+        "description" : "POST message",
+        "id" : "162",
+        "order" : "2",
+        "response" : false
+      }, {
+        "description" : "Inbound SMS webhook",
+        "id" : "271",
+        "order" : "2",
+        "response" : false
+      }, {
+        "description" : "Create incident for unclaimed alert",
+        "id" : "218",
+        "order" : "20",
+        "response" : false
+      }, {
+        "description" : "Lookup active care episode",
+        "id" : "228",
+        "order" : "3",
+        "response" : false
+      }, {
+        "description" : "Return care episode ID",
+        "id" : "228",
+        "order" : "4",
+        "response" : true
+      }, {
+        "description" : "ACK + AI reply",
+        "id" : "162",
+        "order" : "5",
+        "response" : true
+      }, {
+        "description" : "ACK + stream AI reply",
+        "id" : "234",
+        "order" : "5",
+        "response" : false
+      }, {
+        "description" : "Deliver outbound SMS",
+        "id" : "164",
+        "order" : "6",
+        "response" : false
+      }, {
+        "description" : "message response stream",
+        "id" : "265",
+        "order" : "7",
+        "response" : true
+      }, {
+        "description" : "message response stream",
+        "id" : "269",
+        "order" : "7",
+        "response" : true
+      }, {
+        "description" : "Publish risk-eval event (async)",
+        "id" : "238",
+        "order" : "A5",
+        "response" : false
+      } ],
+      "title" : "Patient Chat - Process Flow"
+    }, {
+      "elementId" : "19",
+      "elements" : [ {
+        "id" : "30",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "34",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "78",
+        "x" : 0,
+        "y" : 0
+      } ],
+      "externalBoundariesVisible" : false,
+      "key" : "ServiceTokenFlow",
+      "name" : "Dynamic View: Clinical Data Platform",
+      "order" : 24,
+      "relationships" : [ {
+        "description" : "Request machine JWT (POST /api/token grant_type=client_credentials)",
+        "id" : "179",
+        "order" : "1",
+        "response" : false
+      }, {
+        "description" : "Return machine JWT",
+        "id" : "179",
+        "order" : "2",
+        "response" : true
+      }, {
+        "description" : "Call device registry API with Bearer JWT",
+        "id" : "180",
+        "order" : "3",
+        "response" : false
+      }, {
+        "description" : "Validate JWT signature and decode claims via Auth Service JWKS",
+        "id" : "181",
+        "order" : "4",
+        "response" : false
+      } ],
+      "title" : "App (Service) Token Issuance and Validation"
+    } ],
+    "systemLandscapeViews" : [ {
+      "elements" : [ {
+        "id" : "1",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "2",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "3",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "4",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "5",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "6",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "7",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "8",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "9",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "13",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "14",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "15",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "16",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "17",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "18",
+        "x" : 0,
+        "y" : 0
+      }, {
+        "id" : "19",
+        "x" : 0,
+        "y" : 0
+      } ],
+      "enterpriseBoundaryVisible" : true,
+      "key" : "Landscape",
+      "name" : "System Landscape View",
+      "order" : 1,
+      "relationships" : [ {
+        "id" : "165"
+      }, {
+        "id" : "170"
+      }, {
+        "id" : "174"
+      }, {
+        "id" : "219"
+      }, {
+        "id" : "266"
+      }, {
+        "id" : "269"
+      }, {
+        "id" : "272"
+      }, {
+        "id" : "274"
+      }, {
+        "id" : "280"
+      }, {
+        "id" : "281"
+      }, {
+        "id" : "282"
+      }, {
+        "id" : "283"
+      }, {
+        "id" : "284"
+      }, {
+        "id" : "285"
+      }, {
+        "id" : "286"
+      }, {
+        "id" : "287"
+      }, {
+        "id" : "288"
+      }, {
+        "id" : "289"
+      }, {
+        "id" : "290"
+      }, {
+        "id" : "291"
+      }, {
+        "id" : "92"
+      } ],
+      "title" : "CDP Platform - System Landscape"
+    } ]
+  }
+}
