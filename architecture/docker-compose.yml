@@ -1,9 +1,11 @@
 services:
   structurizr:
     image: structurizr/structurizr:latest
+    user: "0"
+    command: local
     ports:
       - "8080:8080"
     volumes:
       - ./structurizr:/usr/local/structurizr
-      - ./adrs:/usr/local/structurizr/adrs
+      - ./adrs:/usr/local/adrs
 

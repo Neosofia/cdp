@@ -28,9 +28,11 @@ server {
         proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
         proxy_set_header   X-Forwarded-Proto $scheme;
 
+        proxy_redirect     http://localhost:8080/ /;
         proxy_redirect     http://localhost/ /;
 
         proxy_set_header   Accept-Encoding   "";
+        sub_filter         'http://localhost:8080' '';
         sub_filter         'http://localhost:80' '';
         sub_filter         'http://localhost' '';
         sub_filter_once    off;
