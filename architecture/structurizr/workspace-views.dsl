@@ -308,4 +308,8 @@
                 background #CFD8DC
                 color #000000
             }
+
+            relationship "Relationship" {
+                position 50
+            }
         }
