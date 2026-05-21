@@ -28,20 +28,12 @@ server {
         proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
         proxy_set_header   X-Forwarded-Proto $scheme;
 
-        proxy_redirect     http://architecture.neosofia.tech:8080/ /;
-        proxy_redirect     https://architecture.neosofia.tech:8080/ /;
-        proxy_redirect     http://architecture.neosofia.tech/ /;
-        proxy_redirect     https://architecture.neosofia.tech/ /;
-        proxy_redirect     http://localhost:8080/ /;
-        proxy_redirect     https://localhost:8080/ /;
-        proxy_redirect     http://localhost/ /;
-        proxy_redirect     https://localhost/ /;
+        proxy_redirect     http://localhost:8081/ /;
+        proxy_redirect     http://127.0.0.1:8081/ /;
 
         proxy_set_header   Accept-Encoding   "";
-        sub_filter         'http://architecture.neosofia.tech:8080' '';
-        sub_filter         'https://architecture.neosofia.tech:8080' '';
-        sub_filter         'http://localhost:8080' '';
-        sub_filter         'http://localhost:80' '';
+        sub_filter         'http://localhost:8081' '';
+        sub_filter         'http://127.0.0.1:8081' '';
         sub_filter         'http://localhost' '';
         # Fix upstream Structurizr bug (issue #40): thumbnail export path calls
         # convertDiagramToPNG({ metadata: true, crop: false }) without dimensions:true.
