@@ -7,8 +7,6 @@ This system is a reference architecture that leverages the suite of Neosofia pla
 
 ## Core Platform Capabilities
 
-This platform is intentionally a distributed reference architecture. Many of the foundational artifacts are maintained in companion GitHub repositories under the Neosofia organization. The links below point to the source repos for SDKs, templates, infrastructure, and service patterns used by the CDP.
-
 Below is an overview of how we address the foundational pillars of platforms using our SDKs, templates, services, and reference architecture (specs, ADRs, and constitution):
 
 ### Identity & Access
@@ -19,7 +17,7 @@ A central pillar for the platform, enforced through our authentication service a
 ![Authorization - Process Flow](architecture/structurizr/images/authorization-flow.png)
 
 ### Observability
-We use standardized log schema definitions from [`schemas`](https://github.com/Neosofia/schemas), shared logging SDKs from our [`sdk`](https://github.com/Neosofia/sdk), and OpenTelemetry instrumentation in the UI/service layer to enforce consistent logging, tracing, and correlation across patient apps and backend services.
+We use standardized log schema definitions from [`schemas`](https://github.com/Neosofia/schemas) and shared logging SDKs from our [`sdk`](https://github.com/Neosofia/sdk) to enforce consistent logging and correlation across backend services, while leveraging OpenTelemetry instrumentation in the UI layer.
 
 ### Platform Delivery/Operations
 Deployment, CI/CD, and environment management are codified in our [`infrastructure`](https://github.com/Neosofia/infrastructure) scripts, unified `docker-compose` setups, and documented thoroughly in an `OPERATIONS.md` for each service and component. We also support quick service onboarding with environment bootstrapping tools such as the [`authentication` env setup script](https://github.com/Neosofia/authentication/blob/main/scripts/setup-env.sh) and reusable workflows (GHAs) in [`platform-workflows`](https://github.com/Neosofia/platform-workflows) for local service bootstrapping, onboarding, and runbook automation.
@@ -69,19 +67,19 @@ The system landscape diagram below is an overview of the main system actors, maj
 
 The platform is decomposed into independently deployable services, apps, and data pipelines grouped by the four domains shown in the architecture diagram above.
 
-**Patient Engagement** — channel adapters, push notifications, patient UI
+**Patient Engagement (WIP)** — channel adapters, push notifications, patient UI
 - **[Patient Chat App (007)](specs/007-patient-chat-app/spec.md)** — The patient-facing app for iOS, Android, and web. Patients chat with their care team, receive AI-assisted replies, and get push notifications.
 - **[SMS Service (009)](specs/009-sms-service/spec.md)** — Allows patients to participate via SMS without installing the app. Handles opt-in/opt-out compliance.
 - **[Devices Service (013)](specs/013-devices-service/spec.md)** — Manages device registrations so push notifications reach the right patient or clinician on the right device, without exposing raw tokens to other services.
 
 
-**Clinical Workflow** — clinician tools, patient records, care episodes, EMR
+**Clinical Workflow (WIP)** — clinician tools, patient records, care episodes, EMR
 - **[Clinician App (008)](specs/008-clinician-app/spec.md)** — The clinician-facing web app. Shows the live escalation queue, patient chat transcripts, EMR context, and lets clinicians take over from the AI, send replies, and rate session quality.
 - **[Patient Service (012)](specs/012-patient-service/spec.md)** — The authoritative record for patient identity. Patients are registered via invite only. Every access is audit-logged for HIPAA compliance.
 - **[Care Episode Service (015)](specs/015-care-episode-service/spec.md)** — Groups a patient, procedure, and all associated conversations into a single care episode. Answers the question "which chats belong to which procedure?" and is the root object for invites, chat history, and EMR context.
 - **[EMR Service (004)](specs/004-emr-service/spec.md)** — Provides a unified view of patient records from any connected hospital system, so clinicians see relevant clinical context alongside the chat.
 
-**AI & Data Platform** — risk evaluation, deidentification, clean chat store
+**AI & Data Platform (WIP)** — risk evaluation, deidentification, clean chat store
 - **[AI Risk Agent (010)](specs/010-ai-agent-service/spec.md)** — Evaluates every patient message for clinical risk in the background without slowing down the chat. A high-risk signal triggers the clinician notification flow.
 - **[Deidentification Pipeline (002)](specs/002-deidentification-pipeline/spec.md)** — After a chat session ends, it strips all patient-identifying information so the conversation can be safely used for research and model improvement. Failed sessions are held for review, never silently passed through.
 - **[Clean Chat Service (003)](specs/003-clean-chat-service/spec.md)** — Stores de-identified chat sessions for internal analysis and model training. No raw patient data is accessible here.
@@ -91,6 +89,7 @@ The platform is decomposed into independently deployable services, apps, and dat
 - **[Chat Service (001)](specs/001-chat-service/spec.md)** — Receives and stores all messages across every channel, streams AI replies back to patients in real time, and triggers risk evaluation and deidentification in the background.
 - **[Authentication Service (014)](specs/014-authentication-service/spec.md)** — Verifies the identity of every user and service before any request is processed. Handles clinician SSO login, patient session management, and service-to-service trust.
 - **[Authorization Service (016)](specs/016-authorization-service/spec.md)** — The single place where access decisions are made. Every service asks "is this principal allowed to do this?" here rather than implementing its own rules. Fails closed if unavailable.
+- **[Operational Metrics (011)](specs/011-operational-metrics/spec.md)** — Collects and aggregates structured log events across the platform to provide SLI/SLO dashboards, alerting thresholds, and derived metrics without exposing PHI.
 - **[Audit Infrastructure (017)](specs/017-audit-infrastructure/spec.md)** — Ensures every service that stores patient data maintains a tamper-evident audit trail automatically, without each team needing to build it themselves.
 - **[Notification Service (005)](specs/005-notification-service/spec.md)** — When a high-risk message is detected, gives logged-in clinicians 60 seconds to self-assign before escalating to on-call via PagerDuty.
 

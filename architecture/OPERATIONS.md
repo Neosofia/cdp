@@ -23,7 +23,7 @@ The `Dockerfile` builds a self-contained, read-only viewer using the official `s
 **Build and run:**
 ```bash
 # Build from the repo root
-docker build -f architecture/Dockerfile -t cdp-structurizr-server .
+docker build -t cdp-structurizr-server architecture/
 
 # Run — no env vars required
 docker run -d --name structurizr -p 8080:8080 cdp-structurizr-server
@@ -36,7 +36,7 @@ The viewer is available at [http://localhost:8080/workspace/1](http://localhost:
 Rebuild whenever `.dsl` or `.md` files change — the workspace is baked in at build time.
 
 ```bash
-docker build -f architecture/Dockerfile -t cdp-structurizr-server .
+docker build -t cdp-structurizr-server architecture/
 ```
 
 | Content | Location |

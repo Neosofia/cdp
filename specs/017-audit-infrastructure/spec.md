@@ -2,7 +2,7 @@
 
 **Feature Branch**: `017-audit-infrastructure`
 **Created**: April 19, 2026
-**Status**: Draft — v1 scope is `cdp-audit` generator only; Central Audit Service is stubbed for future
+**Status**: Draft — v1 scope is SQL audit templates only; Central Audit Service is stubbed for future
 
 ---
 
@@ -10,23 +10,23 @@
 
 Every CDP service that persists mutable state must produce a tamper-evident, queryable audit trail as a platform-wide HIPAA and clinical-safety obligation. Two components deliver this:
 
-1. **`cdp-audit` generator** *(v1 scope)* — A language-agnostic tool/generator that produces, at schema migration time, the SQL for audit tables, history views, composite indexes, and triggers that enforce the [before-image history table pattern](../../architecture/structurizr/decisions/0004-full-row-audit-history-over-sparse-deltas.md). Services depend on it as a migration-time utility; all generated schema objects live in each service's own database under that service's own framework-idiomatic migration history. There is no shared runtime dependency.
+1. **SQL Audit Templates** *(v1 scope)* — A set of PL/pgSQL functions that dynamically generate and manage audit tables, history views, composite indexes, and triggers that enforce the [before-image history table pattern](../../architecture/adrs/0004-full-row-audit-history-over-sparse-deltas.md). Services depend on it as a migration-time utility; all generated schema objects live in each service's own database under that service's own framework-idiomatic migration history. There is no shared runtime dependency.
 
 2. **Central Audit Service** *(future / out of scope for v1)* — A read-side CDC consumer that aggregates audit events across service databases into a single queryable store for cross-service audit queries and auditor UI support. It has no authority over any service's schema and writes nothing back to service databases.
 
-The split is intentional: `cdp-audit` ensures consistent schema generation today; the Central Audit Service adds cross-service querying when that UI is prioritized.
+The split is intentional: the SQL audit templates ensures consistent schema generation today; the Central Audit Service adds cross-service querying when that UI is prioritized.
 
 ---
 
-## Part 1: `cdp-audit` Schema Generator
+## Part 1: SQL Audit Templates
 
 ### Purpose
 
-Hand-rolling audit tables, triggers, and views per service produces drift: subtle schema differences, inconsistent index names, forgotten `change_type` checks. The `cdp-audit` generator provides a language-agnostic, single authoritative implementation consumed by every service's schema migrations.
+Hand-rolling audit tables, triggers, and views per service produces drift: subtle schema differences, inconsistent index names, forgotten `change_type` checks. The SQL templates provide a language-agnostic, single authoritative implementation consumed by every service's schema migrations.
 
-The generator is a **migration-time tool only**. It produces raw, framework-agnostic SQL, ensuring that any service—whether built in Python, Rust, Rails, or otherwise—can execute the exact same authoritative audit triggers. Each service database remains self-contained — the generated schema objects live in the service's own database and are tracked in the service's own migration history.
+The templates provide PL/pgSQL functions that generate raw, framework-agnostic SQL, ensuring that any service—whether built in Python, Rust, Rails, or otherwise—can execute the exact same authoritative audit triggers. Each service database remains self-contained — the generated schema objects live in the service's own database and are tracked in the service's own migration history.
 
-### Contract
+### How it Works
 
 The generator accepts a table definition (name, columns, types) and generates all required SQL statements in the correct dependency order. Corresponding tear-down templates reverse each operation exactly, enabling safe migration rollback.
 
@@ -91,7 +91,7 @@ The view provides a complete ordered timeline of all states a row has passed thr
 
 ### Adoption Path
 
-Services adopt `cdp-audit` when they write their first migration that introduces audit tables. Existing services that hand-rolled audit tables (e.g., `014-authentication-service`) should migrate to the `cdp-audit`-generated SQL in a follow-on migration once the tool is stable, verified by comparing the generated schema against the hand-rolled schema.
+Services adopt the SQL audit templates when they write their first migration that introduces audit tables. Existing services that hand-rolled audit tables (e.g., `014-authentication-service`) should migrate to the the SQL audit templates-generated SQL in a follow-on migration once the tool is stable, verified by comparing the generated schema against the hand-rolled schema.
 
 ---
 
@@ -101,7 +101,7 @@ This section is the canonical reference for the audit pattern all CDP services m
 
 ### Columns added to every main table
 
-Every mutable main table MUST have these two columns. They are NOT generated by `cdp-audit` (they are part of the service's own schema); they are required inputs to the package helpers.
+Every mutable main table MUST have these two columns. They are NOT generated by the SQL audit templates (they are part of the service's own schema); they are required inputs to the package helpers.
 
 | Column | Type | Constraints | Notes |
 |--------|------|-------------|-------|
@@ -181,10 +181,10 @@ Spec this service when:
 
 | Dependency | Type | Notes |
 |------------|---------|-------|
-| `014-authentication-service` | Reference implementation | First service to adopt the audit pattern; `cdp-audit` must reproduce its hand-rolled schema exactly |
+| `014-authentication-service` | Reference implementation | First service to adopt the audit pattern; the SQL audit templates must reproduce its hand-rolled schema exactly |
 | ADR-0004 | Architectural constraint | Full-row snapshots; sparse deltas are prohibited |
 | Relational database with trigger support | Runtime | Database-enforced triggers and schema migrations |
-| Migration framework | Migration | Migration runner's operation object is the only runtime dependency of `cdp-audit` |
+| Migration framework | Migration | Migration runner's operation object is the only runtime dependency of the SQL audit templates |
 | Real database instance (test infrastructure) | Testing | Live database required for trigger and constraint tests |
 
 ---

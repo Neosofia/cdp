@@ -32,5 +32,4 @@
 ## Notes
 
 - Ready for `/speckit.plan` or `/speckit.clarify`
-- The planning phase must resolve the shared codebase question (React Native / Flutter vs.
-  native Swift + Kotlin). This is the highest-impact technical decision for this spec.
+- The planning phase has resolved the shared codebase question, adopting React for the mobile/web UI.

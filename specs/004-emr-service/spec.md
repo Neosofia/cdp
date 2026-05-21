@@ -55,7 +55,7 @@ that no vendor-specific fields appear in the output.
 
 The engineering team configures a new hospital organisation's EMR connection (endpoint,
 credentials, tenant mapping) without modifying core application code. Configuration is
-performed inside the 3rd-party FHIR abstraction platform (TBD during planning) and governed
+performed inside the 3rd-party FHIR abstraction platform (Redox) and governed
 by an internal Standard Operating Procedure (SOP) that defines the required steps, credential
 handling, and verification checks for each new integration.
 

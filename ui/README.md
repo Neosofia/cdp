@@ -14,7 +14,7 @@ The UI service is the place where CDP user-facing components, theme styles, and 
 
 ## Useful links
 
-- `../OPERATIONS.md` — primary guidance for operating the CDP stack, including local development and cloud deployment patterns
+- [../OPERATIONS.md](../OPERATIONS.md) — primary guidance for operating the CDP stack, including local development and cloud deployment patterns
 
 If you need service-specific instructions for running this UI locally or in the cloud, start with the CDP repository operations document rather than changing this service README.
 

@@ -15,46 +15,38 @@
         container cdp "PatientEngagementContainers" {
             title "Patient Engagement - Containers"
             autolayout tb
-            include *
-            exclude clinicalWorkflow
-            exclude aiDataPlatform
-            exclude platformCore
-            exclude apns
-            exclude fcm
-            exclude webPush
+            include patientEngagement
+            include patient
+            include smsProvider
+            include apns
+            include fcm
+            include webPush
         }
 
         container cdp "ClinicalWorkflowContainers" {
             title "Clinical Workflow - Containers"
             autolayout tb
-            include *
-            exclude patientEngagement
-            exclude aiDataPlatform
-            exclude platformCore
-            exclude corporateIdP
+            include clinicalWorkflow
+            include clinician
+            include emrSystems
+            include corporateIdP
+            include patient
         }
 
         container cdp "AiDataContainers" {
             title "AI & Data Platform - Containers"
             autolayout tb
-            include *
-            exclude patientEngagement
-            exclude clinicalWorkflow
-            exclude platformCore
+            include aiDataPlatform
+            include bedrockWorkbench
+            include mlEngineer
         }
 
         container cdp "PlatformCoreContainers" {
             title "Platform Core - Containers"
             autolayout tb
-            include *
-            exclude patientEngagement
-            exclude clinicalWorkflow
-            exclude aiDataPlatform
-            exclude apns
-            exclude fcm
-            exclude webPush
-            exclude bedrockWorkbench
-            exclude operationalMetrics
+            include platformCore
+            include workOS
+            include pagerDuty
         }
 
         component patientChatApp "PatientChatAppComponents" {

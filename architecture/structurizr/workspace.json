@@ -4,7 +4,8 @@
   },
   "description" : "HIPAA-compliant clinical data platform for AI-assisted care coordination, patient engagement, risk detection, and clinician escalation",
   "documentation" : { },
-  "id" : 0,
+  "id" : 1,
+  "lastModifiedDate" : "2026-05-21T11:37:26Z",
   "model" : {
     "deploymentNodes" : [ {
       "children" : [ {
@@ -3041,6 +3042,13 @@
   },
   "views" : {
     "componentViews" : [ {
+      "automaticLayout" : {
+        "edgeSeparation" : 50,
+        "nodeSeparation" : 50,
+        "rankDirection" : "TopBottom",
+        "rankSeparation" : 100,
+        "vertices" : true
+      },
       "containerId" : "20",
       "elements" : [ {
         "id" : "1",
@@ -3114,6 +3122,13 @@
       } ],
       "title" : "Patient Chat App - Components"
     }, {
+      "automaticLayout" : {
+        "edgeSeparation" : 50,
+        "nodeSeparation" : 50,
+        "rankDirection" : "TopBottom",
+        "rankSeparation" : 100,
+        "vertices" : true
+      },
       "containerId" : "42",
       "elements" : [ {
         "id" : "2",
@@ -3213,6 +3228,13 @@
       } ],
       "title" : "Clinician App - Components"
     }, {
+      "automaticLayout" : {
+        "edgeSeparation" : 50,
+        "nodeSeparation" : 50,
+        "rankDirection" : "TopBottom",
+        "rankSeparation" : 100,
+        "vertices" : true
+      },
       "containerId" : "25",
       "elements" : [ {
         "id" : "9",
@@ -3262,6 +3284,13 @@
       } ],
       "title" : "SMS Service - Components"
     }, {
+      "automaticLayout" : {
+        "edgeSeparation" : 50,
+        "nodeSeparation" : 50,
+        "rankDirection" : "TopBottom",
+        "rankSeparation" : 100,
+        "vertices" : true
+      },
       "containerId" : "57",
       "elements" : [ {
         "id" : "13",
@@ -3305,6 +3334,13 @@
       } ],
       "title" : "EMR Service - Components"
     }, {
+      "automaticLayout" : {
+        "edgeSeparation" : 50,
+        "nodeSeparation" : 50,
+        "rankDirection" : "TopBottom",
+        "rankSeparation" : 100,
+        "vertices" : true
+      },
       "containerId" : "78",
       "elements" : [ {
         "id" : "15",
@@ -3376,6 +3412,13 @@
       } ],
       "title" : "Auth Service - Components"
     }, {
+      "automaticLayout" : {
+        "edgeSeparation" : 50,
+        "nodeSeparation" : 50,
+        "rankDirection" : "TopBottom",
+        "rankSeparation" : 100,
+        "vertices" : true
+      },
       "containerId" : "48",
       "elements" : [ {
         "id" : "20",
@@ -3435,6 +3478,13 @@
       } ],
       "title" : "Patient Service - Components"
     }, {
+      "automaticLayout" : {
+        "edgeSeparation" : 50,
+        "nodeSeparation" : 50,
+        "rankDirection" : "TopBottom",
+        "rankSeparation" : 100,
+        "vertices" : true
+      },
       "containerId" : "53",
       "elements" : [ {
         "id" : "34",
@@ -3484,6 +3534,13 @@
       } ],
       "title" : "Care Episode Service - Components"
     }, {
+      "automaticLayout" : {
+        "edgeSeparation" : 50,
+        "nodeSeparation" : 50,
+        "rankDirection" : "TopBottom",
+        "rankSeparation" : 100,
+        "vertices" : true
+      },
       "containerId" : "30",
       "elements" : [ {
         "id" : "10",
@@ -3543,6 +3600,13 @@
       } ],
       "title" : "Devices Service - Components"
     }, {
+      "automaticLayout" : {
+        "edgeSeparation" : 50,
+        "nodeSeparation" : 50,
+        "rankDirection" : "TopBottom",
+        "rankSeparation" : 100,
+        "vertices" : true
+      },
       "containerId" : "85",
       "elements" : [ {
         "id" : "8",
@@ -3590,6 +3654,13 @@
       } ],
       "title" : "Notification Service - Components"
     }, {
+      "automaticLayout" : {
+        "edgeSeparation" : 50,
+        "nodeSeparation" : 50,
+        "rankDirection" : "TopBottom",
+        "rankSeparation" : 100,
+        "vertices" : true
+      },
       "containerId" : "34",
       "elements" : [ {
         "id" : "20",
@@ -3695,6 +3766,13 @@
       } ],
       "title" : "Chat Service - Components"
     }, {
+      "automaticLayout" : {
+        "edgeSeparation" : 50,
+        "nodeSeparation" : 50,
+        "rankDirection" : "TopBottom",
+        "rankSeparation" : 100,
+        "vertices" : true
+      },
       "containerId" : "62",
       "elements" : [ {
         "id" : "34",
@@ -3752,6 +3830,13 @@
       } ],
       "title" : "AI Risk Agent - Components"
     }, {
+      "automaticLayout" : {
+        "edgeSeparation" : 50,
+        "nodeSeparation" : 50,
+        "rankDirection" : "TopBottom",
+        "rankSeparation" : 100,
+        "vertices" : true
+      },
       "containerId" : "68",
       "elements" : [ {
         "id" : "34",
@@ -3807,6 +3892,13 @@
       } ],
       "title" : "Deidentification Pipeline - Components"
     }, {
+      "automaticLayout" : {
+        "edgeSeparation" : 50,
+        "nodeSeparation" : 50,
+        "rankDirection" : "TopBottom",
+        "rankSeparation" : 100,
+        "vertices" : true
+      },
       "containerId" : "74",
       "elements" : [ {
         "id" : "17",
@@ -4073,27 +4165,19 @@
         "x" : 0,
         "y" : 0
       }, {
-        "id" : "2",
-        "x" : 0,
-        "y" : 0
-      }, {
-        "id" : "8",
-        "x" : 0,
-        "y" : 0
-      }, {
         "id" : "9",
         "x" : 0,
         "y" : 0
       }, {
-        "id" : "13",
+        "id" : "10",
         "x" : 0,
         "y" : 0
       }, {
-        "id" : "15",
+        "id" : "11",
         "x" : 0,
         "y" : 0
       }, {
-        "id" : "17",
+        "id" : "12",
         "x" : 0,
         "y" : 0
       }, {
@@ -4122,11 +4206,23 @@
       }, {
         "id" : "109"
       }, {
+        "id" : "111"
+      }, {
         "id" : "162"
       }, {
         "id" : "164"
       }, {
         "id" : "180"
+      }, {
+        "id" : "202"
+      }, {
+        "id" : "205"
+      }, {
+        "id" : "208"
+      }, {
+        "id" : "210"
+      }, {
+        "id" : "213"
       }, {
         "id" : "234"
       }, {
@@ -4135,12 +4231,6 @@
         "id" : "269"
       }, {
         "id" : "271"
-      }, {
-        "id" : "280"
-      }, {
-        "id" : "281"
-      }, {
-        "id" : "282"
       } ],
       "softwareSystemId" : "19",
       "title" : "Patient Engagement - Containers"
@@ -4161,35 +4251,11 @@
         "x" : 0,
         "y" : 0
       }, {
-        "id" : "8",
-        "x" : 0,
-        "y" : 0
-      }, {
-        "id" : "9",
-        "x" : 0,
-        "y" : 0
-      }, {
-        "id" : "10",
-        "x" : 0,
-        "y" : 0
-      }, {
-        "id" : "11",
-        "x" : 0,
-        "y" : 0
-      }, {
-        "id" : "12",
-        "x" : 0,
-        "y" : 0
-      }, {
         "id" : "13",
         "x" : 0,
         "y" : 0
       }, {
-        "id" : "15",
-        "x" : 0,
-        "y" : 0
-      }, {
-        "id" : "17",
+        "id" : "14",
         "x" : 0,
         "y" : 0
       }, {
@@ -4218,8 +4284,6 @@
       }, {
         "id" : "142"
       }, {
-        "id" : "150"
-      }, {
         "id" : "169"
       }, {
         "id" : "185"
@@ -4228,13 +4292,7 @@
       }, {
         "id" : "197"
       }, {
-        "id" : "269"
-      }, {
         "id" : "273"
-      }, {
-        "id" : "280"
-      }, {
-        "id" : "281"
       }, {
         "id" : "282"
       } ],
@@ -4249,39 +4307,7 @@
         "vertices" : true
       },
       "elements" : [ {
-        "id" : "1",
-        "x" : 0,
-        "y" : 0
-      }, {
-        "id" : "2",
-        "x" : 0,
-        "y" : 0
-      }, {
-        "id" : "8",
-        "x" : 0,
-        "y" : 0
-      }, {
-        "id" : "9",
-        "x" : 0,
-        "y" : 0
-      }, {
-        "id" : "10",
-        "x" : 0,
-        "y" : 0
-      }, {
-        "id" : "11",
-        "x" : 0,
-        "y" : 0
-      }, {
-        "id" : "12",
-        "x" : 0,
-        "y" : 0
-      }, {
-        "id" : "13",
-        "x" : 0,
-        "y" : 0
-      }, {
-        "id" : "15",
+        "id" : "3",
         "x" : 0,
         "y" : 0
       }, {
@@ -4316,13 +4342,7 @@
       }, {
         "id" : "263"
       }, {
-        "id" : "269"
-      }, {
-        "id" : "280"
-      }, {
-        "id" : "281"
-      }, {
-        "id" : "282"
+        "id" : "283"
       }, {
         "id" : "91"
       }, {
@@ -4339,23 +4359,7 @@
         "vertices" : true
       },
       "elements" : [ {
-        "id" : "1",
-        "x" : 0,
-        "y" : 0
-      }, {
-        "id" : "2",
-        "x" : 0,
-        "y" : 0
-      }, {
         "id" : "8",
-        "x" : 0,
-        "y" : 0
-      }, {
-        "id" : "9",
-        "x" : 0,
-        "y" : 0
-      }, {
-        "id" : "13",
         "x" : 0,
         "y" : 0
       }, {
@@ -4379,14 +4383,6 @@
         "id" : "173"
       }, {
         "id" : "218"
-      }, {
-        "id" : "269"
-      }, {
-        "id" : "280"
-      }, {
-        "id" : "281"
-      }, {
-        "id" : "282"
       } ],
       "softwareSystemId" : "19",
       "title" : "Platform Core - Containers"
