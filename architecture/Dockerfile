@@ -14,10 +14,19 @@ COPY structurizr/ /usr/local/structurizr/
 COPY adrs/ /usr/local/adrs/
 
 # nginx proxies to structurizr's internal port and rewrites the Host header to
-# "localhost" so that structurizr activates local mode (read-only, single workspace).
-# proxy_redirect rewrites the absolute Location header structurizr emits on redirect.
-# sub_filter strips "http://localhost" from response bodies so the browser resolves
-# all API/asset paths relative to the public URL instead of trying to reach localhost.
+# "localhost:8081" so that structurizr activates local mode (read-only, single
+# workspace) and includes the port in redirect URLs.
+# proxy_redirect rewrites the absolute Location header structurizr emits on
+# redirect. $fwd_scheme captures Railway's X-Forwarded-Proto so the rewritten
+# Location uses the correct public scheme (https) rather than the internal http.
+# sub_filter strips "http://localhost:8081" from response bodies so the browser
+# resolves all API/asset paths relative to the public URL.
+# Capture Railway's X-Forwarded-Proto before we clear it for the upstream.
+# proxy_redirect uses $fwd_scheme so the rewritten Location uses the correct
+# public scheme (https) rather than the internal http scheme nginx sees.
+RUN echo 'map $http_x_forwarded_proto $fwd_scheme { default $scheme; https https; }' \
+    > /etc/nginx/conf.d/fwd-scheme.conf
+
 RUN cat > /etc/nginx/sites-available/default <<'NGINX'
 server {
     listen 8080;
@@ -28,8 +37,8 @@ server {
         proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
         proxy_set_header   X-Forwarded-Proto "";
 
-        proxy_redirect     http://localhost:8081/ /;
-        proxy_redirect     http://127.0.0.1:8081/ /;
+        proxy_redirect     http://localhost:8081/ $fwd_scheme://$http_host/;
+        proxy_redirect     http://127.0.0.1:8081/ $fwd_scheme://$http_host/;
 
         proxy_set_header   Accept-Encoding   "";
         sub_filter         'http://localhost:8081' '';
