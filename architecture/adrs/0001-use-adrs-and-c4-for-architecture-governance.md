@@ -1,5 +1,6 @@
 # 01. Use ADRs and C4 Modeling for Specification and Architecture Governance
 
+Date: 2026-04-19
 
 ## Status
 

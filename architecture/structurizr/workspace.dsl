@@ -48,6 +48,15 @@ workspace "Clinical Data Platform (CDP)" "HIPAA-compliant clinical data platform
                 pushDispatcher = component "Push Dispatcher" "Decrypts token, selects provider (APNS/FCM/Web Push), calls provider, and returns outcome." "Python" "Component"
                 tokenLifecycleManager = component "Token Lifecycle Manager" "Handles stale-token feedback from providers and hard-deletes tokens on account deactivation." "Python" "Component"
             }
+            chatService = container "Chat Service" "Raw chat ingestion and storage, chat interactions, and care-episode linkage." "Python / FastAPI + PostgreSQL" "Service" {
+                authzMiddleware = component "Authorization Middleware" "Interrogates caller identity and evaluates requested action against local Cedar policies via authorization-in-the-middle SDK." "Python" "Component"
+                localPolicies = component "Cedar Policy Files" "Service-owned policy bundle (.cedar) loaded from the filesystem." "Filesystem" "Component,Configuration"
+                messageIngestionAPI = component "Message Ingestion API" "Accepts inbound messages from app, web, and SMS channels with durable persistence." "Python" "Component"
+                chatInteractionManager = component "Chat Interaction Manager" "Creates and manages ChatInteraction sessions linked to care episodes." "Python" "Component"
+                messageStreaming = component "Message Streaming" "Streams AI and clinician replies to patients via WebSocket/SSE." "Python" "Component"
+                riskEventPublisher = component "Risk Event Publisher" "Publishes per-message risk-evaluation events to the Risk Eval Queue." "Python" "Component"
+                sessionClosePublisher = component "Session Close Publisher" "Publishes session-end events to the Session Close Queue for deidentification." "Python" "Component"
+            }
         }
 
         # ---------------------------------------------------------------------------
@@ -108,19 +117,10 @@ workspace "Clinical Data Platform (CDP)" "HIPAA-compliant clinical data platform
         }
 
         # ---------------------------------------------------------------------------
-        # Platform Core — chat ingestion, authentication, API gateway
+        # Platform Core — authentication, notification, and platform services
         # ---------------------------------------------------------------------------
 
         platformCore = group "Platform Core" {
-            chatService = container "Chat Service" "Raw chat ingestion and storage, chat interactions, and care-episode linkage." "Python / FastAPI + PostgreSQL" "Service" {
-                authzMiddleware = component "Authorization Middleware" "Interrogates caller identity and evaluates requested action against local Cedar policies via authorization-in-the-middle SDK." "Python" "Component"
-                localPolicies = component "Cedar Policy Files" "Service-owned policy bundle (.cedar) loaded from the filesystem." "Filesystem" "Component,Configuration"
-                messageIngestionAPI = component "Message Ingestion API" "Accepts inbound messages from app, web, and SMS channels with durable persistence." "Python" "Component"
-                chatInteractionManager = component "Chat Interaction Manager" "Creates and manages ChatInteraction sessions linked to care episodes." "Python" "Component"
-                messageStreaming = component "Message Streaming" "Streams AI and clinician replies to patients via WebSocket/SSE." "Python" "Component"
-                riskEventPublisher = component "Risk Event Publisher" "Publishes per-message risk-evaluation events to the Risk Eval Queue." "Python" "Component"
-                sessionClosePublisher = component "Session Close Publisher" "Publishes session-end events to the Session Close Queue for deidentification." "Python" "Component"
-            }
             authService = container "Authentication Service" "Issues platform JWTs for human (via WorkOS) and machine authentication. Publishes public signing keys. Delegates session lifecycle to WorkOS." "Python / FastAPI" "Service,Security" {
                 oauthCallbackHandler = component "OAuth2 Callback Handler" "Processes WorkOS OAuth callback, validates assertion, seals session in httponly cookie." "Python" "Component"
                 workOSBridge = component "WorkOS Claims Extractor" "Extracts identity, user type, roles, and tenant from WorkOS assertion; validates session authenticity." "Python" "Component"

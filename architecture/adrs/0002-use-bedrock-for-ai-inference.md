@@ -1,5 +1,6 @@
 # 02. Use AWS Bedrock for AI Risk Inference
 
+Date: 2026-04-19
 
 ## Status
 

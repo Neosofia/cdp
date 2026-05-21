@@ -59,66 +59,79 @@
 
         component patientChatApp "PatientChatAppComponents" {
             title "Patient Chat App - Components"
+            autolayout tb
             include *
         }
 
         component clinicianApp "ClinicianAppComponents" {
             title "Clinician App - Components"
+            autolayout tb
             include *
         }
 
         component smsService "SMSServiceComponents" {
             title "SMS Service - Components"
+            autolayout tb
             include *
         }
 
         component emrService "EMRServiceComponents" {
             title "EMR Service - Components"
+            autolayout tb
             include *
         }
 
         component authService "AuthServiceComponents" {
             title "Auth Service - Components"
+            autolayout tb
             include *
         }
 
         component patientService "PatientServiceComponents" {
             title "Patient Service - Components"
+            autolayout tb
             include *
         }
 
         component careEpisodeService "CareEpisodeServiceComponents" {
             title "Care Episode Service - Components"
+            autolayout tb
             include *
         }
 
         component devicesService "DevicesServiceComponents" {
             title "Devices Service - Components"
+            autolayout tb
             include *
         }
 
         component notificationService "NotificationServiceComponents" {
             title "Notification Service - Components"
+            autolayout tb
             include *
         }
 
         component chatService "ChatServiceComponents" {
             title "Chat Service - Components"
+            autolayout tb
             include *
         }
 
         component aiRiskAgent "AIRiskAgentComponents" {
             title "AI Risk Agent - Components"
+            autolayout tb
             include *
         }
 
         component deidentPipeline "DeidentPipelineComponents" {
             title "Deidentification Pipeline - Components"
+            autolayout tb
             include *
         }
 
         component cleanChatService "CleanChatServiceComponents" {
             title "Clean Chat Service - Components"
+            autolayout tb
             include *
         }
 

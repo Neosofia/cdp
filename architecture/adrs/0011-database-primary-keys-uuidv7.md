@@ -1,5 +1,7 @@
 # 11. ADR 0011: Database Primary Keys and UUIDv7
 
+Date: 2026-05-12
+
 ## Status
 
 Accepted
