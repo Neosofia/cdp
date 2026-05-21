@@ -40,7 +40,7 @@ server {
         sub_filter         'http://architecture.neosofia.tech:8080' '';
         sub_filter         'https://architecture.neosofia.tech:8080' '';
         sub_filter_once    off;
-        sub_filter_types   text/html text/javascript application/javascript application/json;
+        sub_filter_types   text/javascript application/javascript application/json;
     }
 }
 NGINX
