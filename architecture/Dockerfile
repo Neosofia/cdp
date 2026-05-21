@@ -43,10 +43,13 @@ server {
         sub_filter         'http://localhost:8080' '';
         sub_filter         'http://localhost:80' '';
         sub_filter         'http://localhost' '';
-        # Fix upstream Structurizr bug: dark thumbnail img tag has malformed CSS
-        # "margin-right: max-height: Xpx" — missing "auto;" before max-height.
-        # Chrome silently ignores it; Firefox collapses the image to near-zero size.
-        sub_filter         'margin-right: max-height:' 'margin-right: auto; max-height:';
+        # Fix upstream Structurizr bug (issue #40): thumbnail export path calls
+        # convertDiagramToPNG({ metadata: true, crop: false }) without dimensions:true.
+        # exportCurrentDiagramToSVG only adds explicit SVG width/height attributes
+        # when options.dimensions is truthy. Without them Firefox renders the SVG image
+        # at the CSS default intrinsic size (300x150), drawing a tiny diagram onto the
+        # canvas, so thumbnails appear tiny in Firefox.
+        sub_filter         'convertDiagramToPNG({ metadata: true, crop: false }' 'convertDiagramToPNG({ metadata: true, crop: false, dimensions: true }';
         sub_filter_once    off;
         sub_filter_types   text/javascript application/javascript application/json text/html;
 
