@@ -47,6 +47,10 @@ server {
         # "margin-right: max-height: Xpx" — missing "auto;" before max-height.
         # Chrome silently ignores it; Firefox collapses the image to near-zero size.
         sub_filter         'margin-right: max-height:' 'margin-right: auto; max-height:';
+        # Fix upstream Structurizr bug: thumbnail export uses crop:false, capturing
+        # the full canvas (2000×2700+) with diagram content only in the top-left corner.
+        # Changing to crop:true clips the PNG to the diagram bounding box.
+        sub_filter         'crop: false }, function(exportedImage) {' 'crop: true }, function(exportedImage) {';
         sub_filter_once    off;
         sub_filter_types   text/javascript application/javascript application/json text/html;
 
