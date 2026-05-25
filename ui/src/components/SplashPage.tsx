@@ -29,13 +29,14 @@ const STATS = [
   { value: '2X', label: 'THE ORIGINAL' },
 ];
 
-export default function SplashPage() {
+export default function SplashPage({ verifying = false }: { verifying?: boolean }) {
   const tickerText = (TICKER_ITEMS.join('  ') + '  ').repeat(4);
 
   return (
     <div
       className="min-h-screen flex flex-col overflow-hidden"
       style={{ background: '#05050f', fontFamily: "'Inter', sans-serif" }}
+      aria-busy={verifying}
     >
       {/* Star background */}
       <div className="fixed inset-0 pointer-events-none z-0">
@@ -75,16 +76,22 @@ export default function SplashPage() {
           </span>
         </div>
 
-        <a
-          href={`${AUTH_BASE}/login`}
-          className="relative group inline-flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-bold uppercase tracking-wider text-white transition-all duration-200 hover:scale-105"
-          style={{
-            background: 'linear-gradient(135deg, #22d3ee 0%, #a855f7 100%)',
-            boxShadow: '0 0 20px rgba(168,85,247,0.4)',
-          }}
-        >
-          <span>⚡</span> Login
-        </a>
+        {verifying ? (
+          <span className="text-xs font-semibold uppercase tracking-widest text-slate-500">
+            Checking session…
+          </span>
+        ) : (
+          <a
+            href={`${AUTH_BASE}/login`}
+            className="relative group inline-flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-bold uppercase tracking-wider text-white transition-all duration-200 hover:scale-105"
+            style={{
+              background: 'linear-gradient(135deg, #22d3ee 0%, #a855f7 100%)',
+              boxShadow: '0 0 20px rgba(168,85,247,0.4)',
+            }}
+          >
+            <span>⚡</span> Login
+          </a>
+        )}
       </header>
 
       {/* ── Hero ── */}

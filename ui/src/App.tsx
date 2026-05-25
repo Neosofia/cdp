@@ -246,21 +246,6 @@ export default function App() {
     pingApi(url, label);
   };
 
-  const restoreLocalAuth = () => {
-    const stored = localStorage.getItem(LOCAL_AUTH_KEY);
-    if (!stored) return;
-    try {
-      const parsed = JSON.parse(stored) as { profile: UserProfile; activeRole: string };
-      if (parsed?.profile) {
-        setProfile(parsed.profile);
-        setActiveRole(parsed.activeRole || parsed.profile.roles?.[0] || '');
-      }
-    } catch {
-      localStorage.removeItem(LOCAL_AUTH_KEY);
-    }
-  };
-
-
   useEffect(() => {
     if (tokenInfo?.decoded?.exp) {
       const expirationTime = tokenInfo.decoded.exp * 1000;
@@ -315,7 +300,6 @@ export default function App() {
           return;
         }
 
-        restoreLocalAuth();
         await fetchSessionData();
       })();
 
@@ -334,8 +318,8 @@ export default function App() {
 
   const initials = `${profile?.first_name?.charAt(0) || ''}${profile?.last_name?.charAt(0) || ''}`.toUpperCase();
 
-  if (!tokenInfo && !initializing) {
-    return <SplashPage />;
+  if (!tokenInfo) {
+    return <SplashPage verifying={initializing} />;
   }
 
   const fillViewport =
