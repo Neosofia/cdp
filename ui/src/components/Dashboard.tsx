@@ -12,12 +12,9 @@ import {
   ExclamationTriangleIcon,
   ServerIcon,
   ShieldCheckIcon,
-  UserIcon,
   CalendarDaysIcon,
   DocumentTextIcon,
   BellIcon,
-  CheckCircleIcon,
-  ClockIcon,
   ArrowTrendingUpIcon,
   CpuChipIcon,
 } from '@heroicons/react/24/outline';
