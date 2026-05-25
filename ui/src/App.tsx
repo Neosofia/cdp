@@ -16,6 +16,7 @@ import PatientRecords from '@/components/PatientRecords';
 import ClinicianActivePatients from '@/components/ClinicianActivePatients';
 import { ACTIVE_PATIENT_SESSIONS } from '@/lib/clinicianDemoData';
 import SplashPage from '@/components/SplashPage';
+import BrandBackground from '@/components/BrandBackground';
 import StarField from '@/components/StarField';
 import { cn } from '@/lib/utils';
 
@@ -91,6 +92,34 @@ export default function App() {
     setClinicianPatientId(null);
     setTestResult(null);
   };
+
+  /** Section crumb → role dashboard (home). */
+  const navigateSectionDashboard = () => {
+    goHome();
+  };
+
+  /** Action crumb → list/main view for that section (e.g. patient list, services). */
+  const navigateActionHome = () => {
+    if (selectedSection === 'Clinician' && selectedAction === 'Patients') {
+      navigateClinicianPatients(null);
+      return;
+    }
+    if (selectedSection === 'Admin' && selectedAction === 'Services') {
+      setSelectedSection('Admin');
+      setSelectedAction('Services');
+      setClinicianPatientId(null);
+      setTestResult(null);
+      return;
+    }
+    if (selectedSection === 'Debug') {
+      openDebugTestPage();
+      return;
+    }
+    goHome();
+  };
+
+  const sectionCrumbIsLink = Boolean(selectedAction || clinicianPatientId);
+  const actionCrumbIsLink = Boolean(clinicianPatientId && selectedSection === 'Clinician');
 
   const navigateClinicianPatients = (patientId: string | null = null) => {
     setSelectedSection('Clinician');
@@ -319,7 +348,10 @@ export default function App() {
   const initials = `${profile?.first_name?.charAt(0) || ''}${profile?.last_name?.charAt(0) || ''}`.toUpperCase();
 
   if (!tokenInfo) {
-    return <SplashPage verifying={initializing} />;
+    if (initializing) {
+      return <BrandBackground />;
+    }
+    return <SplashPage />;
   }
 
   const fillViewport =
@@ -527,7 +559,20 @@ export default function App() {
                   <>
                     <BreadcrumbSeparator />
                     <BreadcrumbItem>
-                      <BreadcrumbPage>{selectedSection}</BreadcrumbPage>
+                      {sectionCrumbIsLink ? (
+                        <BreadcrumbLink
+                          href="/"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            navigateSectionDashboard();
+                          }}
+                          className="text-slate-500 hover:text-cyan-400"
+                        >
+                          {selectedSection}
+                        </BreadcrumbLink>
+                      ) : (
+                        <BreadcrumbPage>{selectedSection}</BreadcrumbPage>
+                      )}
                     </BreadcrumbItem>
                   </>
                 )}
@@ -535,7 +580,20 @@ export default function App() {
                   <>
                     <BreadcrumbSeparator />
                     <BreadcrumbItem>
-                      <BreadcrumbPage>{selectedAction}</BreadcrumbPage>
+                      {actionCrumbIsLink ? (
+                        <BreadcrumbLink
+                          href="/"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            navigateActionHome();
+                          }}
+                          className="text-slate-500 hover:text-cyan-400"
+                        >
+                          {selectedAction}
+                        </BreadcrumbLink>
+                      ) : (
+                        <BreadcrumbPage>{selectedAction}</BreadcrumbPage>
+                      )}
                     </BreadcrumbItem>
                   </>
                 )}
