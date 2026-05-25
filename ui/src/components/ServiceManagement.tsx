@@ -8,6 +8,7 @@ import {
   CheckIcon,
   ExclamationTriangleIcon,
   ArrowDownTrayIcon,
+  PlusIcon,
 } from '@heroicons/react/24/outline';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -52,6 +53,7 @@ interface AuditItem {
   changed_at: string;
   changed_by_uuid: string;
   changed_by_type: number;
+  changed_by_name: string | null;
   change_type: number;
 }
 
@@ -128,18 +130,18 @@ function AuditTable({ rows, source }: { rows: AuditItem[]; source: 'service' | '
         {source === 'service' ? (<><col /><col /><col /></>) : (<col />)}
       </colgroup>
       <thead>
-        <tr className="border-b border-slate-700/60 text-slate-500">
-          <th className="text-left py-2 pr-3 whitespace-nowrap">Changed at (UTC)</th>
-          <th className="text-left py-2 pr-3 whitespace-nowrap">Event</th>
-          <th className="text-left py-2 pr-3 whitespace-nowrap">Actor</th>
+        <tr className="border-b border-slate-700/60">
+          <th className="text-left py-2 pr-3 whitespace-nowrap text-xs font-semibold text-slate-500 uppercase tracking-widest">Changed at (UTC)</th>
+          <th className="text-left py-2 pr-3 whitespace-nowrap text-xs font-semibold text-slate-500 uppercase tracking-widest">Event</th>
+          <th className="text-left py-2 pr-3 whitespace-nowrap text-xs font-semibold text-slate-500 uppercase tracking-widest">Actor</th>
           {source === 'service' ? (
             <>
-              <th className="text-left py-2 pr-3">Name</th>
-              <th className="text-left py-2 pr-3">Slug</th>
-              <th className="text-left py-2">Base URL</th>
+              <th className="text-left py-2 pr-3 text-xs font-semibold text-slate-500 uppercase tracking-widest">Name</th>
+              <th className="text-left py-2 pr-3 text-xs font-semibold text-slate-500 uppercase tracking-widest">Slug</th>
+              <th className="text-left py-2 text-xs font-semibold text-slate-500 uppercase tracking-widest">Base URL</th>
             </>
           ) : (
-            <th className="text-left py-2">Secret</th>
+            <th className="text-left py-2 text-xs font-semibold text-slate-500 uppercase tracking-widest">Secret</th>
           )}
         </tr>
       </thead>
@@ -150,7 +152,7 @@ function AuditTable({ rows, source }: { rows: AuditItem[]; source: 'service' | '
               {new Date(row.changed_at).toLocaleString(undefined, { timeZone: 'UTC' })}
             </td>
             <td className="py-2 pr-3 text-slate-300 capitalize whitespace-nowrap">{changeTypeLabel(row.change_type)}</td>
-            <td className="py-2 pr-3 whitespace-nowrap">{actorLabel(row.changed_by_type, row.changed_by_uuid)}</td>
+            <td className="py-2 pr-3 whitespace-nowrap">{actorLabel(row.changed_by_type, row.changed_by_uuid, row.changed_by_name)}</td>
             {source === 'service' ? (
               <>
                 <td className="py-2 pr-3 text-slate-300">{row.name ?? '—'}</td>
@@ -173,7 +175,7 @@ function changeTypeLabel(ct: number): string {
 
 const BOOTSTRAP_UUID = '00000000-0000-7000-8000-000000000000';
 
-function actorLabel(changedByType: number, changedByUuid: string) {
+function actorLabel(changedByType: number, changedByUuid: string, changedByName?: string | null) {
   if (changedByUuid === BOOTSTRAP_UUID) {
     return (
       <span title={changedByUuid}>
@@ -185,8 +187,10 @@ function actorLabel(changedByType: number, changedByUuid: string) {
   if (changedByType === 1) {
     return (
       <span title={changedByUuid} className="inline-flex items-center gap-1">
-        <Badge variant="outline" className="border-emerald-700 text-emerald-400">User</Badge>
-        <span className="font-mono text-slate-500">{truncated}</span>
+        <Badge variant="outline" className="border-cyan-700/60 text-cyan-400">User</Badge>
+        {changedByName
+          ? <span className="text-slate-300">{changedByName}</span>
+          : <span className="font-mono text-slate-500">{truncated}</span>}
       </span>
     );
   }
@@ -259,6 +263,14 @@ export default function ServiceManagement({ token, activeRole }: Props) {
   const [serviceAuditLoading, setServiceAuditLoading] = useState(false);
   const [credentialAuditLoading, setCredentialAuditLoading] = useState(false);
   const [downloadingCSV, setDownloadingCSV] = useState<'service' | 'credential' | null>(null);
+
+  // New service sheet
+  const [newSheetOpen, setNewSheetOpen] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newSlug, setNewSlug] = useState('');
+  const [newBaseUrl, setNewBaseUrl] = useState('');
+  const [newError, setNewError] = useState<string | null>(null);
+  const [newSaving, setNewSaving] = useState(false);
 
   // Edit sheet
   const [editService, setEditService] = useState<ServiceItem | null>(null);
@@ -459,6 +471,47 @@ export default function ServiceManagement({ token, activeRole }: Props) {
   };
 
   // ---------------------------------------------------------------------------
+  // New service sheet
+  // ---------------------------------------------------------------------------
+
+  const openNew = () => {
+    setNewName('');
+    setNewSlug('');
+    setNewBaseUrl('');
+    setNewError(null);
+    setNewSheetOpen(true);
+  };
+
+  const createService = async () => {
+    setNewSaving(true);
+    setNewError(null);
+    try {
+      const res = await fetch(`${AUTH_API}/api/services`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'X-Active-Role': activeRole,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name: newName, slug: newSlug, base_url: newBaseUrl }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setNewError(body.error ?? `HTTP ${res.status}`);
+        return;
+      }
+      const data = await res.json();
+      setNewSheetOpen(false);
+      setRotationResults([{ slug: newSlug, client_secret: data.client_secret }]);
+      fetchServices();
+    } catch (e) {
+      setNewError(e instanceof Error ? e.message : 'Create failed');
+    } finally {
+      setNewSaving(false);
+    }
+  };
+
+  // ---------------------------------------------------------------------------
   // Edit sheet
   // ---------------------------------------------------------------------------
 
@@ -526,15 +579,23 @@ export default function ServiceManagement({ token, activeRole }: Props) {
         </div>
         {selected.size > 0 && (
           <Button
-            variant="destructive"
+            variant="ghost"
             onClick={rotateSelected}
             disabled={rotating}
-            className="gap-1.5"
+            className="gap-1.5 bg-amber-500/20 border border-amber-500/40 text-amber-300 hover:bg-amber-500/30 hover:text-amber-200"
           >
             <ArrowPathIcon className={cn('size-4', rotating && 'animate-spin')} />
             {rotating ? 'Rotating…' : `Rotate ${selected.size} secret${selected.size > 1 ? 's' : ''}`}
           </Button>
         )}
+        <Button
+          variant="ghost"
+          onClick={openNew}
+          className="gap-1.5 bg-cyan-500/20 border border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/30 hover:text-cyan-200"
+        >
+          <PlusIcon className="size-4" />
+          New service
+        </Button>
         <Button variant="outline" size="icon" onClick={fetchServices} title="Refresh" disabled={loading}>
           <ArrowPathIcon className={cn('size-4', loading && 'animate-spin')} />
         </Button>
@@ -542,11 +603,11 @@ export default function ServiceManagement({ token, activeRole }: Props) {
 
       {/* Rotation results */}
       {rotationResults && (
-        <Card className="border-slate-700 bg-slate-800/60">
-          <CardHeader className="py-3 px-4 border-b border-slate-700/60">
-            <CardTitle className="text-sm flex items-center gap-2 text-slate-200">
-              <ExclamationTriangleIcon className="size-4 text-amber-400" />
-              New secrets — copy and deploy to each service before closing
+        <Card className="border-amber-500/30 bg-slate-950">
+          <CardHeader className="py-3 px-4 border-b border-amber-500/20">
+            <CardTitle className="text-xs font-semibold uppercase tracking-widest flex items-center gap-2" style={{ color: 'rgba(251,191,36,0.8)' }}>
+              <ExclamationTriangleIcon className="size-4" />
+              New secrets — copy and deploy before closing
             </CardTitle>
           </CardHeader>
           <CardContent className="p-4 space-y-3">
@@ -557,18 +618,18 @@ export default function ServiceManagement({ token, activeRole }: Props) {
                   <span className="text-red-500">— {r.error}</span>
                 </div>
               ) : (
-                <div key={r.slug} className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-xs font-semibold text-slate-300">{r.slug}</span>
+                <div key={r.slug} className="rounded-lg border border-cyan-500/20 bg-slate-900 px-3 py-2.5">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className="text-xs font-semibold uppercase tracking-widest text-slate-400">{r.slug}</span>
                   </div>
-                  <div className="flex items-center gap-1 font-mono text-xs text-slate-100 break-all">
+                  <div className="flex items-center gap-1 font-mono text-xs text-cyan-200 break-all">
                     <span>{r.client_secret}</span>
                     <CopyButton value={r.client_secret} />
                   </div>
                 </div>
               )
             )}
-            <Button variant="ghost" size="sm" onClick={() => setRotationResults(null)} className="mt-1 text-slate-400">
+            <Button variant="ghost" size="sm" onClick={() => setRotationResults(null)} className="mt-1 text-xs font-semibold uppercase tracking-widest text-slate-500 hover:text-slate-300">
               Dismiss
             </Button>
           </CardContent>
@@ -591,7 +652,7 @@ export default function ServiceManagement({ token, activeRole }: Props) {
                     type="checkbox"
                     checked={items.length > 0 && selected.size === items.length}
                     onChange={toggleAll}
-                    className="accent-[#9B0303] size-4 rounded cursor-pointer"
+                    className="accent-cyan-400 size-4 rounded cursor-pointer"
                     title="Select all on this page"
                   />
                 </th>
@@ -629,7 +690,7 @@ export default function ServiceManagement({ token, activeRole }: Props) {
                         type="checkbox"
                         checked={selected.has(svc.slug)}
                         onChange={() => toggleOne(svc.slug)}
-                        className="accent-[#9B0303] size-4 rounded cursor-pointer"
+                        className="accent-cyan-400 size-4 rounded cursor-pointer"
                       />
                     </td>
                     <td className="px-4 py-3 font-medium text-slate-100">{svc.name}</td>
@@ -691,18 +752,18 @@ export default function ServiceManagement({ token, activeRole }: Props) {
       {/* ------------------------------------------------------------------ */}
       <Sheet open={!!auditService} onOpenChange={(open) => { if (!open) setAuditService(null); }}>
         <SheetContent side="right" className="bg-slate-950 border-slate-700 text-slate-300 overflow-y-auto" style={{ width: '80vw', maxWidth: '80vw' }}>
-          <SheetHeader className="border-b border-slate-700/60 pb-3 mb-4">
-            <SheetTitle className="text-slate-100">
-              Audit history — <span className="font-mono text-sm">{auditService?.slug}</span>
+          <SheetHeader className="border-b border-slate-700/60 pb-4 mb-6">
+            <SheetTitle className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'rgba(34,211,238,0.7)' }}>
+              Audit history — <span className="font-mono normal-case">{auditService?.slug}</span>
             </SheetTitle>
           </SheetHeader>
 
-          <div className="px-4 pb-6 space-y-6">
+          <div className="px-6 pb-6 space-y-6">
             {/* Service section */}
             <div>
               <div className="flex flex-col">
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
+                  <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-widest">
                     Service <span className="font-mono normal-case text-slate-600">({serviceAudits?.service_uuid ?? auditService?.uuid})</span>
                   </h3>
                   {serviceAudits && serviceAudits.total > 0 && (
@@ -713,7 +774,7 @@ export default function ServiceManagement({ token, activeRole }: Props) {
                     </button>
                   )}
                 </div>
-                <div className="overflow-y-auto max-h-[28rem] min-h-64 border border-slate-800/70 rounded-lg bg-slate-950/60 p-2">
+                <div className="overflow-y-auto max-h-112 min-h-64 border border-slate-800/70 rounded-lg bg-slate-950/60 p-2">
                   {serviceAuditLoading && !serviceAudits ? (
                     <p className="text-slate-400 text-xs">Loading…</p>
                   ) : !serviceAudits ? (
@@ -741,7 +802,7 @@ export default function ServiceManagement({ token, activeRole }: Props) {
             <div>
               <div className="flex flex-col">
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
+                  <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-widest">
                     Credential <span className="font-mono normal-case text-slate-600">({credentialAudits?.items[0]?.credential_uuid ?? '—'})</span>
                   </h3>
                   {credentialAudits && credentialAudits.total > 0 && (
@@ -752,7 +813,7 @@ export default function ServiceManagement({ token, activeRole }: Props) {
                     </button>
                   )}
                 </div>
-                <div className="overflow-y-auto max-h-[28rem] min-h-64 border border-slate-800/70 rounded-lg bg-slate-950/60 p-2">
+                <div className="overflow-y-auto max-h-112 min-h-64 border border-slate-800/70 rounded-lg bg-slate-950/60 p-2">
                   {credentialAuditLoading && !credentialAudits ? (
                     <p className="text-slate-400 text-xs">Loading…</p>
                   ) : !credentialAudits ? (
@@ -780,17 +841,75 @@ export default function ServiceManagement({ token, activeRole }: Props) {
       </Sheet>
 
       {/* ------------------------------------------------------------------ */}
+      {/* New Service Sheet                                                   */}
+      {/* ------------------------------------------------------------------ */}
+      <Sheet open={newSheetOpen} onOpenChange={(open) => { if (!open) setNewSheetOpen(false); }}>
+        <SheetContent side="right" className="w-full sm:max-w-md bg-slate-950 border-slate-700 text-slate-300 p-6">
+          <SheetHeader className="border-b border-slate-700/60 pb-4 mb-6">
+            <SheetTitle className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'rgba(34,211,238,0.7)' }}>New service</SheetTitle>
+          </SheetHeader>
+
+          <div className="space-y-5">
+            <div>
+              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-widest mb-2">Name</label>
+              <Input
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                className="bg-slate-800 border-slate-700 text-slate-100"
+                placeholder="My Service"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-widest mb-2">Slug</label>
+              <Input
+                value={newSlug}
+                onChange={(e) => setNewSlug(e.target.value)}
+                className="bg-slate-800 border-slate-700 text-slate-100 font-mono"
+                placeholder="my-service"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-widest mb-2">Base URL</label>
+              <Input
+                value={newBaseUrl}
+                onChange={(e) => setNewBaseUrl(e.target.value)}
+                className="bg-slate-800 border-slate-700 text-slate-100 font-mono"
+                placeholder="http://my-service:8000"
+                type="url"
+              />
+            </div>
+
+            {newError && (
+              <p className="text-sm text-red-400">{newError}</p>
+            )}
+
+            <div className="flex items-center gap-3 pt-2">
+              <Button
+                onClick={createService}
+                disabled={newSaving}
+                variant="ghost"
+                className="flex-1 bg-cyan-500/20 border border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/30 hover:text-cyan-200"
+              >
+                {newSaving ? 'Creating…' : 'Create service'}
+              </Button>
+              <Button variant="outline" onClick={() => setNewSheetOpen(false)}>Cancel</Button>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* ------------------------------------------------------------------ */}
       {/* Edit Sheet                                                          */}
       {/* ------------------------------------------------------------------ */}
       <Sheet open={!!editService} onOpenChange={(open) => { if (!open) setEditService(null); }}>
-        <SheetContent side="right" className="w-full sm:max-w-md bg-slate-950 border-slate-700 text-slate-300">
-          <SheetHeader className="border-b border-slate-700/60 pb-3 mb-4">
-            <SheetTitle className="text-slate-100">Edit service</SheetTitle>
+        <SheetContent side="right" className="w-full sm:max-w-md bg-slate-950 border-slate-700 text-slate-300 p-6">
+          <SheetHeader className="border-b border-slate-700/60 pb-4 mb-6">
+            <SheetTitle className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'rgba(34,211,238,0.7)' }}>Edit service</SheetTitle>
           </SheetHeader>
 
-          <div className="space-y-4">
+          <div className="space-y-5">
             <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1">Name</label>
+              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-widest mb-2">Name</label>
               <Input
                 value={editName}
                 onChange={(e) => setEditName(e.target.value)}
@@ -798,7 +917,7 @@ export default function ServiceManagement({ token, activeRole }: Props) {
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1">Slug</label>
+              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-widest mb-2">Slug</label>
               <Input
                 value={editSlug}
                 onChange={(e) => setEditSlug(e.target.value)}
@@ -806,7 +925,7 @@ export default function ServiceManagement({ token, activeRole }: Props) {
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1">Base URL</label>
+              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-widest mb-2">Base URL</label>
               <Input
                 value={editBaseUrl}
                 onChange={(e) => setEditBaseUrl(e.target.value)}
@@ -819,8 +938,13 @@ export default function ServiceManagement({ token, activeRole }: Props) {
               <p className="text-sm text-red-400">{editError}</p>
             )}
 
-            <div className="flex items-center gap-2 pt-2">
-              <Button onClick={saveEdit} disabled={editSaving} className="flex-1">
+            <div className="flex items-center gap-3 pt-2">
+              <Button
+                onClick={saveEdit}
+                disabled={editSaving}
+                variant="ghost"
+                className="flex-1 bg-cyan-500/20 border border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/30 hover:text-cyan-200"
+              >
                 {editSaving ? 'Saving…' : 'Save changes'}
               </Button>
               <Button variant="outline" onClick={() => setEditService(null)}>Cancel</Button>

@@ -44,13 +44,14 @@ server {
         sub_filter         'http://localhost:8081' '';
         sub_filter         'http://127.0.0.1:8081' '';
         sub_filter         'http://localhost' '';
-        # Fix upstream Structurizr bug (issue #40): thumbnail export path calls
-        # convertDiagramToPNG({ metadata: true, crop: false }) without dimensions:true.
-        # exportCurrentDiagramToSVG only adds explicit SVG width/height attributes
-        # when options.dimensions is truthy. Without them Firefox renders the SVG image
-        # at the CSS default intrinsic size (300x150), drawing a tiny diagram onto the
-        # canvas, so thumbnails appear tiny in Firefox.
-        sub_filter         'convertDiagramToPNG({ metadata: true, crop: false }' 'convertDiagramToPNG({ metadata: true, crop: false, dimensions: true }';
+        # Fix upstream Structurizr bug (issue #40): convertDiagramToPNG passes the
+        # caller's options object to exportCurrentDiagramToSVG, which only adds
+        # explicit SVG width/height attributes when options.dimensions is truthy.
+        # Without them Firefox renders the SVG at the CSS default intrinsic size
+        # (300x150), so thumbnails and export-dialog PNG previews appear tiny.
+        # Injecting options.dimensions=true inside convertDiagramToPNG itself fixes
+        # all callers: exportCurrentThumbnailToPNG and the export dialog alike.
+        sub_filter         'const svg = self.exportCurrentDiagramToSVG(options);' 'options.dimensions = true; const svg = self.exportCurrentDiagramToSVG(options);';
         sub_filter_once    off;
         sub_filter_types   text/javascript application/javascript application/json text/html;
 

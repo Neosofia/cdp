@@ -10,7 +10,14 @@ import { Breadcrumb, BreadcrumbList, BreadcrumbItem, BreadcrumbLink, BreadcrumbP
 import { jwtDecode } from 'jwt-decode';
 import { ShieldCheckIcon as Shield, ChartBarIcon as Activity, ArrowRightOnRectangleIcon as LogOut, BuildingOfficeIcon as Building } from '@heroicons/react/24/outline';
 import ServiceManagement from '@/components/ServiceManagement';
-import logo from './assets/Neosofia.png';
+import Dashboard from '@/components/Dashboard';
+import PatientChat from '@/components/PatientChat';
+import PatientRecords from '@/components/PatientRecords';
+import ClinicianActivePatients from '@/components/ClinicianActivePatients';
+import { ACTIVE_PATIENT_SESSIONS } from '@/lib/clinicianDemoData';
+import SplashPage from '@/components/SplashPage';
+import StarField from '@/components/StarField';
+import { cn } from '@/lib/utils';
 
 // Auth base URL for browser navigations (login/logout redirects).
 // We use a cross-origin explicit URL for both local dev and production.
@@ -59,13 +66,50 @@ export default function App() {
   const [activeRole, setActiveRole] = useState<string>('');
   const [selectedSection, setSelectedSection] = useState<string>('');
   const [selectedAction, setSelectedAction] = useState<string | null>(null);
+  const [clinicianPatientId, setClinicianPatientId] = useState<string | null>(null);
+
+  const roleKey = activeRole.toLowerCase().replace(/_/g, '-');
+  const showPatientMenu = roleKey === 'patient';
+  const showClinicianMenu = roleKey === 'clinician';
 
   const placeholderTitle = 'Dashboard';
-  const pageTitle = selectedAction ?? (selectedSection || placeholderTitle);
+  const clinicianPatient = clinicianPatientId
+    ? ACTIVE_PATIENT_SESSIONS.find(p => p.patientId === clinicianPatientId)
+    : null;
+  const pageTitle =
+    clinicianPatient && selectedSection === 'Clinician'
+      ? `Patients — ${clinicianPatient.displayName}`
+      : (selectedAction ?? (selectedSection || placeholderTitle));
+  const pageSubtitle =
+    clinicianPatient && selectedSection === 'Clinician'
+      ? `${clinicianPatient.patientId} · ${clinicianPatient.surgery} · Day ${clinicianPatient.daysPostOp} post-op · Session ${clinicianPatient.sessionId}`
+      : null;
+
+  const goHome = () => {
+    setSelectedSection('');
+    setSelectedAction(null);
+    setClinicianPatientId(null);
+    setTestResult(null);
+  };
+
+  const navigateClinicianPatients = (patientId: string | null = null) => {
+    setSelectedSection('Clinician');
+    setSelectedAction('Patients');
+    setClinicianPatientId(patientId);
+    setTestResult(null);
+  };
+
+  const navigatePatient = (action: 'Start chat' | 'Review records') => {
+    setSelectedSection('Patient');
+    setSelectedAction(action);
+    setClinicianPatientId(null);
+    setTestResult(null);
+  };
 
   const handleMenuAction = (section: string, action: string, callback: () => void) => {
     setSelectedSection(section);
     setSelectedAction(action);
+    if (section !== 'Clinician') setClinicianPatientId(null);
     callback();
   };
 
@@ -230,6 +274,18 @@ export default function App() {
     };
   }, [tokenInfo, fetchSessionData]);
 
+  useEffect(() => {
+    if (showPatientMenu && selectedSection === 'Clinician') {
+      setSelectedSection('');
+      setSelectedAction(null);
+      setClinicianPatientId(null);
+    }
+    if (showClinicianMenu && selectedSection === 'Patient') {
+      setSelectedSection('');
+      setSelectedAction(null);
+    }
+  }, [showPatientMenu, showClinicianMenu, selectedSection]);
+
   const handleLogout = async () => {
     // Clear the UI state immediately, then redirect browser to auth-service logout.
     setTokenInfo(null);
@@ -237,6 +293,7 @@ export default function App() {
     setActiveRole('');
     setSelectedSection('');
     setSelectedAction(null);
+    setClinicianPatientId(null);
     setTestResult(null);
     localStorage.removeItem(LOCAL_AUTH_KEY);
     localStorage.setItem(LOGOUT_FLAG, '1');
@@ -277,72 +334,111 @@ export default function App() {
 
   const initials = `${profile?.first_name?.charAt(0) || ''}${profile?.last_name?.charAt(0) || ''}`.toUpperCase();
 
+  if (!tokenInfo && !initializing) {
+    return <SplashPage />;
+  }
+
+  const fillViewport =
+    (selectedSection === 'Patient' &&
+      (selectedAction === 'Start chat' || selectedAction === 'Review records')) ||
+    (selectedSection === 'Clinician' && selectedAction === 'Patients');
+
   return (
-    <div className="min-h-screen bg-slate-900 flex flex-col font-sans">
-      <header className="fixed top-0 z-50 w-full bg-slate-950/90 backdrop-blur-lg border-b border-white/10 shadow-lg">
+    <div className="h-screen flex flex-col overflow-hidden font-sans relative" style={{ background: '#05050f' }}>
+      {/* Persistent star background */}
+      <div className="fixed inset-0 pointer-events-none z-0">
+        <StarField />
+        <div
+          className="absolute inset-0"
+          style={{ background: 'radial-gradient(ellipse 100% 50% at 50% 0%, rgba(124,58,237,0.12) 0%, rgba(6,182,212,0.05) 50%, transparent 80%)' }}
+        />
+      </div>
+
+      <header
+        className="fixed top-0 z-50 w-full backdrop-blur-lg"
+        style={{ background: 'rgba(5,5,15,0.92)', borderBottom: '1px solid rgba(34,211,238,0.12)' }}
+      >
         <div className="flex h-16 items-center px-4 md:px-6 justify-between max-w-7xl mx-auto">
-          {/* Logo and Brand */}
-          <div className="flex items-center gap-6">
-            <img src={logo} alt="Neosofia Logo" className="h-8 md:h-9 object-contain" />
+          {/* SPAWN 2 Branding */}
+          <div className="flex items-center gap-3">
+            <span
+              className="text-xl font-black tracking-wider uppercase"
+              style={{
+                fontFamily: "'Orbitron', monospace",
+                background: 'linear-gradient(135deg, #22d3ee 0%, #a855f7 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+              }}
+            >
+              SPAWN
+            </span>
+            <span className="text-sm font-semibold text-slate-400 tracking-widest uppercase border border-slate-600 rounded px-1.5 py-0.5">
+              2
+            </span>
           </div>
 
           <div className="flex items-center gap-3 justify-end">
             <NavigationMenu className="hidden md:flex" viewport={false}>
               <NavigationMenuList className="gap-1">
                 {entitlements['ui:menu:debug'] && (<NavigationMenuItem>
-                  <NavigationMenuTrigger className="bg-transparent text-slate-300 hover:text-white data-open:text-white">
+                  <NavigationMenuTrigger className="bg-transparent text-slate-400 hover:text-cyan-300 data-open:text-cyan-300 text-sm font-semibold tracking-wide uppercase">
                     Debug
                   </NavigationMenuTrigger>
-                  <NavigationMenuContent className="min-w-65 rounded-2xl border border-white/10 bg-slate-950 text-slate-300 p-2 shadow-2xl shadow-black/40">
+                  <NavigationMenuContent className="min-w-65 rounded-2xl p-2 shadow-2xl" style={{ background: '#05050f', border: '1px solid rgba(34,211,238,0.18)', boxShadow: '0 0 40px rgba(34,211,238,0.08)' }}>
                     <div className="space-y-1">
-                      <Button onClick={openDebugTestPage} variant="ghost" className="w-full justify-start rounded-xl px-3 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-white">Test API endpoints</Button>
+                      <Button onClick={openDebugTestPage} variant="ghost" className="w-full justify-start rounded-xl px-3 py-2 text-sm text-slate-400 hover:bg-cyan-500/10 hover:text-cyan-300">Test API endpoints</Button>
                     </div>
                   </NavigationMenuContent>
                 </NavigationMenuItem>)}
                 {entitlements['ui:menu:admin'] && (<NavigationMenuItem>
-                  <NavigationMenuTrigger className="bg-transparent text-slate-300 hover:text-white data-open:text-white">
+                  <NavigationMenuTrigger className="bg-transparent text-slate-400 hover:text-cyan-300 data-open:text-cyan-300 text-sm font-semibold tracking-wide uppercase">
                     Admin
                   </NavigationMenuTrigger>
-                  <NavigationMenuContent className="min-w-48 rounded-2xl border border-white/10 bg-slate-950 text-slate-300 p-2 shadow-2xl shadow-black/40">
+                  <NavigationMenuContent className="min-w-48 rounded-2xl p-2 shadow-2xl" style={{ background: '#05050f', border: '1px solid rgba(34,211,238,0.18)', boxShadow: '0 0 40px rgba(34,211,238,0.08)' }}>
                     <div className="space-y-1">
-                      <Button onClick={() => handleMenuAction('Admin', 'Services', () => {})} variant="ghost" className="w-full justify-start rounded-xl px-3 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-white">Services</Button>
+                      <Button onClick={() => handleMenuAction('Admin', 'Services', () => {})} variant="ghost" className="w-full justify-start rounded-xl px-3 py-2 text-sm text-slate-400 hover:bg-cyan-500/10 hover:text-cyan-300">Services</Button>
                     </div>
                   </NavigationMenuContent>
                 </NavigationMenuItem>)}
+                {showPatientMenu && (
                 <NavigationMenuItem>
-                  <NavigationMenuTrigger className="bg-transparent text-slate-300 hover:text-white data-open:text-white">
+                  <NavigationMenuTrigger className="bg-transparent text-slate-400 hover:text-cyan-300 data-open:text-cyan-300 text-sm font-semibold tracking-wide uppercase">
                     Patient
                   </NavigationMenuTrigger>
-                  <NavigationMenuContent className="min-w-65 rounded-2xl border border-white/10 bg-slate-950 text-slate-300 p-2 shadow-2xl shadow-black/40">
+                  <NavigationMenuContent className="min-w-65 rounded-2xl p-2 shadow-2xl" style={{ background: '#05050f', border: '1px solid rgba(34,211,238,0.18)', boxShadow: '0 0 40px rgba(34,211,238,0.08)' }}>
                     <div className="space-y-1">
-                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider px-3 py-2">Patient actions</p>
-                      <Button onClick={() => handleMenuAction('Patient', 'Start chat', () => setTestResult({ api: 'Patient: Start chat', data: 'Not implemented yet', status: 200 }))} variant="ghost" className="w-full justify-start rounded-xl px-3 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-white">Start chat</Button>
-                      <Button onClick={() => handleMenuAction('Patient', 'Review records', () => setTestResult({ api: 'Patient: Review records', data: 'Not implemented yet', status: 200 }))} variant="ghost" className="w-full justify-start rounded-xl px-3 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-white">Review records</Button>
+                      <p className="text-xs font-semibold uppercase tracking-widest px-3 py-2" style={{ color: 'rgba(34,211,238,0.5)' }}>Patient actions</p>
+                      <Button onClick={() => handleMenuAction('Patient', 'Start chat', () => setTestResult(null))} variant="ghost" className="w-full justify-start rounded-xl px-3 py-2 text-sm text-slate-400 hover:bg-cyan-500/10 hover:text-cyan-300">Start chat</Button>
+                      <Button onClick={() => handleMenuAction('Patient', 'Review records', () => setTestResult(null))} variant="ghost" className="w-full justify-start rounded-xl px-3 py-2 text-sm text-slate-400 hover:bg-cyan-500/10 hover:text-cyan-300">Review records</Button>
                     </div>
                   </NavigationMenuContent>
                 </NavigationMenuItem>
+                )}
+                {showClinicianMenu && (
                 <NavigationMenuItem>
-                  <NavigationMenuTrigger className="bg-transparent text-slate-300 hover:text-white data-open:text-white">
+                  <NavigationMenuTrigger className="bg-transparent text-slate-400 hover:text-cyan-300 data-open:text-cyan-300 text-sm font-semibold tracking-wide uppercase">
                     Clinician
                   </NavigationMenuTrigger>
-                  <NavigationMenuContent className="min-w-65 rounded-2xl border border-white/10 bg-slate-950 text-slate-300 p-2 shadow-2xl shadow-black/40">
+                  <NavigationMenuContent className="min-w-65 rounded-2xl p-2 shadow-2xl" style={{ background: '#05050f', border: '1px solid rgba(34,211,238,0.18)', boxShadow: '0 0 40px rgba(34,211,238,0.08)' }}>
                     <div className="space-y-1">
-                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider px-3 py-2">Clinician actions</p>
-                      <Button onClick={() => handleMenuAction('Clinician', 'Active patients', () => setTestResult({ api: 'Clinician: Active patients', data: 'Not implemented yet', status: 200 }))} variant="ghost" className="w-full justify-start rounded-xl px-3 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-white">Active patients</Button>
-                      <Button onClick={() => handleMenuAction('Clinician', 'Open chat session', () => setTestResult({ api: 'Clinician: Open chat session', data: 'Not implemented yet', status: 200 }))} variant="ghost" className="w-full justify-start rounded-xl px-3 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-white">Open chat</Button>
-                      <Button onClick={() => handleMenuAction('Clinician', 'View patient records', () => setTestResult({ api: 'Clinician: View patient records', data: 'Not implemented yet', status: 200 }))} variant="ghost" className="w-full justify-start rounded-xl px-3 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-white">View records</Button>
+                      <Button onClick={() => handleMenuAction('Clinician', 'Patients', () => { setTestResult(null); setClinicianPatientId(null); })} variant="ghost" className="w-full justify-start rounded-xl px-3 py-2 text-sm text-slate-400 hover:bg-cyan-500/10 hover:text-cyan-300">Patients</Button>
                     </div>
                   </NavigationMenuContent>
                 </NavigationMenuItem>
+                )}
               </NavigationMenuList>
             </NavigationMenu>
 
             <div className="shrink-0 min-w-44">
               {profile ? (
                 <DropdownMenu>
-                <DropdownMenuTrigger className="flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-white/5 transition-colors">
+                <DropdownMenuTrigger className="flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-cyan-500/5 transition-colors">
                     <Avatar className="h-8 w-8">
-                      <AvatarFallback className="bg-[#0D4884] text-white font-semibold text-xs">
+                      <AvatarFallback
+                        className="text-white font-bold text-xs"
+                        style={{ background: 'linear-gradient(135deg, #22d3ee, #a855f7)' }}
+                      >
                         {initials}
                       </AvatarFallback>
                     </Avatar>
@@ -350,12 +446,12 @@ export default function App() {
                       <span className="text-sm font-semibold text-white leading-none">
                         {profile.first_name} {profile.last_name}
                       </span>
-                      <span className="text-[11px] text-slate-400 leading-none">
+                      <span className="text-[11px] leading-none" style={{ color: 'rgba(34,211,238,0.6)' }}>
                         {profile.organization_name}
                       </span>
                     </div>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-64 mt-1 bg-slate-950 border border-white/10 text-slate-300 shadow-2xl shadow-black/40 rounded-2xl" align="end">
+                <DropdownMenuContent className="w-64 mt-1 text-slate-300 rounded-2xl" style={{ background: '#05050f', border: '1px solid rgba(34,211,238,0.18)', boxShadow: '0 0 60px rgba(168,85,247,0.15), 0 20px 40px rgba(0,0,0,0.6)' }} align="end">
                   {/* Identity */}
                   <DropdownMenuGroup>
                     <DropdownMenuLabel className="font-normal flex flex-col space-y-1 p-2">
@@ -365,22 +461,22 @@ export default function App() {
                     </DropdownMenuLabel>
                   </DropdownMenuGroup>
 
-                  <DropdownMenuSeparator className="bg-white/10" />
+                  <DropdownMenuSeparator style={{ background: 'rgba(34,211,238,0.12)' }} />
 
                   {/* Organization */}
                   <div className="px-3 py-2 flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 text-xs text-slate-400">
+                    <div className="flex items-center gap-1.5 text-xs text-slate-500">
                       <Building className="h-3.5 w-3.5" />
                       <span>Organization</span>
                     </div>
-                    <span className="text-xs text-slate-300 truncate max-w-30">{profile.organization_name}</span>
+                    <span className="text-xs truncate max-w-30" style={{ color: 'rgba(34,211,238,0.8)' }}>{profile.organization_name}</span>
                   </div>
 
-                  <DropdownMenuSeparator className="bg-white/10" />
+                  <DropdownMenuSeparator style={{ background: 'rgba(34,211,238,0.12)' }} />
 
                   {/* Role picker */}
                   <DropdownMenuGroup>
-                    <DropdownMenuLabel className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                    <DropdownMenuLabel className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'rgba(34,211,238,0.45)' }}>
                       Choose active role
                     </DropdownMenuLabel>
                     <div className="space-y-1 px-1.5 pb-1">
@@ -390,15 +486,15 @@ export default function App() {
                           <DropdownMenuItem
                             key={role}
                             onClick={() => setActiveRole(role)}
-                            className={`flex items-center justify-between cursor-pointer rounded-lg px-2 py-2 text-sm text-slate-300 hover:text-white hover:bg-white/5 ${selected ? 'bg-white/5 text-white' : ''}`}
+                            className={`flex items-center justify-between cursor-pointer rounded-lg px-2 py-2 text-sm hover:bg-cyan-500/10 hover:text-cyan-300 ${selected ? 'text-cyan-300' : 'text-slate-400'}`}
                           >
                             <span className="flex items-center gap-2">
-                              <Shield className="h-4 w-4 text-slate-500" />
+                              <Shield className="h-4 w-4" style={{ color: selected ? '#22d3ee' : undefined }} />
                               <span className="capitalize">{role.replace(/-/g, ' ')}</span>
                             </span>
                             {selected ? (
-                              <Badge variant="outline" className="text-[10px] text-slate-400">
-                                Selected
+                              <Badge variant="outline" className="text-[10px]" style={{ borderColor: 'rgba(34,211,238,0.4)', color: '#22d3ee' }}>
+                                Active
                               </Badge>
                             ) : null}
                           </DropdownMenuItem>
@@ -407,32 +503,41 @@ export default function App() {
                     </div>
                   </DropdownMenuGroup>
 
-                  <DropdownMenuSeparator className="bg-white/10" />
-                  <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-red-400 hover:text-red-300 hover:bg-red-950/50 rounded-lg">
+                  <DropdownMenuSeparator style={{ background: 'rgba(34,211,238,0.12)' }} />
+                  <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-red-400 hover:text-red-300 hover:bg-red-950/30 rounded-lg">
                     <LogOut className="mr-2 h-4 w-4" />
                     <span>Log out</span>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : initializing ? (
-              <div className="h-10 w-full rounded-lg bg-white/10" />
+              <div className="h-10 w-full rounded-lg" style={{ background: 'rgba(34,211,238,0.08)' }} />
             ) : (
-              <Button asChild variant="default" className="shrink-0 w-full bg-[#9B0303] hover:bg-[#7a0202] text-white border-transparent">
-                <a href={`${AUTH_BASE}/login`}>Log in</a>
-              </Button>
+              <a
+                href={`${AUTH_BASE}/login`}
+                className="inline-flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-bold uppercase tracking-wider text-white transition-all hover:scale-105"
+                style={{ background: 'linear-gradient(135deg, #22d3ee 0%, #a855f7 100%)', boxShadow: '0 0 20px rgba(168,85,247,0.4)' }}
+              >
+                ⚡ Login
+              </a>
             )}
             </div>
           </div>
         </div>
       </header>
 
-      <main className="flex-1 max-w-7xl mx-auto w-full px-4 md:px-8 pb-8 pt-20">
-        <div className="mb-6">
+      <main
+        className={cn(
+          'relative z-10 flex-1 min-h-0 flex flex-col max-w-7xl mx-auto w-full px-4 md:px-8 pt-20',
+          fillViewport ? 'overflow-hidden pb-4' : 'overflow-y-auto pb-8',
+        )}
+      >
+        <div className={cn('shrink-0', fillViewport ? 'mb-4' : 'mb-6')}>
           {Boolean(selectedSection || selectedAction) && (
             <Breadcrumb className="pt-1 pb-2 mb-2">
               <BreadcrumbList>
                 <BreadcrumbItem>
-                  <BreadcrumbLink href="/">Home</BreadcrumbLink>
+                  <BreadcrumbLink href="/" onClick={e => { e.preventDefault(); goHome(); }} className="text-slate-500 hover:text-cyan-400">Home</BreadcrumbLink>
                 </BreadcrumbItem>
                 {selectedSection && (
                   <>
@@ -450,75 +555,112 @@ export default function App() {
                     </BreadcrumbItem>
                   </>
                 )}
+                {clinicianPatientId && selectedSection === 'Clinician' && (
+                  <>
+                    <BreadcrumbSeparator />
+                    <BreadcrumbItem>
+                      <BreadcrumbPage className="font-mono">{clinicianPatientId}</BreadcrumbPage>
+                    </BreadcrumbItem>
+                  </>
+                )}
               </BreadcrumbList>
             </Breadcrumb>
           )}
 
-          <h1 className="text-3xl tracking-tight font-bold mb-2 text-slate-100">{pageTitle}</h1>
+          <h1
+            className="text-3xl font-black uppercase tracking-wide mb-2"
+            style={{
+              fontFamily: "'Orbitron', monospace",
+              background: 'linear-gradient(135deg, #22d3ee 10%, #818cf8 55%, #a855f7 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text',
+              filter: 'drop-shadow(0 0 20px rgba(34,211,238,0.3))',
+            }}
+          >{pageTitle}</h1>
+          {pageSubtitle && (
+            <p className="text-sm text-slate-400 mt-1 font-mono">{pageSubtitle}</p>
+          )}
         </div>
 
-        {!tokenInfo && (
-          <div className="grid gap-6">
-            <Card className="col-span-2 gap-0 py-0">
-              <CardContent className="p-6">
-                <p className="text-sm text-muted-foreground">Sign in to access patient records, clinical workflows, and administrative tools.</p>
-              </CardContent>
-            </Card>
-          </div>
-        )}
         {tokenInfo && (
-          <div className="grid gap-6 md:grid-cols-2">
+          <div
+            className={cn(
+              fillViewport
+                ? 'flex-1 min-h-0 overflow-hidden flex flex-col'
+                : 'grid gap-6 md:grid-cols-2',
+            )}
+          >
             {selectedSection === 'Admin' && selectedAction === 'Services' ? (
               <div className="col-span-2">
                 <ServiceManagement token={tokenInfo.raw} activeRole={activeRole} />
               </div>
-            ) : (
-            <Card className="border-border shadow-sm col-span-2 gap-0 py-0">
-              <CardHeader className="bg-slate-800/60 border-b border-slate-700/60 py-4">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Activity className="h-5 w-5 text-slate-400" />
-                  {selectedSection === 'Debug' && selectedAction === 'Test API endpoints'
-                    ? 'Debug API Endpoints'
-                    : 'Development Dashboard'}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-6">
-                {selectedSection === 'Debug' ? (
-                  <>
-                    <div className="mb-6 rounded-lg border border-slate-700/60 bg-slate-800/60 p-4">
-                      <p className="text-sm text-slate-300 font-medium mb-2">Use these buttons to verify your session, JWT, and role handling via the auth API.</p>
+            ) : selectedSection === 'Patient' && selectedAction === 'Start chat' ? (
+              <PatientChat
+                token={tokenInfo.raw}
+                activeRole={activeRole}
+                patientName={profile ? `${profile.first_name} ${profile.last_name}` : undefined}
+              />
+            ) : selectedSection === 'Patient' && selectedAction === 'Review records' ? (
+              <PatientRecords />
+            ) : selectedSection === 'Clinician' && selectedAction === 'Patients' ? (
+              <ClinicianActivePatients
+                selectedPatientId={clinicianPatientId}
+                onSelectPatient={setClinicianPatientId}
+              />
+            ) : selectedSection === 'Debug' ? (
+              <div className="col-span-2">
+                <Card
+                  className="gap-0 py-0"
+                  style={{ background: 'rgba(5,5,15,0.7)', border: '1px solid rgba(34,211,238,0.18)', boxShadow: '0 0 40px rgba(34,211,238,0.05)' }}
+                >
+                  <CardHeader
+                    className="py-4"
+                    style={{ borderBottom: '1px solid rgba(34,211,238,0.12)', background: 'rgba(34,211,238,0.03)' }}
+                  >
+                    <CardTitle className="text-lg flex items-center gap-2" style={{ color: '#22d3ee' }}>
+                      <Activity className="h-5 w-5" style={{ color: '#22d3ee' }} />
+                      Debug API Endpoints
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-6">
+                    <div className="mb-6 rounded-lg p-4" style={{ border: '1px solid rgba(34,211,238,0.15)', background: 'rgba(34,211,238,0.04)' }}>
+                      <p className="text-sm font-medium" style={{ color: 'rgba(34,211,238,0.8)' }}>Use these buttons to verify your session, JWT, and role handling via the auth API.</p>
                     </div>
-
                     <div className="mb-6 grid gap-3 md:grid-cols-3">
-                      <Button onClick={() => runDebugTest('Profile', `${AUTH_API}/api/profile`)} variant="outline" size="lg" className="w-full border-slate-600 bg-slate-800 text-slate-100 hover:bg-slate-700 hover:text-white">Profile</Button>
+                      <Button onClick={() => runDebugTest('Profile', `${AUTH_API}/api/profile`)} variant="outline" size="lg" className="w-full text-cyan-300 hover:text-white" style={{ borderColor: 'rgba(34,211,238,0.3)', background: 'rgba(34,211,238,0.05)' }}>Profile</Button>
                       {!IS_PROD && (
-                        <Button onClick={() => runDebugTest('Token Inspect', `${AUTH_API}/api/token-inspect`)} variant="outline" size="lg" className="w-full border-slate-600 bg-slate-800 text-slate-100 hover:bg-slate-700 hover:text-white">Token Inspect</Button>
+                        <Button onClick={() => runDebugTest('Token Inspect', `${AUTH_API}/api/token-inspect`)} variant="outline" size="lg" className="w-full text-cyan-300 hover:text-white" style={{ borderColor: 'rgba(34,211,238,0.3)', background: 'rgba(34,211,238,0.05)' }}>Token Inspect</Button>
                       )}
-                      <Button onClick={() => runDebugTest('Documents /d1', `${TEMPLATE_API}/api/v1/documents/d1`)} variant="outline" size="lg" className="w-full border-slate-600 bg-slate-800 text-slate-100 hover:bg-slate-700 hover:text-white">Documents /d1</Button>
+                      <Button onClick={() => runDebugTest('Documents /d1', `${TEMPLATE_API}/api/v1/documents/d1`)} variant="outline" size="lg" className="w-full text-cyan-300 hover:text-white" style={{ borderColor: 'rgba(34,211,238,0.3)', background: 'rgba(34,211,238,0.05)' }}>Documents /d1</Button>
                     </div>
-                  </>
-                ) : (
-                  <div className="mb-6 rounded-lg border border-slate-700/60 bg-slate-800/60 p-4">
-                    <p className="text-sm text-slate-300 font-medium mb-2">Select an action from the menu to continue.</p>
-                  </div>
-                )}
-
-                {testResult && (
-                  <div className="rounded-lg border border-slate-700/60 overflow-hidden">
-                    <div className="flex items-center px-4 py-2 border-b border-slate-700/60 bg-slate-800/60">
-                      <Badge variant={testResult.status === 200 ? 'default' : 'destructive'} 
-                             className={testResult.status === 200 ? 'bg-green-600 hover:bg-green-700' : ''}>
-                        HTTP {testResult.status}
-                      </Badge>
-                      <span className="ml-3 font-mono text-sm text-slate-400">{testResult.api}</span>
-                    </div>
-                    <pre className="p-4 text-xs font-mono overflow-auto max-h-75 text-slate-300 bg-slate-900/60">
-                      {JSON.stringify(testResult.data, null, 2)}
-                    </pre>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                    {testResult && (
+                      <div className="rounded-lg overflow-hidden" style={{ border: '1px solid rgba(34,211,238,0.18)' }}>
+                        <div className="flex items-center px-4 py-2" style={{ borderBottom: '1px solid rgba(34,211,238,0.12)', background: 'rgba(34,211,238,0.05)' }}>
+                          <Badge variant={testResult.status === 200 ? 'default' : 'destructive'}
+                                 className={testResult.status === 200 ? 'bg-green-600 hover:bg-green-700' : ''}>
+                            HTTP {testResult.status}
+                          </Badge>
+                          <span className="ml-3 font-mono text-sm" style={{ color: 'rgba(34,211,238,0.6)' }}>{testResult.api}</span>
+                        </div>
+                        <pre className="p-4 text-xs font-mono overflow-auto max-h-75 text-slate-300" style={{ background: 'rgba(5,5,15,0.8)' }}>
+                          {JSON.stringify(testResult.data, null, 2)}
+                        </pre>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            ) : (
+              <div className="col-span-2">
+                <Dashboard
+                  activeRole={activeRole}
+                  firstName={profile?.first_name}
+                  onPatientStartChat={() => navigatePatient('Start chat')}
+                  onPatientReviewRecords={() => navigatePatient('Review records')}
+                  onClinicianOpenPatients={navigateClinicianPatients}
+                />
+              </div>
             )}
 
           </div>
