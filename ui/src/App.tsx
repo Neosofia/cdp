@@ -48,7 +48,7 @@ interface UserProfile {
   first_name: string;
   last_name: string;
   email: string;
-  organization_name: string;
+  tenant_name: string;
   roles: string[];
 }
 
@@ -70,9 +70,8 @@ export default function App() {
   const [selectedAction, setSelectedAction] = useState<string | null>(null);
   const [clinicianPatientId, setClinicianPatientId] = useState<string | null>(null);
 
-  const roleKey = activeRole.toLowerCase().replace(/_/g, '-');
-  const showPatientMenu = roleKey === 'patient';
-  const showClinicianMenu = roleKey === 'clinician';
+  const showPatientMenu = entitlements['ui:menu:patient'];
+  const showClinicianMenu = entitlements['ui:menu:clinician'];
 
   const placeholderTitle = 'Dashboard';
   const clinicianPatient = clinicianPatientId
@@ -242,7 +241,7 @@ export default function App() {
         return;
       }
       try {
-        const res = await fetch(`${CAPABILITIES_API}/api/v1/capabilities`, {
+        const res = await fetch(`${CAPABILITIES_API}/api/v1/capabilities/ui`, {
           headers: {
             'Authorization': `Bearer ${tokenInfo.raw}`,
             'X-Active-Role': activeRole,
@@ -290,12 +289,12 @@ export default function App() {
   }, [tokenInfo, fetchSessionData]);
 
   useEffect(() => {
-    if (showPatientMenu && selectedSection === 'Clinician') {
+    if (!showPatientMenu && selectedSection === 'Patient') {
       setSelectedSection('');
       setSelectedAction(null);
       setClinicianPatientId(null);
     }
-    if (showClinicianMenu && selectedSection === 'Patient') {
+    if (!showClinicianMenu && selectedSection === 'Clinician') {
       setSelectedSection('');
       setSelectedAction(null);
     }
@@ -472,7 +471,7 @@ export default function App() {
                         {profile.first_name} {profile.last_name}
                       </span>
                       <span className="text-[11px] leading-none" style={{ color: 'rgba(34,211,238,0.6)' }}>
-                        {profile.organization_name}
+                        {profile.tenant_name}
                       </span>
                     </div>
                 </DropdownMenuTrigger>
@@ -494,7 +493,7 @@ export default function App() {
                       <Building className="h-3.5 w-3.5" />
                       <span>Organization</span>
                     </div>
-                    <span className="text-xs truncate max-w-30" style={{ color: 'rgba(34,211,238,0.8)' }}>{profile.organization_name}</span>
+                    <span className="text-xs truncate max-w-30" style={{ color: 'rgba(34,211,238,0.8)' }}>{profile.tenant_name}</span>
                   </div>
 
                   <DropdownMenuSeparator style={{ background: 'rgba(34,211,238,0.12)' }} />

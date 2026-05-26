@@ -1,0 +1,28 @@
+{
+  "namespaces": {
+    "ui": {
+      "entitlements": [
+        {
+          "key": "ui:menu:admin",
+          "resource": "ui::Menu::\"admin\"",
+          "action": "View"
+        },
+        {
+          "key": "ui:menu:debug",
+          "resource": "ui::Menu::\"debug\"",
+          "action": "View"
+        },
+        {
+          "key": "ui:menu:patient",
+          "resource": "ui::Menu::\"patient\"",
+          "action": "View"
+        },
+        {
+          "key": "ui:menu:clinician",
+          "resource": "ui::Menu::\"clinician\"",
+          "action": "View"
+        }
+      ]
+    }
+  }
+}

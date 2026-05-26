@@ -32,6 +32,23 @@ After generation, fill in these required values manually in `.authentication.env
 - `WORKOS_CLIENT_ID`
 - `WORKOS_API_KEY`
 
+## UI policy bundle (capabilities)
+
+CDP owns the UI entitlement policy bundle in `policies/`. The capabilities service loads this bundle at runtime from `/app/policies`; it ships no product-specific Cedar rules in its own repository.
+
+**Production (sql-template pattern):**
+
+1. CDP publishes a policy-only image: `ghcr.io/neosofia/cdp-ui-policies:vX.Y.Z`  
+   Tag: `cdp-ui-policies/vX.Y.Z` → triggers `.github/workflows/cdp-ui-policies-build-push.yml`
+2. Capabilities builds with `POLICY_IMAGE` pointing at that tag (`COPY --from` into `/app/policies`).
+3. Bump `POLICY_IMAGE` / redeploy capabilities when the policy bundle version changes.
+
+**Local development:** volume-mount `cdp/policies/` over `/app/policies` (see `docker-compose.dev.yml`). No policy image required.
+
+The bundle includes `entitlements.json`, `schema.cedar.json`, and `*.cedar` files. The UI calls `GET /api/v1/capabilities/ui`.
+
+See [ADR 0012: UI Capabilities Control Plane](architecture/adrs/0012-ui-capabilities-control-plane.md).
+
 
 ## UI Service local dev
 

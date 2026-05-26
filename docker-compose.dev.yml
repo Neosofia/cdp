@@ -1,4 +1,4 @@
-x-auth-image: &auth_image ghcr.io/neosofia/authentication:v0.25.0
+x-auth-image: &auth_image ghcr.io/neosofia/authentication:v0.26.0
 
 services:
   authentication:
@@ -46,6 +46,10 @@ services:
     container_name: cdp-capabilities
     env_file:
       - ./.capabilities.env
+    environment:
+      CAPABILITIES_POLICIES_DIR: policies
+    volumes:
+      - ./policies:/app/policies:ro
     ports:
       - "8019:8019"
     healthcheck:

@@ -1,0 +1,32 @@
+{
+  "ui": {
+    "entityTypes": {
+      "User": {
+        "shape": {
+          "type": "Record",
+          "attributes": {
+            "roles": { "type": "Set", "element": { "type": "String" }, "required": true }
+          }
+        }
+      },
+      "Menu": {
+        "shape": {
+          "type": "Record",
+          "attributes": {}
+        }
+      }
+    },
+    "actions": {
+      "View": {
+        "appliesTo": {
+          "principalTypes": ["User"],
+          "resourceTypes": ["Menu"],
+          "context": {
+            "type": "Record",
+            "attributes": {}
+          }
+        }
+      }
+    }
+  }
+}

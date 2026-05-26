@@ -1,0 +1,35 @@
+# Build and push the CDP UI policy bundle image to GHCR.
+#
+# Triggered by:
+#   - Push of a SemVer tag (cdp-ui-policies/vMAJOR.MINOR.PATCH)
+#   - Manual dispatch
+#
+# Produces:
+#   ghcr.io/neosofia/cdp-ui-policies:<git-sha>
+#   ghcr.io/neosofia/cdp-ui-policies:vMAJOR.MINOR.PATCH
+#
+# Tagging convention: cdp-ui-policies/vMAJOR.MINOR.PATCH
+#   git tag -a cdp-ui-policies/v0.1.0 -m "cdp ui policies v0.1.0" && git push origin cdp-ui-policies/v0.1.0
+
+name: cdp-ui-policies-build-push
+
+on:
+  push:
+    tags:
+      - 'cdp-ui-policies/*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-push:
+    name: Build & Push to GHCR
+    uses: Neosofia/platform-workflows/.github/workflows/_build-push.yml@main
+    with:
+      image_name: ghcr.io/${{ github.repository_owner }}/cdp-ui-policies
+      context: policies
+      file: policies/Dockerfile
+      tag_prefix: cdp-ui-policies
+      cache_scope: cdp-ui-policies
