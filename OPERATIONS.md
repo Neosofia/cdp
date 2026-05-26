@@ -39,12 +39,11 @@ CDP owns the UI entitlement policy bundle in `policies/`. The capabilities servi
 **Production (sql-template pattern):**
 
 1. CDP publishes a policy-only image: `ghcr.io/neosofia/cdp-ui-policies:vX.Y.Z`  
-   Tag: `cdp-ui-policies/vX.Y.Z` → triggers `.github/workflows/cdp-ui-policies-build-push.yml`  
-   (sets GHCR visibility to **internal** so org workflows such as capabilities can pull the image, matching `sql-template`)
+   Tag: `cdp-ui-policies/vX.Y.Z` → triggers `.github/workflows/cdp-ui-policies-build-push.yml`
 2. Capabilities Dockerfile pins that tag (`COPY --from=ghcr.io/neosofia/cdp-ui-policies:vX.Y.Z`).
 3. Bump the pinned tag / redeploy capabilities when the policy bundle version changes.
 
-If downstream CI still gets GHCR 403, open the package settings for `cdp-ui-policies` and add the consuming repository under **Manage Actions access** (one-time, same as was done for `sql-template` → authentication).
+**One-time GHCR setup (same as `sql-template` → authentication):** after the first publish, open the [`cdp-ui-policies` package settings](https://github.com/orgs/Neosofia/packages/container/cdp-ui-policies/settings) and add the `capabilities` repository under **Manage Actions access → Add repository**.
 
 **Local development:** volume-mount `cdp/policies/` over `/app/policies` (see `docker-compose.dev.yml`). No policy image required.
 
