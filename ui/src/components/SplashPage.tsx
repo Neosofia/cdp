@@ -1,6 +1,5 @@
 import StarField from '@/components/StarField';
-
-const AUTH_BASE = import.meta.env.VITE_AUTH_BASE_URL ?? 'http://localhost:8014';
+import { beginLogin } from '@/lib/auth';
 
 const TICKER_ITEMS = [
   '◆ PHASE III COMPLETE',
@@ -76,7 +75,11 @@ export default function SplashPage() {
         </div>
 
         <a
-          href={`${AUTH_BASE}/login`}
+          href="#"
+          onClick={(e) => {
+            e.preventDefault();
+            beginLogin();
+          }}
           className="relative group inline-flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-bold uppercase tracking-wider text-white transition-all duration-200 hover:scale-105"
           style={{
             background: 'linear-gradient(135deg, #22d3ee 0%, #a855f7 100%)',
@@ -157,7 +160,11 @@ export default function SplashPage() {
         {/* CTA */}
         <div className="mt-12 flex flex-col sm:flex-row items-center gap-4">
           <a
-            href={`${AUTH_BASE}/login`}
+            href="#"
+            onClick={(e) => {
+              e.preventDefault();
+              beginLogin();
+            }}
             className="inline-flex items-center gap-2 px-8 py-4 rounded-xl text-base font-black uppercase tracking-wider text-white transition-all duration-200 hover:scale-105 hover:brightness-110"
             style={{
               background: 'linear-gradient(135deg, #22d3ee 0%, #a855f7 100%)',

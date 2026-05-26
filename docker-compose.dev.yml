@@ -1,4 +1,4 @@
-x-auth-image: &auth_image ghcr.io/neosofia/authentication:v0.24.0
+x-auth-image: &auth_image ghcr.io/neosofia/authentication:v0.25.0
 
 services:
   authentication:
@@ -19,10 +19,7 @@ services:
       start_period: 15s
 
   authentication-bootstrap:
-    build:
-      context: ../authentication
-      dockerfile: Dockerfile
-    image: authentication:local
+    image: *auth_image
     container_name: cdp-authentication-bootstrap
     profiles:
       - manual

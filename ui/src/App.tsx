@@ -19,17 +19,20 @@ import SplashPage from '@/components/SplashPage';
 import BrandBackground from '@/components/BrandBackground';
 import StarField from '@/components/StarField';
 import { cn } from '@/lib/utils';
+import {
+  AUTH_BASE,
+  LOGOUT_FLAG,
+  beginLogin,
+  clearAuthCallbackQuery,
+  isAuthCallbackLanding,
+} from '@/lib/auth';
 
-// Auth base URL for browser navigations (login/logout redirects).
-// We use a cross-origin explicit URL for both local dev and production.
-const AUTH_BASE = import.meta.env.VITE_AUTH_BASE_URL ?? 'http://localhost:8014';
 const AUTH_API = import.meta.env.VITE_AUTH_API_URL ?? 'http://localhost:8014';
 const CAPABILITIES_API = import.meta.env.VITE_CAPABILITIES_API_URL ?? 'http://localhost:8019';
 const TEMPLATE_API = import.meta.env.VITE_TEMPLATE_API_URL ?? 'http://localhost:8018';
 const IS_PROD = import.meta.env.PROD;
 
 const LOCAL_AUTH_KEY = 'cdp-ui-auth';
-const LOGOUT_FLAG = 'cdp-ui-just-logged-out';
 
 // Setup OpenTelemetry right away
 setupTracing();
@@ -54,8 +57,6 @@ interface JwtTokenData {
   'neosofia:roles'?: string[];
   [key: string]: unknown;
 }
-
-let initialSessionFetch: Promise<void> | null = null;
 
 export default function App() {
   const [tokenInfo, setTokenInfo] = useState<{ raw: string, decoded: JwtTokenData } | null>(null);
@@ -311,38 +312,46 @@ export default function App() {
     setTestResult(null);
     localStorage.removeItem(LOCAL_AUTH_KEY);
     localStorage.setItem(LOGOUT_FLAG, '1');
+    sessionStorage.clear();
     window.location.href = `${AUTH_BASE}/logout`;
   };
 
   useEffect(() => {
+    let cancelled = false;
+
     const initialize = async () => {
-      if (initialSessionFetch) {
-        await initialSessionFetch;
-        setInitializing(false);
-        return;
+      const fromAuthCallback = isAuthCallbackLanding();
+      if (fromAuthCallback) {
+        clearAuthCallbackQuery();
       }
 
-      initialSessionFetch = (async () => {
-        const justLoggedOut = localStorage.getItem(LOGOUT_FLAG);
-        if (justLoggedOut) {
-          localStorage.removeItem(LOGOUT_FLAG);
-          return;
-        }
-
+      const justLoggedOut = localStorage.getItem(LOGOUT_FLAG);
+      if (justLoggedOut) {
+        localStorage.removeItem(LOGOUT_FLAG);
+      }
+      if (fromAuthCallback || !justLoggedOut) {
         await fetchSessionData();
-      })();
+      }
 
-      try {
-        await initialSessionFetch;
-      } catch (error) {
-        initialSessionFetch = null;
-        throw error;
-      } finally {
+      if (!cancelled) {
         setInitializing(false);
       }
     };
 
-    initialize();
+    void initialize();
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchSessionData]);
+
+  useEffect(() => {
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) {
+        void fetchSessionData();
+      }
+    };
+    window.addEventListener('pageshow', onPageShow);
+    return () => window.removeEventListener('pageshow', onPageShow);
   }, [fetchSessionData]);
 
   const initials = `${profile?.first_name?.charAt(0) || ''}${profile?.last_name?.charAt(0) || ''}`.toUpperCase();
@@ -530,7 +539,11 @@ export default function App() {
               <div className="h-10 w-full rounded-lg" style={{ background: 'rgba(34,211,238,0.08)' }} />
             ) : (
               <a
-                href={`${AUTH_BASE}/login`}
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault();
+                  beginLogin();
+                }}
                 className="inline-flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-bold uppercase tracking-wider text-white transition-all hover:scale-105"
                 style={{ background: 'linear-gradient(135deg, #22d3ee 0%, #a855f7 100%)', boxShadow: '0 0 20px rgba(168,85,247,0.4)' }}
               >
