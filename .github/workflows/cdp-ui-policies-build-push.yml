@@ -33,3 +33,19 @@ jobs:
       file: policies/Dockerfile
       tag_prefix: cdp-ui-policies
       cache_scope: cdp-ui-policies
+
+  grant-package-access:
+    name: Grant GHCR read access to consumers
+    needs: build-push
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    steps:
+      - name: Allow capabilities to pull cdp-ui-policies
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api \
+            --method PUT \
+            "/orgs/${{ github.repository_owner }}/packages/container/cdp-ui-policies/permissions/repositories/1235623528" \
+            -f permission=read
