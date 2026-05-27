@@ -62,14 +62,22 @@ interface JwtTokenData {
 type EntitlementsMap = Record<string, boolean>;
 type EntitlementsByRole = Record<string, EntitlementsMap>;
 
-async function fetchRoleEntitlements(token: string, role: string): Promise<EntitlementsMap> {
+async function fetchRoleEntitlements(
+  token: string,
+  role: string,
+): Promise<EntitlementsMap | null> {
   const res = await fetch(`${CAPABILITIES_API}/api/v1/capabilities/ui`, {
     headers: {
       Authorization: `Bearer ${token}`,
       'X-Active-Role': role,
     },
   });
-  return res.ok ? res.json() : {};
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    console.error(`capabilities/ui failed for role ${role}: HTTP ${res.status}`, detail);
+    return null;
+  }
+  return res.json();
 }
 
 async function prefetchEntitlementsByRole(
@@ -79,7 +87,9 @@ async function prefetchEntitlementsByRole(
   const entries = await Promise.all(
     roles.map(async (role) => [role, await fetchRoleEntitlements(token, role)] as const),
   );
-  return Object.fromEntries(entries);
+  return Object.fromEntries(
+    entries.filter((entry): entry is [string, EntitlementsMap] => entry[1] !== null),
+  );
 }
 
 function resolveActiveRole(roles: string[]): string {
@@ -240,32 +250,40 @@ export default function App() {
         const decoded = jwtDecode<JwtTokenData>(tokenData.access_token);
         const newTokenInfo = { raw: tokenData.access_token, decoded };
         const roles = decoded?.['neosofia:roles'] || [];
-        const newRole = resolveActiveRole(roles);
 
         // Clear any pending refresh timer before scheduling a new one
         if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
 
-        setTokenInfo(newTokenInfo);
-        setActiveRole(newRole);
-
-        const [profileRes, byRole] = await Promise.all([
-          fetch(`${AUTH_API}/api/profile`, {
-            headers: { Authorization: `Bearer ${tokenData.access_token}` },
-          }),
-          roles.length > 0
-            ? prefetchEntitlementsByRole(tokenData.access_token, roles)
-            : Promise.resolve({} as EntitlementsByRole),
-        ]);
-
+        const profileRes = await fetch(`${AUTH_API}/api/profile`, {
+          headers: { Authorization: `Bearer ${tokenData.access_token}` },
+        });
         const newProfile = profileRes.ok ? await profileRes.json() : null;
+        const rolesToPrefetch =
+          newProfile?.roles?.length > 0 ? newProfile.roles : roles;
+        const resolvedRole = resolveActiveRole(rolesToPrefetch);
 
-        setEntitlementsByRole(byRole);
-        setEntitlements(byRole[newRole] ?? {});
+        // Show profile immediately; prefetch entitlements in the background so a
+        // slow capabilities service never blocks the header/session shell.
+        setTokenInfo(newTokenInfo);
+        setActiveRole(resolvedRole);
         setProfile(newProfile);
         localStorage.setItem(
           LOCAL_AUTH_KEY,
-          JSON.stringify({ profile: newProfile, activeRole: newRole })
+          JSON.stringify({ profile: newProfile, activeRole: resolvedRole })
         );
+
+        if (rolesToPrefetch.length > 0) {
+          void prefetchEntitlementsByRole(tokenData.access_token, rolesToPrefetch).then(
+            (byRole) => {
+              setEntitlementsByRole(byRole);
+              setEntitlements(byRole[resolvedRole] ?? {});
+            },
+          );
+        } else {
+          setEntitlementsByRole({});
+          setEntitlements({});
+        }
+
         return;
       } catch (err) {
         if (err && typeof err === 'object' && 'isAuthError' in err) {
@@ -335,6 +353,27 @@ export default function App() {
       if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
     };
   }, [tokenInfo, fetchSessionData]);
+
+  useEffect(() => {
+    if (!tokenInfo?.raw || !activeRole || entitlementsByRole[activeRole]) {
+      return;
+    }
+
+    let cancelled = false;
+    const loadEntitlements = async () => {
+      const data = await fetchRoleEntitlements(tokenInfo.raw, activeRole);
+      if (cancelled || data === null) {
+        return;
+      }
+      setEntitlements(data);
+      setEntitlementsByRole((prev) => ({ ...prev, [activeRole]: data }));
+    };
+
+    void loadEntitlements();
+    return () => {
+      cancelled = true;
+    };
+  }, [tokenInfo, activeRole, entitlementsByRole]);
 
   useEffect(() => {
     if (!showPatientMenu && selectedSection === 'Patient') {
