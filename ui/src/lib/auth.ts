@@ -1,6 +1,11 @@
 export const AUTH_BASE = import.meta.env.VITE_AUTH_BASE_URL ?? 'http://localhost:8014';
 export const LOGOUT_FLAG = 'cdp-ui-just-logged-out';
 
+/** True until the user explicitly starts login (survives reloads). */
+export function hasLoggedOutLocally(): boolean {
+  return localStorage.getItem(LOGOUT_FLAG) === '1';
+}
+
 export function beginLogin() {
   localStorage.removeItem(LOGOUT_FLAG);
   window.location.href = `${AUTH_BASE}/login`;

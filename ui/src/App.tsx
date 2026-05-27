@@ -24,6 +24,7 @@ import {
   LOGOUT_FLAG,
   beginLogin,
   clearAuthCallbackQuery,
+  hasLoggedOutLocally,
   isAuthCallbackLanding,
 } from '@/lib/auth';
 
@@ -143,6 +144,10 @@ export default function App() {
   };
 
   const fetchSessionData = useCallback(async (retries = 2) => {
+    if (hasLoggedOutLocally()) {
+      return;
+    }
+
     for (let attempt = 0; attempt <= retries; attempt += 1) {
       try {
         if (attempt > 0) {
@@ -301,9 +306,11 @@ export default function App() {
 
   const handleLogout = async () => {
     // Clear the UI state immediately, then redirect browser to auth-service logout.
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
     setTokenInfo(null);
     setProfile(null);
     setActiveRole('');
+    setEntitlements({});
     setSelectedSection('');
     setSelectedAction(null);
     setClinicianPatientId(null);
@@ -323,11 +330,8 @@ export default function App() {
         clearAuthCallbackQuery();
       }
 
-      const justLoggedOut = localStorage.getItem(LOGOUT_FLAG);
-      if (justLoggedOut) {
-        localStorage.removeItem(LOGOUT_FLAG);
-      }
-      if (fromAuthCallback || !justLoggedOut) {
+      // Keep LOGOUT_FLAG until beginLogin() — prevents silent re-auth on reload.
+      if (fromAuthCallback || !hasLoggedOutLocally()) {
         await fetchSessionData();
       }
 
@@ -344,7 +348,7 @@ export default function App() {
 
   useEffect(() => {
     const onPageShow = (event: PageTransitionEvent) => {
-      if (event.persisted) {
+      if (event.persisted && !hasLoggedOutLocally()) {
         void fetchSessionData();
       }
     };
