@@ -173,22 +173,21 @@ export default function App() {
         const roles = decoded?.['neosofia:roles'] || [];
         const newRole = roles.length > 0 ? roles[0] : '';
 
-        // Step 2: use the verified JWT to fetch profile — no session unseal on the server
+        // Clear any pending refresh timer before scheduling a new one
+        if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+
+        // Publish JWT immediately so entitlements can load in parallel with profile
+        setTokenInfo(newTokenInfo);
+        setActiveRole(newRole);
+
+        // Step 2: profile fetch overlaps capabilities (useEffect on tokenInfo)
         const profileRes = await fetch(`${AUTH_API}/api/profile`, {
           headers: { 'Authorization': `Bearer ${tokenData.access_token}` },
         });
 
         const newProfile = profileRes.ok ? await profileRes.json() : null;
 
-        // Clear any pending refresh timer before scheduling a new one
-        if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
-
-        // Token expiration is managed by a useEffect instead
-
-        // Single batch update — no intermediate render states
-        setTokenInfo(newTokenInfo);
         setProfile(newProfile);
-        setActiveRole(newRole);
         localStorage.setItem(
           LOCAL_AUTH_KEY,
           JSON.stringify({ profile: newProfile, activeRole: newRole })
