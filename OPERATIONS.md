@@ -1,6 +1,6 @@
 # Operations Guide
 
-This guide is for system administrators, software engineers, and testers wishing to run the entire CDP on their local machine. For cloud deployments, see our [public](https://github.com/Neosofia/infrastructure/blob/main/public-cloud/RUNBOOK.md) or [private](https://github.com/Neosofia/infrastructure/blob/main/private-cloud/RUNBOOK.md) cloud runbooks.
+This guide is for system administrators, software engineers, and testers wishing to run the entire CDP on their local machine. For cloud deployments, see [infrastructure/public-cloud/OPERATIONS.md](https://github.com/Neosofia/infrastructure/blob/main/public-cloud/OPERATIONS.md) (platform JWT/networking) and the [public](https://github.com/Neosofia/infrastructure/blob/main/public-cloud/RUNBOOK.md) or [private](https://github.com/Neosofia/infrastructure/blob/main/private-cloud/RUNBOOK.md) cloud runbooks.
 
 ## Prerequisites for local operations
 
@@ -50,6 +50,25 @@ CDP owns the UI entitlement policy bundle in `policies/`. The capabilities servi
 The bundle includes `entitlements.json`, `schema.cedar.json`, and `*.cedar` files. The UI calls `GET /api/v1/capabilities/ui`.
 
 See [ADR 0012: UI Capabilities Control Plane](architecture/adrs/0012-ui-capabilities-control-plane.md).
+
+## Public cloud staging
+
+For cloud deployments, see the shared platform guide:
+
+**→ [infrastructure/public-cloud/OPERATIONS.md](https://github.com/Neosofia/infrastructure/blob/main/public-cloud/OPERATIONS.md)**
+
+That document explains why local JWKS (`http://authentication:8014/...` in `.capabilities.env.sample`) differs from cloud routing, the two traffic planes (public browser vs private service mesh), and operational gotchas.
+
+**CDP-specific staging checklist:**
+
+| Component | Notes |
+|-----------|-------|
+| **UI policy bundle** | `cdp-ui-policies` GHCR image pinned in capabilities Dockerfile |
+| **UI build args** | `VITE_CAPABILITIES_API_URL`, `VITE_AUTH_API_URL` — public HTTPS URLs |
+| **Capabilities CORS** | `FRONTEND_URL` = public CDP UI origin |
+| **Authentication** | `JWT_WEB_AUDIENCE` must include `capabilities`; explicit `PORT` for private JWKS refs |
+
+See the Railway worked example in the infrastructure guide for `${{cdp.RAILWAY_PUBLIC_DOMAIN}}` and `${{authentication.RAILWAY_PRIVATE_DOMAIN}}` patterns.
 
 
 ## UI Service local dev
