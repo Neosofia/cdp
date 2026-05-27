@@ -25,7 +25,7 @@ A service may also include helper scripts inside its docker image to simplify se
 docker compose -f docker-compose.dev.yml run --rm authentication-bootstrap > .authentication.env
 ```
 
-This runs `scripts/setup-env.sh` inside the auth image, generates a local auth environment file, and writes it to the CDP repo root. The top-level compose file then mounts `.authentication.env` into the auth container as `/app/.env`.
+This runs `scripts/setup-env.py` inside the auth image, generates a local auth environment file, and writes it to the CDP repo root. The top-level compose file then mounts `.authentication.env` into the auth container as `/app/.env`.
 
 After generation, fill in these required values manually in `.authentication.env`:
 

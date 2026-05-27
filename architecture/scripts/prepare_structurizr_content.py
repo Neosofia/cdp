@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 HEADING_RE = re.compile(r"^(#{1,5})\s+(.*)$")
-MARKDOWN_LINK_RE = re.compile(r"(\[[^\]]*\]\()([^)]+)(\))")
+MARKDOWN_LINK_RE = re.compile(r"(?<!!)\[([^\]]*)\]\(([^)]+)\)")
 MARKDOWN_SUFFIXES = {".md", ".markdown"}
 
 # Markdown image targets like ](architecture/structurizr/images/foo.png) become
@@ -25,15 +25,10 @@ IMAGE_PATH_PREFIXES = (
     "architecture/structurizr/images/",
 )
 
-# Structurizr resolves markdown links under /workspace/1/documentation/. Parent
-# segments (../) escape that namespace; collection roots have no index page.
-STRUCTURIZR_DECISIONS_PATH = "/workspace/1/decisions"
-VIEWER_COLLECTION_ROUTES: dict[str, str] = {
-    "architecture/adrs": STRUCTURIZR_DECISIONS_PATH,
-    "adrs": STRUCTURIZR_DECISIONS_PATH,
-    "specs": "specs/001-chat-service.md",
-}
-ADR_FILE_RE = re.compile(r"^(?:architecture/)?adrs/(\d+)-[^/]+\.md$")
+# Structurizr resolves markdown links under /workspace/1/documentation/. Local
+# repo-relative targets do not map reliably in the viewer, so they are stripped
+# to plain text; only external URLs are kept as links.
+EXTERNAL_LINK_PREFIXES = ("http://", "https://", "mailto:")
 
 
 @dataclass(frozen=True)
@@ -72,48 +67,14 @@ def rewrite_image_paths(text: str, prefixes: tuple[str, ...] = IMAGE_PATH_PREFIX
     return text
 
 
-def resolve_content_relative_path(link_path: str, source_rel: Path) -> str:
-    """Resolve a repo-relative markdown target to a Structurizr-safe path."""
-    path_part, sep, anchor = link_path.partition("#")
-    if not path_part:
-        return link_path
-
-    stack = list(source_rel.parent.parts)
-    for part in Path(path_part).parts:
-        if part == "..":
-            if stack:
-                stack.pop()
-        elif part != ".":
-            stack.append(part)
-
-    normalized = Path(*stack).as_posix() if stack else "."
-    if normalized not in {".", ""}:
-        normalized = normalized.rstrip("/")
-
-    adr_match = ADR_FILE_RE.match(normalized)
-    if adr_match:
-        routed = f"{STRUCTURIZR_DECISIONS_PATH}/{int(adr_match.group(1))}"
-    else:
-        routed = VIEWER_COLLECTION_ROUTES.get(normalized, normalized)
-
-    # When rendering a spec page, keep spec-to-spec links sibling-relative.
-    if source_rel.parts and source_rel.parts[0] == "specs" and routed.startswith("specs/"):
-        routed = routed[len("specs/") :]
-    if sep:
-        return f"{routed}#{anchor}"
-    return routed
-
-
-def rewrite_markdown_links(text: str, source_rel: Path) -> str:
-    """Rewrite relative markdown links for Structurizr's documentation URL space."""
+def strip_local_markdown_links(text: str) -> str:
+    """Drop local markdown link targets; keep http(s) and mailto links."""
 
     def repl(match: re.Match[str]) -> str:
-        prefix, target, suffix = match.group(1), match.group(2), match.group(3)
-        if target.startswith(("http://", "https://", "mailto:", "#")):
+        label, target = match.group(1), match.group(2)
+        if target.startswith(EXTERNAL_LINK_PREFIXES):
             return match.group(0)
-        if target.startswith("/"):
-            return match.group(0)
-        return f"{prefix}{resolve_content_relative_path(target, source_rel)}{suffix}"
+        return label
 
     return MARKDOWN_LINK_RE.sub(repl, text)
 
@@ -125,7 +86,7 @@ def transform_markdown(
     rewrite_images: bool = False,
 ) -> str:
     text = demote_headings(text)
-    text = rewrite_markdown_links(text, source_rel)
+    text = strip_local_markdown_links(text)
     if rewrite_images:
         text = rewrite_image_paths(text)
     return text
