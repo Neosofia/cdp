@@ -23,8 +23,11 @@ workspace "Clinical Data Platform (CDP)" "HIPAA-compliant clinical data platform
         operationalMetrics = softwareSystem "Operational Metrics" "Platform observability, SLIs/SLOs, dashboards, and alert rules." "External,Observability"
 
         cdp = softwareSystem "Clinical Data Platform" "HIPAA-compliant clinical data platform for AI-assisted care coordination, patient engagement, risk detection, and clinician escalation." {
-            !docs docs
-            !adrs ../adrs
+            !docs content/README.md
+            !docs content/constitution.md
+            !docs content/specs
+            !docs images
+            !adrs adrs
 
         # ---------------------------------------------------------------------------
         # Patient Engagement — channel adapters, push notifications, alerting

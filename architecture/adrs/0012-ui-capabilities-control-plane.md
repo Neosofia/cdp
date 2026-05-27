@@ -4,7 +4,7 @@ Date: 2026-05-26
 
 ## Context
 
-The platform uses Cedar for authorization at two different scopes. Backend services evaluate complex, request-scoped rules — patient ownership, clinic boundaries, role-gated API actions — using service-owned policy bundles and the `authorization-in-the-middle` SDK. The CDP UI also needs to know which menus, features, and modules to show or hide for the authenticated principal.
+The platform uses Cedar for authorization at two different scopes. Backend services evaluate complex, request-scoped rules — patient ownership, clinic boundaries, role-gated API actions — using service-owned policy bundles and the [`authorization-in-the-middle`](https://github.com/Neosofia/sdk/tree/main/python/authorization-middleware) SDK. The CDP UI also needs to know which menus, features, and modules to show or hide for the authenticated principal.
 
 We need a dedicated layer that (a) defines the controllable UI surface and (b) evaluates coarse entitlement booleans for the UI, without duplicating backend authorization logic or baking product-specific policy into the generic capabilities service.
 

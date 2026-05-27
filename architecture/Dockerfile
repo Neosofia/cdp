@@ -1,29 +1,48 @@
-# Stage 1: extract the WAR from the official image
-FROM structurizr/structurizr@sha256:f2f00afe45c1981d557c5e1bd52fbcc8da0632d10a7c38038b6a1952db3e643b AS structurizr
+# Shared Structurizr WAR (same version for dev and production)
+FROM structurizr/structurizr@sha256:f2f00afe45c1981d557c5e1bd52fbcc8da0632d10a7c38038b6a1952db3e643b AS structurizr-war
 
-# Stage 2: proper JRE base (Debian-based, has apt + shell)
-FROM eclipse-temurin:21-jre-jammy
+FROM eclipse-temurin:21-jre-jammy AS base
+
+COPY --from=structurizr-war /usr/local/structurizr.war /usr/local/structurizr.war
+
+# Bake viewer docs from canonical repo sources (README, specs, constitution).
+FROM base AS content-builder
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends python3 \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY architecture/scripts/prepare_structurizr_content.py /prepare_structurizr_content.py
+COPY README.md /build/README.md
+COPY specs/ /build/specs/
+COPY architecture/constitution.md /build/architecture/constitution.md
+RUN python3 /prepare_structurizr_content.py /build /out/content
+
+# Dev: editable Structurizr local mode (docker compose up)
+FROM base AS dev
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends python3 \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY architecture/scripts/prepare_structurizr_content.py /usr/local/bin/prepare_structurizr_content.py
+COPY architecture/docker/dev-entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+EXPOSE 8080
+ENTRYPOINT ["/entrypoint.sh"]
+
+# Production: read-only Structurizr local mode behind nginx (Railway deploy)
+FROM base AS production
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends nginx \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=structurizr /usr/local/structurizr.war /usr/local/structurizr.war
+COPY architecture/structurizr/ /usr/local/structurizr/
+COPY architecture/adrs/ /usr/local/structurizr/adrs/
+COPY --from=content-builder /out/content /usr/local/structurizr/content
 
-COPY structurizr/ /usr/local/structurizr/
-COPY adrs/ /usr/local/adrs/
-
-# nginx proxies to structurizr's internal port and rewrites the Host header to
-# "localhost:8081" so that structurizr activates local mode (read-only, single
-# workspace) and includes the port in redirect URLs.
-# proxy_redirect rewrites the absolute Location header structurizr emits on
-# redirect. $fwd_scheme captures Railway's X-Forwarded-Proto so the rewritten
-# Location uses the correct public scheme (https) rather than the internal http.
-# sub_filter strips "http://localhost:8081" from response bodies so the browser
-# resolves all API/asset paths relative to the public URL.
-# Capture Railway's X-Forwarded-Proto before we clear it for the upstream.
-# proxy_redirect uses $fwd_scheme so the rewritten Location uses the correct
-# public scheme (https) rather than the internal http scheme nginx sees.
 RUN echo 'map $http_x_forwarded_proto $fwd_scheme { default $scheme; https https; }' \
     > /etc/nginx/conf.d/fwd-scheme.conf
 
@@ -44,21 +63,10 @@ server {
         sub_filter         'http://localhost:8081' '';
         sub_filter         'http://127.0.0.1:8081' '';
         sub_filter         'http://localhost' '';
-        # Fix upstream Structurizr bug (issue #40): convertDiagramToPNG passes the
-        # caller's options object to exportCurrentDiagramToSVG, which only adds
-        # explicit SVG width/height attributes when options.dimensions is truthy.
-        # Without them Firefox renders the SVG at the CSS default intrinsic size
-        # (300x150), so thumbnails and export-dialog PNG previews appear tiny.
-        # Injecting options.dimensions=true inside convertDiagramToPNG itself fixes
-        # all callers: exportCurrentThumbnailToPNG and the export dialog alike.
         sub_filter         'const svg = self.exportCurrentDiagramToSVG(options);' 'options.dimensions = true; const svg = self.exportCurrentDiagramToSVG(options);';
         sub_filter_once    off;
         sub_filter_types   text/javascript application/javascript application/json text/html;
 
-        # Railway's edge makes a separate upstream request for headers and body,
-        # causing the per-request CSP nonce in the header to diverge from the nonce
-        # baked into the HTML body — blocking all inline scripts.
-        # Replace the nonce-based CSP with a self + unsafe-inline policy so scripts run.
         proxy_hide_header  Content-Security-Policy;
         add_header         Content-Security-Policy "script-src 'self' 'unsafe-inline'; worker-src blob:" always;
     }
@@ -72,6 +80,7 @@ exec java \
     -Dserver.address=127.0.0.1 \
     -Dserver.port=8081 \
     -Dstructurizr.editable=false \
+    -Dstructurizr.workspace.maxsize=10MB \
     --enable-native-access=ALL-UNNAMED \
     -jar /usr/local/structurizr.war \
     local

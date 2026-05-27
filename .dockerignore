@@ -50,6 +50,14 @@ yarn-error.log
 # Documentation
 docs/_build/
 
+# Structurizr (generated viewer content is rebuilt in the image; see architecture/Dockerfile)
+architecture/structurizr/content/*
+!architecture/structurizr/content/.gitkeep
+!architecture/structurizr/content/.gitignore
+architecture/structurizr/.structurizr/
+**/*-thumbnail.png
+**/thumbnail.png
+
 # OS
 Thumbs.db
 
@@ -59,3 +67,7 @@ Dockerfile*
 docker-compose*.yml
 README.md
 LICENSE
+
+# Required by architecture/Dockerfile (Structurizr doc bake)
+!README.md
+!specs/

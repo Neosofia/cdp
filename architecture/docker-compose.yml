@@ -1,11 +1,14 @@
 services:
   structurizr:
-    image: structurizr/structurizr:latest
+    build:
+      context: ..
+      dockerfile: architecture/Dockerfile
+      target: dev
     user: "0"
-    command: local
+    volumes:
+      - ..:/repo:ro
+      - ./structurizr:/usr/local/structurizr
+      - ./adrs:/usr/local/structurizr/adrs
+      - ./scripts/prepare_structurizr_content.py:/usr/local/bin/prepare_structurizr_content.py:ro
     ports:
       - "8080:8080"
-    volumes:
-      - ./structurizr:/usr/local/structurizr
-      - ./adrs:/usr/local/adrs
-
