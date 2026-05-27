@@ -80,16 +80,18 @@ async function fetchRoleEntitlements(
   return res.json();
 }
 
-async function prefetchEntitlementsByRole(
+function prefetchEntitlementsInBackground(
   token: string,
   roles: string[],
-): Promise<EntitlementsByRole> {
-  const entries = await Promise.all(
-    roles.map(async (role) => [role, await fetchRoleEntitlements(token, role)] as const),
-  );
-  return Object.fromEntries(
-    entries.filter((entry): entry is [string, EntitlementsMap] => entry[1] !== null),
-  );
+  onRoleReady: (role: string, data: EntitlementsMap) => void,
+): void {
+  for (const role of roles) {
+    void fetchRoleEntitlements(token, role).then((data) => {
+      if (data !== null) {
+        onRoleReady(role, data);
+      }
+    });
+  }
 }
 
 function resolveActiveRole(roles: string[]): string {
@@ -249,40 +251,53 @@ export default function App() {
 
         const decoded = jwtDecode<JwtTokenData>(tokenData.access_token);
         const newTokenInfo = { raw: tokenData.access_token, decoded };
-        const roles = decoded?.['neosofia:roles'] || [];
+        const jwtRoles = decoded?.['neosofia:roles'] || [];
+        const resolvedRole = resolveActiveRole(jwtRoles);
 
         // Clear any pending refresh timer before scheduling a new one
         if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+
+        // Publish JWT and active role immediately so profile and capabilities overlap.
+        setTokenInfo(newTokenInfo);
+        setActiveRole(resolvedRole);
+        setEntitlements({});
+        setEntitlementsByRole({});
+
+        const prefetchedRoles = new Set<string>();
+        const cacheRoleEntitlements = (role: string, data: EntitlementsMap) => {
+          setEntitlementsByRole((prev) => ({ ...prev, [role]: data }));
+        };
+        const startPrefetch = (rolesToLoad: string[]) => {
+          const pending = rolesToLoad.filter((role) => !prefetchedRoles.has(role));
+          if (pending.length === 0) {
+            return;
+          }
+          for (const role of pending) {
+            prefetchedRoles.add(role);
+          }
+          prefetchEntitlementsInBackground(tokenData.access_token, pending, cacheRoleEntitlements);
+        };
+
+        startPrefetch(jwtRoles);
 
         const profileRes = await fetch(`${AUTH_API}/api/profile`, {
           headers: { Authorization: `Bearer ${tokenData.access_token}` },
         });
         const newProfile = profileRes.ok ? await profileRes.json() : null;
-        const rolesToPrefetch =
-          newProfile?.roles?.length > 0 ? newProfile.roles : roles;
-        const resolvedRole = resolveActiveRole(rolesToPrefetch);
+        const profileRoles =
+          newProfile?.roles?.length > 0 ? newProfile.roles : jwtRoles;
+        const finalRole = resolveActiveRole(profileRoles);
 
-        // Show profile immediately; prefetch entitlements in the background so a
-        // slow capabilities service never blocks the header/session shell.
-        setTokenInfo(newTokenInfo);
-        setActiveRole(resolvedRole);
+        startPrefetch(profileRoles);
         setProfile(newProfile);
-        localStorage.setItem(
-          LOCAL_AUTH_KEY,
-          JSON.stringify({ profile: newProfile, activeRole: resolvedRole })
-        );
-
-        if (rolesToPrefetch.length > 0) {
-          void prefetchEntitlementsByRole(tokenData.access_token, rolesToPrefetch).then(
-            (byRole) => {
-              setEntitlementsByRole(byRole);
-              setEntitlements(byRole[resolvedRole] ?? {});
-            },
-          );
-        } else {
-          setEntitlementsByRole({});
+        if (finalRole !== resolvedRole) {
           setEntitlements({});
         }
+        setActiveRole(finalRole);
+        localStorage.setItem(
+          LOCAL_AUTH_KEY,
+          JSON.stringify({ profile: newProfile, activeRole: finalRole })
+        );
 
         return;
       } catch (err) {
@@ -354,6 +369,17 @@ export default function App() {
     };
   }, [tokenInfo, fetchSessionData]);
 
+  // Show menu when the active role's entitlements arrive; ignore other roles' prefetches.
+  useEffect(() => {
+    if (!activeRole) {
+      return;
+    }
+    const cached = entitlementsByRole[activeRole];
+    if (cached) {
+      setEntitlements(cached);
+    }
+  }, [activeRole, entitlementsByRole]);
+
   useEffect(() => {
     if (!tokenInfo?.raw || !activeRole || entitlementsByRole[activeRole]) {
       return;
@@ -365,7 +391,6 @@ export default function App() {
       if (cancelled || data === null) {
         return;
       }
-      setEntitlements(data);
       setEntitlementsByRole((prev) => ({ ...prev, [activeRole]: data }));
     };
 
