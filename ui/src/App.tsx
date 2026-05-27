@@ -59,13 +59,55 @@ interface JwtTokenData {
   [key: string]: unknown;
 }
 
+type EntitlementsMap = Record<string, boolean>;
+type EntitlementsByRole = Record<string, EntitlementsMap>;
+
+async function fetchRoleEntitlements(token: string, role: string): Promise<EntitlementsMap> {
+  const res = await fetch(`${CAPABILITIES_API}/api/v1/capabilities/ui`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'X-Active-Role': role,
+    },
+  });
+  return res.ok ? res.json() : {};
+}
+
+async function prefetchEntitlementsByRole(
+  token: string,
+  roles: string[],
+): Promise<EntitlementsByRole> {
+  const entries = await Promise.all(
+    roles.map(async (role) => [role, await fetchRoleEntitlements(token, role)] as const),
+  );
+  return Object.fromEntries(entries);
+}
+
+function resolveActiveRole(roles: string[]): string {
+  if (roles.length === 0) return '';
+
+  const stored = localStorage.getItem(LOCAL_AUTH_KEY);
+  if (stored) {
+    try {
+      const { activeRole } = JSON.parse(stored) as { activeRole?: string };
+      if (activeRole && roles.includes(activeRole)) {
+        return activeRole;
+      }
+    } catch {
+      // ignore corrupt local storage
+    }
+  }
+
+  return roles[0];
+}
+
 export default function App() {
   const [tokenInfo, setTokenInfo] = useState<{ raw: string, decoded: JwtTokenData } | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [initializing, setInitializing] = useState(true);
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [testResult, setTestResult] = useState<{api: string, data: unknown, status: number} | null>(null);
-  const [entitlements, setEntitlements] = useState<Record<string, boolean>>({});
+  const [entitlements, setEntitlements] = useState<EntitlementsMap>({});
+  const [entitlementsByRole, setEntitlementsByRole] = useState<EntitlementsByRole>({});
   const [activeRole, setActiveRole] = useState<string>('');
   const [selectedSection, setSelectedSection] = useState<string>('');
   const [selectedAction, setSelectedAction] = useState<string | null>(null);
@@ -143,6 +185,28 @@ export default function App() {
     callback();
   };
 
+  const persistActiveRole = (role: string) => {
+    const stored = localStorage.getItem(LOCAL_AUTH_KEY);
+    if (!stored) return;
+
+    try {
+      const parsed = JSON.parse(stored) as { profile?: UserProfile | null; activeRole?: string };
+      localStorage.setItem(
+        LOCAL_AUTH_KEY,
+        JSON.stringify({ ...parsed, activeRole: role }),
+      );
+    } catch {
+      // ignore corrupt local storage
+    }
+  };
+
+  const handleActiveRoleChange = (role: string) => {
+    setActiveRole(role);
+    setEntitlements(entitlementsByRole[role] ?? {});
+    persistActiveRole(role);
+    goHome();
+  };
+
   const fetchSessionData = useCallback(async (retries = 2) => {
     if (hasLoggedOutLocally()) {
       return;
@@ -176,22 +240,27 @@ export default function App() {
         const decoded = jwtDecode<JwtTokenData>(tokenData.access_token);
         const newTokenInfo = { raw: tokenData.access_token, decoded };
         const roles = decoded?.['neosofia:roles'] || [];
-        const newRole = roles.length > 0 ? roles[0] : '';
+        const newRole = resolveActiveRole(roles);
 
         // Clear any pending refresh timer before scheduling a new one
         if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
 
-        // Publish JWT immediately so entitlements can load in parallel with profile
         setTokenInfo(newTokenInfo);
         setActiveRole(newRole);
 
-        // Step 2: profile fetch overlaps capabilities (useEffect on tokenInfo)
-        const profileRes = await fetch(`${AUTH_API}/api/profile`, {
-          headers: { 'Authorization': `Bearer ${tokenData.access_token}` },
-        });
+        const [profileRes, byRole] = await Promise.all([
+          fetch(`${AUTH_API}/api/profile`, {
+            headers: { Authorization: `Bearer ${tokenData.access_token}` },
+          }),
+          roles.length > 0
+            ? prefetchEntitlementsByRole(tokenData.access_token, roles)
+            : Promise.resolve({} as EntitlementsByRole),
+        ]);
 
         const newProfile = profileRes.ok ? await profileRes.json() : null;
 
+        setEntitlementsByRole(byRole);
+        setEntitlements(byRole[newRole] ?? {});
         setProfile(newProfile);
         localStorage.setItem(
           LOCAL_AUTH_KEY,
@@ -213,6 +282,8 @@ export default function App() {
     setTokenInfo(null);
     setProfile(null);
     setActiveRole('');
+    setEntitlements({});
+    setEntitlementsByRole({});
     localStorage.removeItem(LOCAL_AUTH_KEY);
   }, []);
 
@@ -236,33 +307,6 @@ export default function App() {
     }
   };
 
-
-  // Fetch entitlements whenever the token or active role changes
-  useEffect(() => {
-    const fetchEntitlements = async () => {
-      if (!tokenInfo?.raw) {
-        setEntitlements({});
-        return;
-      }
-      try {
-        const res = await fetch(`${CAPABILITIES_API}/api/v1/capabilities/ui`, {
-          headers: {
-            'Authorization': `Bearer ${tokenInfo.raw}`,
-            'X-Active-Role': activeRole,
-          }
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setEntitlements(data);
-        } else {
-          setEntitlements({});
-        }
-      } catch (e) {
-        console.error("Failed to fetch entitlements", e);
-      }
-    };
-    fetchEntitlements();
-  }, [tokenInfo, activeRole]);
 
   const openDebugTestPage = () => {
     setSelectedSection('Debug');
@@ -311,6 +355,7 @@ export default function App() {
     setProfile(null);
     setActiveRole('');
     setEntitlements({});
+    setEntitlementsByRole({});
     setSelectedSection('');
     setSelectedAction(null);
     setClinicianPatientId(null);
@@ -512,7 +557,7 @@ export default function App() {
                         return (
                           <DropdownMenuItem
                             key={role}
-                            onClick={() => setActiveRole(role)}
+                            onClick={() => handleActiveRoleChange(role)}
                             className={`flex items-center justify-between cursor-pointer rounded-lg px-2 py-2 text-sm hover:bg-cyan-500/10 hover:text-cyan-300 ${selected ? 'text-cyan-300' : 'text-slate-400'}`}
                           >
                             <span className="flex items-center gap-2">
