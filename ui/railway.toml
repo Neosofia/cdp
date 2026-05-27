@@ -1,0 +1,8 @@
+# CDP UI (staging.neosofia.tech)
+#
+# Railway service settings (dashboard):
+#   Root Directory: /ui
+#   Config file path: /ui/railway.toml
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"

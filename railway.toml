@@ -1,0 +1,8 @@
+# Structurizr viewer (architecture.neosofia.tech)
+#
+# Railway service settings (dashboard):
+#   Root Directory: /          (repo root — required for README.md and specs/ in build context)
+#   Config file path: /railway.toml  (default)
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "architecture/Dockerfile"
