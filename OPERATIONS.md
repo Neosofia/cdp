@@ -87,6 +87,16 @@ docker compose -f docker-compose.dev.yml up -d
 
 Then access the platform by starting at localhost:5173 for the UI, and whatever other services your stack exposes (e.g. Authentication at localhost:8014).
 
+### Full stack from local service checkouts
+
+When working across platform services, build everything from sibling repos instead of GHCR:
+
+```bash
+docker compose -f docker-compose.local.yml up -d --build
+```
+
+`docker-compose.local.yml` includes `docker-compose.dev.yml` and points `authentication`, `capabilities`, and `python-template` at `../authentication`, `../capabilities`, and `../templates/python/service`. The UI still builds from `cdp/ui`. Repos must sit next to `cdp/` in your workspace (same layout as the Neosofia multi-repo checkout).
+
 
 
 

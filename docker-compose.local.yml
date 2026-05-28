@@ -1,0 +1,46 @@
+# Full CDP stack built from sibling service repos (not GHCR pins).
+#
+# Layout (repos as siblings of cdp/):
+#   ../authentication
+#   ../capabilities
+#   ../templates/python/service   (python-template image)
+#   ./ui                          (already in this repo)
+#
+#   docker compose -f docker-compose.local.yml up -d --build
+#
+# For pinned release images, use docker-compose.dev.yml instead.
+
+include:
+  - docker-compose.dev.yml
+
+x-auth-local: &auth_local
+  build:
+    context: ../authentication
+    dockerfile: Dockerfile
+  image: neosofia/authentication:local
+
+x-capabilities-local: &capabilities_local
+  build:
+    context: ../capabilities
+    dockerfile: Dockerfile
+    target: runtime
+  image: neosofia/capabilities:local
+
+x-python-template-local: &python_template_local
+  build:
+    context: ../templates/python/service
+    dockerfile: Dockerfile
+    target: runtime
+  image: neosofia/python-template:local
+
+services:
+  authentication-migrate:
+    <<: *auth_local
+  authentication:
+    <<: *auth_local
+  authentication-bootstrap:
+    <<: *auth_local
+  capabilities:
+    <<: *capabilities_local
+  python-template:
+    <<: *python_template_local
