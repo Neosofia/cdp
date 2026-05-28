@@ -496,8 +496,8 @@ export default function ServiceManagement({ token, activeRole }: Props) {
         body: JSON.stringify({ name: newName, slug: newSlug, base_url: newBaseUrl }),
       });
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        setNewError(body.error ?? `HTTP ${res.status}`);
+        const body = await res.json().catch(() => ({})) as { error?: string; message?: string };
+        setNewError(body.message ?? body.error ?? `HTTP ${res.status}`);
         return;
       }
       const data = await res.json();

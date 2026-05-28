@@ -87,7 +87,7 @@ lower priority than core ingestion and read paths.
   consumer fetches the full message log from storage. The event MUST be published within
   500 ms of the interaction end trigger.
 - **FR-004**: The service MUST enforce RBAC: only authenticated identities with the
-  `clinician` or `admin` role may read stored messages for any patient within their
+  `clinician` or `operator` role may read stored messages for any patient within their
   geographic region (US-wide regional pool — clinicians are not pre-assigned to specific
   patients); only authorised channel adapters may write messages.
 - **FR-005**: The service MUST support multi-tenant isolation: messages from patients of one

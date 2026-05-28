@@ -20,7 +20,7 @@ We treat the **capabilities service** as the platform UI control plane and **CDP
 
 3. **Backend services** retain complex Cedar evaluation at the API boundary. Capabilities does not replace per-service authorization.
 
-4. **Phase 1 (now):** basic role → menu permissions via Cedar (for example, `admin` may `View` `ui::Menu::"admin"`).
+4. **Phase 1 (now):** basic role → menu permissions via Cedar (for example, `operator` may `View` `ui::Menu::"operator"`).
 
 5. **Phase 2 (future):** licensing and feature toggles merge into the same entitlement contract. The UI continues to consume `{ key: boolean }`; capabilities combines Cedar rules with DB-backed toggle/license state before responding.
 

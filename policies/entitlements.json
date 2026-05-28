@@ -3,8 +3,8 @@
     "ui": {
       "entitlements": [
         {
-          "key": "ui:menu:admin",
-          "resource": "ui::Menu::\"admin\"",
+          "key": "ui:menu:operator",
+          "resource": "ui::Menu::\"operator\"",
           "action": "View"
         },
         {

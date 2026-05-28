@@ -527,7 +527,7 @@ export default function App() {
                     </div>
                   </NavigationMenuContent>
                 </NavigationMenuItem>)}
-                {entitlements['ui:menu:admin'] && (<NavigationMenuItem>
+                {entitlements['ui:menu:operator'] && (<NavigationMenuItem>
                   <NavigationMenuTrigger className="bg-transparent text-slate-400 hover:text-cyan-300 data-open:text-cyan-300 text-sm font-semibold tracking-wide uppercase">
                     Admin
                   </NavigationMenuTrigger>

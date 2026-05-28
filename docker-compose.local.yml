@@ -26,13 +26,6 @@ x-capabilities-local: &capabilities_local
     target: runtime
   image: neosofia/capabilities:local
 
-x-python-template-local: &python_template_local
-  build:
-    context: ../templates/python/service
-    dockerfile: Dockerfile
-    target: runtime
-  image: neosofia/python-template:local
-
 services:
   authentication-migrate:
     <<: *auth_local
@@ -42,5 +35,7 @@ services:
     <<: *auth_local
   capabilities:
     <<: *capabilities_local
+  # Mount template policies from the sibling repo (operator Cedar, etc.) without rebuilding the image.
   python-template:
-    <<: *python_template_local
+    volumes:
+      - ../templates/python/service/policies:/app/policies:ro

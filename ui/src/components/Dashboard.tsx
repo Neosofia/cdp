@@ -447,7 +447,7 @@ export default function Dashboard({
   const role = activeRole.toLowerCase();
 
   if (role === 'clinician') return <ClinicianDashboard onOpenPatients={onClinicianOpenPatients} />;
-  if (role === 'admin')     return <AdminDashboard />;
+  if (role === 'operator')  return <AdminDashboard />;
   if (role === 'patient') {
     return (
       <PatientDashboard
