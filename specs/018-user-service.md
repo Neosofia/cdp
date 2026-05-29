@@ -81,6 +81,10 @@ Human identity (`uuid`, `idp_id`, name, email) is owned by **Authentication** (`
 - `GET /api/v1/tenants/{uuid}` on Authentication — operators may read any tenant; other principals only their session tenant.
 - The user service does **not** host a `tenants` table.
 
+## Port
+
+HTTP listener **8018** (CDP spec **018** → 8000 + 18).
+
 ## Dependencies
 
 - Authentication `v0.30.0+` (`JWT_WEB_AUDIENCE` includes `user`; `operator` Tier-1 from v0.29.0+)

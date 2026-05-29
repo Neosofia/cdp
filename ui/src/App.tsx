@@ -31,7 +31,7 @@ import {
 
 const AUTH_API = import.meta.env.VITE_AUTH_API_URL ?? 'http://localhost:8014';
 const CAPABILITIES_API = import.meta.env.VITE_CAPABILITIES_API_URL ?? 'http://localhost:8019';
-const TEMPLATE_API = import.meta.env.VITE_TEMPLATE_API_URL ?? 'http://localhost:8018';
+const TEMPLATE_API = import.meta.env.VITE_TEMPLATE_API_URL ?? 'http://localhost:8020';
 const IS_PROD = import.meta.env.PROD;
 
 const LOCAL_AUTH_KEY = 'cdp-ui-auth';

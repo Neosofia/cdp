@@ -25,6 +25,8 @@ export const setupTracing = () => {
           propagateTraceHeaderCorsUrls: [
             /http:\/\/localhost:8014/,
             /http:\/\/localhost:8018/,
+            /http:\/\/localhost:8019/,
+            /http:\/\/localhost:8020/,
             /.*localhost.*/,
           ],
         },

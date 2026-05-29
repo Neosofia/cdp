@@ -23,10 +23,15 @@ SERVICES_TO_SEED = [
         "base_url": "http://capabilities:8019"
     },
     {
+        "name": "User Service",
+        "slug": "user",
+        "base_url": "http://user:8018",
+    },
+    {
         "name": "Python Template",
         "slug": "python-template",
-        "base_url": "http://python-template:8018"
-    }
+        "base_url": "http://python-template:8020",
+    },
 ]
 
 def main():

@@ -72,7 +72,7 @@ services:
       # sql-template bootstrap creates the restricted role as ``app`` (not user_app).
       APP_DATABASE_URL: postgresql+psycopg://app:change-me@user-postgres:5432/cdp_user
     ports:
-      - "8015:8015"
+      - "8018:8018"
     depends_on:
       user-postgres:
         condition: service_healthy
@@ -86,7 +86,7 @@ services:
     env_file:
       - ./.user-postgres.env
     ports:
-      - "5015:5432"
+      - "5018:5432"
     volumes:
       - user_postgres_data:/var/lib/postgresql
     healthcheck:
