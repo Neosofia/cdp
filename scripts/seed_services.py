@@ -30,7 +30,7 @@ SERVICES_TO_SEED = [
     {
         "name": "Python Template",
         "slug": "python-template",
-        "base_url": "http://python-template:8020",
+        "base_url": "http://python-template:8900",
     },
 ]
 

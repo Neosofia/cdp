@@ -26,7 +26,7 @@ export const setupTracing = () => {
             /http:\/\/localhost:8014/,
             /http:\/\/localhost:8018/,
             /http:\/\/localhost:8019/,
-            /http:\/\/localhost:8020/,
+            /http:\/\/localhost:8900/,
             /.*localhost.*/,
           ],
         },

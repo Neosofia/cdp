@@ -99,6 +99,7 @@ services:
     env_file:
       - ./.template.env
     environment:
+      PORT: "8900"
       # Document routes use in-memory data; URLs only satisfy Settings validation.
       APP_DATABASE_URL: postgresql+psycopg://app:local-dev-only@127.0.0.1:5432/python_template
       MIGRATION_DATABASE_URL: postgresql+psycopg://template:local-dev-only@127.0.0.1:5432/python_template

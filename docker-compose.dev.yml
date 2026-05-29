@@ -82,11 +82,11 @@ services:
     env_file:
       - ./.template.env
     environment:
-      PORT: "8020"
+      PORT: "8900"
     ports:
-      - "8020:8020"
+      - "8900:8900"
     healthcheck:
-      test: ["CMD-SHELL", "/app/.venv/bin/python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:8020/health', timeout=3)\""]
+      test: ["CMD-SHELL", "/app/.venv/bin/python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:8900/health', timeout=3)\""]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -153,7 +153,7 @@ services:
         condition: service_healthy
     environment:
       VITE_USER_API_URL: http://localhost:8018
-      VITE_TEMPLATE_API_URL: http://localhost:8020
+      VITE_TEMPLATE_API_URL: http://localhost:8900
     volumes:
       - ./ui:/app
       - /app/node_modules

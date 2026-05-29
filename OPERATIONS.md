@@ -87,7 +87,7 @@ Once you have generated all your environment variables, you can bring up the who
 docker compose -f docker-compose.dev.yml up -d
 ```
 
-Then access the platform at localhost:5173 (UI). Default API ports (8000 + spec number): Authentication **8014**, User **8018** (spec 018), Capabilities **8019**, Python template demo **8020** (no CDP spec; moved off 8018).
+Then access the platform at localhost:5173 (UI). Default API ports (8000 + spec number): Authentication **8014**, User **8018** (spec 018), Capabilities **8019**. Python template demo **8900** (outside the spec port range).
 
 ### Full stack from local service checkouts
 
