@@ -1,119 +1,74 @@
-# Feature Specification: Devices Service
+# Devices Service
 
-**Feature Branch**: `013-devices-service`
-**Created**: April 18, 2026
-**Status**: Draft
+## Why we need this service
 
-## User Scenarios & Testing
+Mobile and browser clients need push notifications so patients receive care messages when the app is backgrounded and clinicians receive escalation alerts in the browser. Push providers issue opaque, highly sensitive tokens tied to a specific device and person. If every service that needs to notify someone stored and handled those tokens directly, the attack surface would multiply: a bug in chat, notification, or SMS code could leak credentials that identify a patient’s device and enable unsolicited contact.
 
-### User Story 1 - Patient Registers a Mobile Device (Priority: P1)
+The Devices Service exists so the platform has **one place** that registers devices, encrypts raw push credentials at rest, and talks to push providers on behalf of internal callers. Every other service works with an opaque device identifier; raw tokens never cross service boundaries, appear in logs, or sit in foreign databases.
 
-A patient installs the patient chat app on an iOS or Android device for the first time (or after reinstalling). The app obtains a push notification token from the platform's push notification service (e.g., APNS for iOS, FCM for Android) and registers it with the Devices service, receiving an opaque device UUID in return. All subsequent platform operations reference the device UUID rather than the raw token.
+## How this service fits into the platform
 
-**Why this priority**: Push delivery to patients depends entirely on having a valid, up-to-date device registration. Without this, the patient receives no in-app notifications and reconnection after backgrounding fails silently.
+After a patient or clinician grants notification permission, their client registers with this service and receives a device UUID. When the Notification Service or another internal caller needs to deliver a push, it passes that UUID and a payload here; this service decrypts the stored credential internally, selects the correct provider (APNS, FCM, or Web Push), and returns the delivery outcome. Authentication establishes who is registering; authorization restricts dispatch to trusted machine callers such as the notification pipeline.
 
-**Independent Test**: Can be fully tested by submitting a valid push token with patient identity credentials and verifying a device UUID is returned, the registration is stored, and a subsequent lookup by UUID returns the correct record.
+Device lifecycle stays coupled to account lifecycle. When a patient account is deactivated or deleted, registrations for that person are removed promptly so pushes cannot reach a former patient. Explicit deactivation supports logout-without-deletion. Provider feedback that marks a token invalid triggers automatic stale marking so callers stop wasting delivery attempts on dead endpoints.
 
-**Acceptance Scenarios**:
+## Client objectives
 
-1. **Given** an authenticated patient with a valid push notification token, **When** they register the device, **Then** a device UUID is returned and the registration is stored with encrypted raw token, patient ID, platform, and timestamp
-2. **Given** a patient registers the same raw token a second time (e.g., app reinstall), **When** the token already exists for that patient, **Then** the existing registration is updated (idempotent upsert) and the same device UUID is returned
-3. **Given** a patient registers a new token on a device that previously had a different token (token rotation), **When** the new token is submitted with the same device UUID, **Then** the raw token is updated and the device UUID is unchanged
-4. **Given** an unauthenticated request attempts to register a device, **When** the request arrives without valid credentials, **Then** the request is rejected with no registration created
+**Patients** want timely in-app notifications after installing or reinstalling the patient app. Registration should be idempotent -- reinstalling must not strand them with a duplicate device record or a broken push channel.
 
----
+**Clinicians** want browser push for real-time escalation alerts. Granting and revoking notification permission in the browser should register and deregister cleanly without leaving ghost subscriptions.
 
-### User Story 2 - Devices Service Dispatches a Push Notification on Behalf of a Caller (Priority: P1)
+**Internal platform services** (notification dispatch, SMS bridges, and similar) need a single, authorized path to send a push given a device UUID. They should never hold provider credentials or raw tokens; they only need a delivery outcome to drive retries and user-facing error handling.
 
-An internal platform service (notification dispatch, SMS service) needs to send a push notification to a specific patient or clinician device. It holds a device UUID and a notification payload and calls the Devices service to perform delivery. The Devices service decrypts the raw token internally, selects the correct push notification provider (e.g., APNS, FCM, or browser push), calls the provider, and returns the delivery outcome. No raw token ever leaves the Devices service.
+**Security and compliance reviewers** need structural assurance that push tokens -- PII-adjacent and, for patients, PHI-adjacent -- are field-encrypted, key-managed centrally, and confined to this service’s execution boundary.
 
-**Why this priority**: Token containment is structurally enforced by making the Devices service the sole caller of push provider APIs. Raw tokens are never placed on any network path outside this service, eliminating an entire class of leakage risk.
+**Operators** need to measure registration volume, dispatch success and failure, and cleanup after account events without ever logging raw token material.
 
-**Independent Test**: Can be fully tested by registering a device, then submitting a push dispatch request with the resulting device UUID and a test payload; verify the provider call is made using the correct token, a delivery outcome is returned, and no raw token appears in any log or response.
+## Functional requirements
 
-**Acceptance Scenarios**:
+- **FR-001**: The service accepts device registration from authenticated patients and clinicians, stores the raw push token or browser push subscription encrypted at rest, and returns an opaque device UUID. Callers outside this service never see the raw credential.
 
-1. **Given** an authenticated notification-service caller with a valid device UUID and notification payload, **When** they request push dispatch, **Then** the Devices service decrypts the token internally, calls the appropriate provider, and returns the delivery outcome
-2. **Given** a device UUID for a registration that has been deactivated, **When** push dispatch is requested, **Then** a response indicating the registration is inactive is returned and no provider call is made
-3. **Given** a caller without notification-service role, **When** they request push dispatch, **Then** the request is denied and no provider call is made
-4. **Given** the provider reports the token as invalid in its response, **When** the dispatch call completes, **Then** the registration is automatically marked stale and the delivery failure outcome is returned to the caller
+- **FR-002**: Registration is an idempotent upsert keyed on user identity plus token or subscription endpoint. Re-submitting the same credential for the same user returns the existing device UUID without creating a duplicate row.
 
----
+- **FR-003**: Token rotation is supported: given a device UUID and a new raw credential, the stored value is updated and the device UUID remains stable so downstream references do not break.
 
-### User Story 3 - Clinician Registers for Web Push Notifications (Priority: P2)
+- **FR-004**: A push dispatch path accepts a device UUID and notification payload from callers presenting a notification-service machine identity. The service decrypts internally, invokes the correct provider, and returns the delivery outcome. All other callers are denied; raw tokens do not appear in requests, responses, or logs outside this service.
 
-A clinician using the clinician web app grants browser notification permission. The app generates a browser push subscription and registers it with the Devices service.
+- **FR-005**: Raw push tokens and browser subscriptions are encrypted at the field level with keys managed by the platform key management service. Application-layer services other than this one cannot decrypt stored credentials.
 
-**Why this priority**: Clinicians must receive real-time escalation alerts in the browser; Web Push registration is a prerequisite.
+- **FR-006**: The device UUID is the only device identifier surfaced platform-wide. Structural containment holds because this service is the sole caller of push provider APIs and never returns raw tokens to any caller.
 
-**Independent Test**: Can be fully tested by submitting a browser push subscription with clinician credentials and verifying the subscription is stored, a device UUID is returned, and a subsequent resolution call retrieves the correct object.
+- **FR-007**: When a patient account deactivation or deletion event is received, all device registrations for that patient are hard-deleted promptly so push cannot reach a terminated account.
 
-**Acceptance Scenarios**:
+- **FR-008**: A registration can be explicitly deactivated (soft-delete) without account deletion -- for example when a patient logs out of the app but keeps their account.
 
-1. **Given** an authenticated clinician with a browser push subscription, **When** they register, **Then** a device UUID is returned and the subscription is stored encrypted
-2. **Given** a clinician revokes browser notification permission, **When** the app deregisters the subscription, **Then** the registration is marked inactive and the device UUID is no longer resolvable
+- **FR-009**: When a push provider reports a token as invalid, the registration is marked stale or inactive automatically and the failure outcome is returned to the caller so retries stop against a dead endpoint.
 
----
+- **FR-010**: A raw token or subscription endpoint is associated with at most one user identity at a time. A second user attempting to register the same credential is rejected.
 
-### User Story 4 - Device Registration Deactivated on Patient Account Deactivation (Priority: P1)
+- **FR-011**: Unauthenticated or unauthorized requests are rejected before any registration or dispatch side effect occurs.
 
-When a patient account is deactivated or deleted, all device registrations associated with that patient must be hard-deleted to prevent push delivery to a former patient and to honor data minimization obligations.
+- **FR-012**: Every registration create, update, deactivation, hard-delete, and dispatch appends an audit record. Audit entries reference device UUID and operation type only -- never raw token values.
 
-**Why this priority**: Retaining device tokens after account termination is a HIPAA/privacy violation and could result in PHI being pushed to an inactive account.
+## Operational requirements
 
-**Independent Test**: Can be fully tested by deactivating a patient account via the patient service event, then verifying all device registrations for that patient are absent from the Devices service.
+Platform baseline applies ([000-platform-baseline.md](https://github.com/Neosofia/cdp/blob/main/specs/000-platform-baseline.md)). Log payloads must not include raw tokens, push endpoints, or device-to-person linkage.
 
-**Acceptance Scenarios**:
+- **OR-001**: Logs support **measuring** registration and dispatch behaviour. At minimum:
 
-1. **Given** a patient account deactivation event is received, **When** the event is processed, **Then** all device registrations associated with that patient ID are hard-deleted
-2. **Given** a push-service token resolution request for a hard-deleted registration, **When** the request is processed, **Then** a not-found response is returned and no data is disclosed
+  - Classifying request outcomes and errors by endpoint
+  - Attributing request duration by endpoint
+  - Counting device registrations created and updated
+  - Counting push dispatch attempts by outcome (success, stale device, provider failure)
 
----
+- **OR-002**: Push provider credentials (APNS, FCM, Web Push) are held exclusively by this service. No other platform service stores or requires provider secrets.
 
-### Edge Cases
+- **OR-003**: Patient account lifecycle events are consumed from the patient service via the platform event bus. Deletion processing is observable so operators can confirm registrations were removed within the expected window after deactivation.
 
-- What happens when a push notification provider reports a token as invalid (provider feedback)? The registration should be marked stale/inactive and the owning app notified; the record is retained for audit purposes.
-- What happens if two patients register the same raw token (e.g., shared device)? The system should flag and reject the second registration; a raw token may be associated with only one identity at a time.
-- What happens when a clinician logs out and logs back in on the same browser? The Web Push subscription object is re-registered; the existing device UUID is reused or a new one created depending on whether the subscription endpoint changed.
+## Further reading
 
-## Requirements
-
-### Functional Requirements
-
-- **FR-001**: The service MUST accept device registration requests from authenticated patients and clinicians, storing the raw push notification token or browser push subscription encrypted at rest, and returning an opaque device UUID
-- **FR-002**: Device registration MUST be an idempotent upsert keyed on the combination of user identity and raw token/endpoint; re-registering the same token for the same user MUST return the existing device UUID without creating a duplicate
-- **FR-003**: The service MUST support token rotation: given a device UUID and a new raw token, the stored token MUST be updated and the device UUID MUST remain unchanged
-- **FR-004**: The service MUST expose a push dispatch endpoint that accepts a device UUID and notification payload from callers presenting a notification-service role credential; the service MUST internally decrypt the raw token, select the correct push notification provider (e.g., APNS, FCM, or browser push), call the provider, and return the delivery outcome; all other callers MUST be denied; the raw token MUST NOT appear in any request, response, or log outside this service
-- **FR-005**: Raw push notification tokens and browser push subscriptions MUST be encrypted at the field level (not solely relying on database at-rest encryption); encryption keys MUST be managed by the platform key management service (e.g., AWS KMS) and MUST NOT be accessible to application-layer services
-- **FR-006**: The device UUID MUST be the only device identifier surfaced to all services outside of this service; raw tokens MUST NOT appear in any other service's data store, logs, or error traces; this is structurally enforced because the Devices service is the sole caller of push provider APIs and never returns raw tokens to any caller
-- **FR-007**: The service MUST hard-delete all device registrations for a patient when a patient account deactivation or deletion event is received; the deletion MUST be processed within 60 seconds of event receipt
-- **FR-008**: The service MUST allow a device registration to be explicitly deactivated (soft-delete) without hard-deleting, to support scenarios such as the patient logging out without account deletion
-- **FR-009**: The service MUST reject all requests from unauthenticated or unauthorized callers
-- **FR-010**: The service MUST emit an audit log entry for every registration create, update, deactivation, hard-delete, and token resolution event; audit entries MUST NOT contain raw token values
-
-### Key Entities
-
-- **DeviceRegistration**: Device UUID (system-generated PK), user ID (patient or clinician), user type (`patient` / `clinician`), platform (`ios` / `android` / `web`), raw push notification token or browser push subscription (encrypted at rest via the platform key management service; never surfaced outside this service), token fingerprint (non-reversible hash used for duplicate detection without exposing the raw value), provider feedback status (`active` / `stale` / `invalid`), registered timestamp, last updated timestamp, active flag.
-- **DeviceSession**: Session UUID (PK), device UUID (FK → DeviceRegistration), user ID, platform, biometric-auth-enabled flag (mobile only; null for web), session token reference (FK → Auth Service session), session started timestamp, last activity timestamp, active flag. One user may have multiple concurrent active sessions across form factors.
-- **AuditEvent**: Event ID, actor identity, device UUID (never raw token), operation type (`register` / `update` / `deactivate` / `delete` / `dispatch`), timestamp, outcome.
-
-## Success Criteria
-
-### Measurable Outcomes
-
-- **SC-001**: Zero raw push tokens appear in any service's data store, log stream, or error trace outside the Devices service, verified by automated cross-service log scanning in CI; this is structurally guaranteed by the push-proxy design
-- **SC-002**: Push dispatch request acceptance and internal processing (excluding provider round-trip) p99 latency ≤ 50 ms under normal load
-- **SC-003**: Patient account deactivation hard-deletes all associated device registrations within 60 seconds of event receipt for 100% of test cases
-- **SC-004**: Duplicate registration submissions produce exactly one stored record and return the same device UUID for 100% of test cases
-- **SC-005**: Latency and throughput SLOs are governed by `011-operational-metrics` and are not duplicated here
-
-## Assumptions
-
-- Raw push notification tokens and browser push subscriptions are classified as PII; they are treated as PHI-adjacent because they can be used to identify a device associated with a patient
-- Authentication of callers is provided by the Authentication Service (`014-authentication-service`); authorization decisions are made by the Authorization Service (`016-authorization-service`); this service trusts the authenticated identity and access control decision asserted by the API gateway
-- The notification-service role is a machine identity issued to the notification service and SMS service only; no human user or app holds this role
-- Push notification provider credentials (e.g., APNS, FCM, and browser push) are held exclusively by this service; no other service in the platform holds or requires push provider credentials
-- The patient service is the source of truth for patient account lifecycle events; this service listens for deactivation/deletion events from the patient service via the platform event bus
-- Key management policy restricts decryption to this service's execution identity only; no other service identity may decrypt stored tokens
-- Browser push subscriptions are treated as equivalent in sensitivity to mobile push tokens and are subject to the same encryption and access controls
-- Device biometric-auth state is stored here as a UI hint for the patient app; it does not constitute authentication itself — biometric verification is always performed locally on-device via the OS
+- Platform baseline: [000-platform-baseline.md](https://github.com/Neosofia/cdp/blob/main/specs/000-platform-baseline.md)
+- Authentication service spec: [014-authentication-service.md](https://github.com/Neosofia/cdp/blob/main/specs/014-authentication-service.md)
+- Authorization patterns: [016-authorization-service.md](https://github.com/Neosofia/cdp/blob/main/specs/016-authorization-service.md)
+- Platform operational metrics: [011-operational-metrics.md](https://github.com/Neosofia/cdp/blob/main/specs/011-operational-metrics.md)
+- Audit infrastructure: [017-audit-infrastructure.md](https://github.com/Neosofia/cdp/blob/main/specs/017-audit-infrastructure.md)

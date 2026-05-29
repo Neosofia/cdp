@@ -1,150 +1,70 @@
-# Feature Specification: Notification Service
+# Notification Service
 
-**Feature Branch**: `005-notification-service`
-**Created**: 2026-04-17
-**Status**: Draft
-**Input**: A thin shim service that receives structured escalation alerts from the AI agent
-service and makes a single outbound API call to the escalation platform (e.g., PagerDuty) to trigger an incident.
-All routing, deduplication, escalation policy, and fallback logic is owned by the escalation platform.
-Must satisfy the Constitution's 60-second end-to-end escalation SLA **measured from the
-moment the early-intervention window expires** (i.e. the 60-second portal self-assignment
-window is not included in this SLA — see FR-001a).
+## Why we need this service
 
-## User Scenarios & Testing
+When the AI risk agent detects a high-severity signal in a patient conversation, someone with clinical authority must respond quickly. The platform cannot rely on clinicians watching dashboards around the clock. It needs a controlled path from an internal risk decision to an on-call clinician -- with a deliberate pause so logged-in clinicians can intervene first.
 
-### User Story 1 — AI Agent Triggers a Clinician Escalation Alert (Priority: P1)
+The Notification Service exists to bridge that gap. It receives structured escalation events from the AI agent service, holds each alert through a **60-second early-intervention window** so clinicians can self-assign via the portal, and -- only when no one claims the session -- makes a single outbound call to the escalation platform (for example PagerDuty) to page the on-call clinician. It is intentionally thin: routing, deduplication, escalation policy, acknowledgement, and fallback are owned by the escalation platform, not reimplemented here.
 
-The AI agent service identifies a high-risk signal in a patient's messages and calls the
-notification service to escalate. Before triggering the escalation platform, the notification service
-holds the alert for a 60-second **early-intervention window** during which logged-in
-clinicians may self-assign the session via the clinician portal. If no clinician claims
-the session within 60 seconds, the service creates an escalation incident, routes it to
-the correct on-call clinician for that patient's organisation, and confirms delivery within
-60 seconds of the window expiry.
+## How this service fits into the platform
 
-**Why this priority**: This is the core patient safety function. Missed or delayed alerts
-can result in patient harm. This is the only user story that satisfies the Constitution's
-Principle II escalation SLA.
+The AI Risk Agent Service evaluates patient messages asynchronously and, when intervention is warranted, submits an escalation event to this service over an internal-only API. During the early-intervention window, the service publishes the alert to the clinician portal queue so any available clinician in the region can claim the session. A successful claim marks the alert as handled and **suppresses** the escalation platform call entirely.
 
-**Independent Test**: Submit a synthetic high-severity alert payload; verify the notification
-service holds the alert and does NOT call the escalation platform for 60 seconds. Simulate no portal
-claim; verify the escalation platform is called within 60 seconds of window expiry. Separately simulate
-a clinician claiming the session within the window; verify the escalation platform is never called for
-that alert.
+If the window expires unclaimed, the service triggers an incident through the configured escalation platform integration key. The platform decides which on-call recipient receives the page, using organisation and schedule configuration maintained outside this service. The incident payload carries only opaque identifiers and structured risk labels -- never raw PHI -- plus a link the clinician follows after authentication to reach the alert detail view.
 
-**Acceptance Scenarios**:
+This service is **strictly outbound**. It does not ingest escalation platform webhooks, track acknowledgement or resolution, or model alert lifecycle beyond its own hold-and-deliver state. Those concerns stay in the escalation platform or in future specs.
 
-1. **Given** the AI agent service submits a high-severity escalation event, **When** the
-   notification service receives it, **Then** a 60-second early-intervention window is
-   started and no escalation platform call is made during this period.
-2. **Given** the 60-second window expires with no clinician self-assignment, **When** the
-   window closes, **Then** an escalation platform API call is made within 60 seconds of window expiry
-   and the result (success or failure) is logged.
-3. **Given** a clinician self-assigns the session via the portal within the 60-second window,
-   **When** the assignment is confirmed, **Then** the alert is marked `claimed` and no
-   escalation platform call is made.
-4. **Given** the escalation platform API call fails, **When** the error is received, **Then** the
-   service logs the failure, emits a failure metric, and returns an error to the caller.
-   Retry and fallback behavior is owned by the escalation platform's policies.
-5. **Given** an inbound alert payload is malformed or missing required fields, **When**
-   the service receives it, **Then** a 400 response is returned immediately, the sanitized
-   payload is logged, and a `malformed_alert` metric counter is incremented.
+## Client objectives
 
----
+**Patients at risk** need a reliable safety net when AI-assisted chat surfaces a crisis or medication concern. Delayed or missed escalation can cause harm; the platform must move from risk detection to human response within bounded time after the intervention window closes.
 
-### User Story 2 — Clinician Acknowledges an Alert *(DEFERRED — out of scope)*
+**Clinicians already in the portal** want a fair chance to pick up borderline or lower-severity cases before an on-call page fires. The 60-second window gives them that opportunity without counting portal hold time against the constitutional escalation SLA.
 
-This user story required ingesting escalation platform lifecycle webhooks to track acknowledgement
-and resolution status. **The notification service is strictly outbound-only** (it sends
-requests to the escalation platform; it does not receive events from it). Alert status
-synchronization via polling or a future webhook receiver is deferred to a later spec.
+**On-call clinicians** need a page that arrives quickly after the window expires, with enough context to open the right patient session -- but no PHI in the third-party incident record.
 
----
+**Platform operators** need to verify that every unclaimed alert resulted in an escalation platform call (or a logged, auditable failure), that SLA measurement starts at window expiry rather than alert origin, and that malformed or unsafe payloads never reach external systems.
 
-### User Story 3 — Alert Routing by Organization *(DEFERRED — handled by escalation platform)*
+**The AI agent service** needs a simple, dependable handoff: submit a validated escalation event and receive a clear success or failure response without owning paging infrastructure.
 
-The escalation platform owns routing, escalation policies, and on-call schedules natively. This service
-passes a single configured integration key; all routing decisions are made
-inside the escalation platform. Per-tenant routing configuration is an escalation platform administration task,
-not a feature of this service.
+## Functional requirements
 
----
+- **FR-001**: The service accepts structured escalation events from the AI agent service via an internal-only API. Risk classification stays upstream; this service delivers alerts, it does not reinterpret clinical severity.
 
-### Edge Cases
+- **FR-002**: On receiving an escalation event, the service starts a 60-second early-intervention window and publishes the alert to the clinician portal queue. During this window it does not call the escalation platform. If a clinician self-assigns the session before expiry, the alert is marked claimed and no escalation platform call is made. If the window expires unclaimed, processing continues to outbound escalation.
 
-- **Malformed payload**: Return 400, log sanitized payload, increment `malformed_alert` counter.
-- **PagerDuty 429**: Log the rate-limit response, emit a failure metric, return error to caller. Backoff/retry is the caller's responsibility.
-- **SLA monitoring**: Each alert's window-expiry timestamp and escalation platform call timestamp are logged; a metric alert fires if the gap between window expiry and escalation platform call exceeds 60 seconds. The 60-second early-intervention window itself is explicitly excluded from SLA measurement.
-- Alert storm throttling is out of scope; no per-tenant rate limiting is required.
-- Inbound escalation platform webhook events are out of scope; the service is strictly outbound-only.
+- **FR-003**: For every unclaimed escalation event, the service makes an outbound escalation platform API call within 60 seconds of the **window-expiry timestamp**. The 60-second early-intervention window is deliberately excluded from SLA measurement -- the clock starts when the hold ends, not when the risk signal originated.
 
-## Requirements
+- **FR-004**: Inbound payloads are validated against a defined schema. Invalid payloads are rejected with HTTP 400 before any escalation platform call, with a sanitized record of the rejection for operator diagnosis.
 
-### Functional Requirements
+- **FR-005**: Every outbound escalation platform call and its result (success or failure) is recorded as a structured audit entry, including alert id, origin timestamp, call timestamp, and escalation platform response status. Incident review needs a complete trail, not just success counts.
 
-- **FR-001**: The service MUST accept structured escalation events from the AI agent service
-  via an internal-only API.
-- **FR-001a**: On receiving an escalation event, the service MUST start a 60-second
-  early-intervention window and publish the alert to the clinician portal queue. During
-  this window, the service MUST NOT call the escalation platform. If a clinician self-assigns the session
-  before the window expires, the alert MUST be marked `claimed` and the escalation platform MUST NOT be
-  called. If the window expires unclaimed, the service MUST proceed to FR-002.
-- **FR-002**: For every unclaimed escalation event (window expired), the service MUST make
-  an outbound escalation platform API call within 60 seconds of the window-expiry timestamp. The
-  60-second early-intervention window is explicitly excluded from SLA measurement.
-- **FR-003**: Inbound payloads MUST be validated against a defined schema; invalid payloads
-  MUST be rejected with HTTP 400 before any escalation platform call is made.
-- **FR-004**: Every outbound escalation platform call and its result (success or failure) MUST be
-  logged as a structured audit log entry, including the alert ID, origin timestamp,
-  call timestamp, and escalation platform response status.
-- **FR-005**: The service MUST expose a metrics endpoint reporting: alert volume, call
-  latency (median and P99), and failure rate.
-- **FR-006**: The escalation SLA (60 seconds) MUST be tracked per alert; breaches MUST
-  trigger an operational alert to the platform on-call.
-- **FR-007**: Alert payloads MUST NOT contain raw PHI; only patient identifiers (internal
-  IDs) and structured risk signal labels are transmitted to the escalation platform.
+- **FR-006**: Alert payloads sent to the escalation platform contain only the patient's internal opaque identifier, session and tenant references, alert type, severity, and a platform link -- never raw PHI. Third-party systems must not receive names, free-text clinical content, or other identifiable values.
 
-### Key Entities
+- **FR-007**: When the escalation platform API returns an error, the service logs the failure, emits a failure metric, and returns an error to the caller. Retry and fallback behaviour is owned by the escalation platform's policies and the caller's retry strategy, not duplicated here.
 
-- **EscalationAlert**: Alert ID, patient ID (internal UUID — opaque reference, never a PII
-  value, to maintain PII integrity across third-party systems), session ID, tenant ID,
-  alert type (e.g., `medication-risk`, `crisis-signal`), severity, origin timestamp,
-  window expiry timestamp (origin + 60s), status (`pending` / `claimed` / `escalating` /
-  `delivered` / `failed`), claiming clinician ID (if claimed), escalation platform incident ID
-  (if escalated), call timestamp.
+- **FR-008**: Malformed inbound payloads produce HTTP 400 immediately; sanitized payload detail is logged and a malformed-alert counter is incremented so operators can detect integration drift.
 
-*Note: Deduplication, routing rules, and alert lifecycle (acknowledged/resolved) are
-managed entirely within the escalation platform and are not modelled in this service.*
+- **FR-009**: A single escalation platform integration key is used for v1; per-tenant key selection is deferred. Credentials live in the platform secrets store and are never embedded in code or configuration files.
 
-## Success Criteria
+## Operational requirements
 
-### Measurable Outcomes
+Platform baseline applies ([000-platform-baseline.md](https://github.com/Neosofia/cdp/blob/main/specs/000-platform-baseline.md)).
 
-- **SC-001**: 99.9% of unclaimed escalation alerts result in a successful escalation platform API
-  call within 60 seconds of window expiry. The 60-second early-intervention window is
-  excluded from this SLO.
-- **SC-002**: Zero raw PHI values appear in any data transmitted to the escalation platform, verified by
-  automated payload inspection tests.
-- **SC-003**: Call latency (origin timestamp → escalation platform response) is tracked per-alert
-  with P99 latency visible in the metrics dashboard.
+- **OR-001**: Logs support **measuring** alert volume, hold-to-escalation timing, outbound call outcomes, and malformed submissions. At minimum:
 
-## Assumptions
+  - Recording each alert's window-expiry timestamp and escalation platform call timestamp so the gap can be monitored
+  - Classifying outbound call success and failure
+  - Counting malformed inbound alerts
+  - Detecting when the interval from window expiry to escalation platform call exceeds 60 seconds
 
-- A single escalation platform integration key is used for v1; multi-key or per-tenant key selection
-  is deferred to a future version.
-- Escalation platform credentials are stored in the platform secrets store; no credentials appear in code or
-  configuration files. Keys are rotated on an annual basis or when a data breach into the
-  notification service occurs.
-- The AI agent service is responsible for determining whether a risk signal warrants
-  escalation; this service is strictly an outbound alert delivery mechanism — it makes
-  one API call to the escalation platform and logs the result.
-- All routing, deduplication, escalation policy, on-call scheduling, and fallback logic
-  is owned entirely by the escalation platform configuration, not this service.
-- The 60-second SLA is measured from the **window-expiry timestamp** (origin + 60s), not
-  from the origin timestamp. The early-intervention window is a deliberate hold and is
-  excluded from SLA measurement by design.
-- Clinician-facing acknowledgement, resolution, and all alert lifecycle transitions are
-  handled inside the escalation platform directly and are not tracked by this service.
-- PHI is never sent to the escalation platform; the incident payload contains only the patient's
-  internal UUID, alert type, and a link to the platform for the clinician to view
-  details after authentication.
+- **OR-002**: Escalation platform credentials are rotated on an annual basis or promptly when a breach affecting this service occurs. Key material is managed through the platform secrets store.
+
+- **OR-003**: Alert storm throttling, per-tenant rate limiting, and inbound escalation platform webhook ingestion are out of scope for v1. Clinician acknowledgement and resolution tracking are handled inside the escalation platform directly.
+
+## Further reading
+
+- Platform baseline: [000-platform-baseline.md](https://github.com/Neosofia/cdp/blob/main/specs/000-platform-baseline.md)
+- AI risk agent service spec: [010-ai-agent-service.md](https://github.com/Neosofia/cdp/blob/main/specs/010-ai-agent-service.md)
+- Clinician app (portal queue and self-assign): [008-clinician-app.md](https://github.com/Neosofia/cdp/blob/main/specs/008-clinician-app.md)
+- Platform operational metrics: [011-operational-metrics.md](https://github.com/Neosofia/cdp/blob/main/specs/011-operational-metrics.md)
+- API contract: [openapi.json](https://github.com/Neosofia/notification/blob/main/openapi.json)

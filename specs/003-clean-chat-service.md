@@ -1,160 +1,61 @@
-# Feature Specification: Clean Chat Service
+# Clean Chat Service
 
-**Feature Branch**: `003-clean-chat-service`
-**Created**: 2026-04-17
-**Status**: Draft
-**Input**: A second deployment of the 001 Chat Service codebase pointed at a separate
-database that contains only de-identified chat data written by the deidentification pipeline
-(002). Serves as the primary data source for employee debugging and ML/AI EDA and model pre-training.
-Contains no PHI.
+## Why we need this service
 
-## User Scenarios & Testing
+Engineers debugging deidentification behaviour, data scientists building models, and internal analytics jobs all need conversation-shaped data -- threads, timestamps, channels, directions -- without ever touching raw PHI. The deidentification pipeline produces that data, but it still needs a durable home with the same structural semantics as raw chat so queries, exports, and tooling do not reinvent a second schema.
 
-### User Story 1 — Deidentification Pipeline Writes a Clean Chat Interaction (Priority: P1)
+The Clean Chat Service exists as that home: a separate deployment of the chat storage model pointed at a database that contains **only de-identified** messages and interactions, written exclusively by the pipeline and read only by authorised internal consumers.
 
-After a chat interaction ends, the deidentification pipeline processes the full interaction
-log, replaces PHI with tokens, and writes the clean messages and session records into this
-service. The service stores them in the same schema as 001, referencing the same platform
-patient UUID (which is opaque and not directly identifying).
+## How this service fits into the platform
 
-**Why this priority**: This is the write path — the service has no value without reliable
-ingestion from the pipeline.
+This service mirrors the Chat Service data model (messages, chat interactions, audit events) but operates on a physically separate database with no shared tables to the raw PHI store. The deidentification pipeline is the sole writer via an internal, network-restricted API; patient-facing and clinician-facing read paths are not exposed. Care episode identifiers and patient UUIDs appear as opaque correlation keys -- resolving a UUID to a real identity requires the patient service, not this store.
 
-**Independent Test**: The pipeline posts a batch of synthetic clean messages for a completed
-interaction; verify all messages are stored with the correct patient UUID, chat interaction
-ID, care episode ID, tenant ID, channel, direction, and timestamp, and that no original PHI
-values appear in the stored content.
+PHI removal is guaranteed upstream at the pipeline boundary; this service does not re-scan content on write. Tenant isolation applies on every read and write. Retention enforcement and export orchestration for training schedules live at the infrastructure or product layer; this service provides query and bulk-export surfaces. Schema definitions for shared entities remain authoritative in the Chat Service and Care Episode Service specs rather than duplicated here.
 
-**Acceptance Scenarios**:
+## Client objectives
 
-1. **Given** the deidentification pipeline sends a clean message payload for a completed
-   interaction, **When** the service receives it, **Then** each message is stored with its
-   clean content, patient UUID, chat interaction ID, care episode ID, tenant ID, channel,
-   direction, and timestamp.
-2. **Given** the pipeline sends the same message ID twice (e.g., a retry), **When** the
-   second write arrives, **Then** the service deduplicates it and stores exactly one record.
-3. **Given** a clean message arrives referencing a chat interaction that does not yet exist
-   in this store, **When** the service processes it, **Then** a new ChatInteraction record
-   is created before the message is stored.
+**Data scientists and ML pipelines** need reliable access to de-identified conversation history and bulk exports for fine-tuning or evaluation -- scoped to their tenant, chronologically ordered, and free of cross-tenant leakage.
 
----
+**Engineers** need to inspect whether a specific chat interaction was processed correctly after deidentification -- by interaction id or date range -- without access to original PHI or patient-facing endpoints.
 
-### User Story 2 — Data Scientist Queries Clean Conversation History for ML Training (Priority: P2)
+**The deidentification pipeline** needs an idempotent write target that accepts batch message and interaction records, deduplicates retries, and creates missing interaction shells when messages arrive first.
 
-A data scientist or ML training job queries the clean chat service to retrieve conversation
-threads for model fine-tuning or evaluation. Tenant isolation is enforced; no patient-facing
-read paths are exposed.
+**Platform operators** need audit visibility into who read or exported clean data, with logs that never include message content, and configurable retention aligned with compliance obligations.
 
-**Why this priority**: This is the primary consumer of the clean store. ML/AI model quality
-depends on reliable access to clean, well-structured data.
+## Functional requirements
 
-**Independent Test**: An authenticated employee service account queries all chat interactions
-for a tenant over a date range; verify correct interaction and message counts, correct
-chronological ordering, and that no records from other tenants are returned.
+- **FR-001**: The service accepts inbound message and interaction writes from the deidentification pipeline only, via an internal network-restricted write API -- no public write surface reduces the risk of unprocessed PHI entering the clean store.
 
-**Acceptance Scenarios**:
+- **FR-002**: Every message is persisted with de-identified content, platform patient UUID (opaque), chat interaction id, care episode id, tenant id, channel, direction, unique message id, and UTC timestamp so clean data remains structurally comparable to raw chat for downstream tooling.
 
-1. **Given** an authenticated data scientist queries clean chat interactions for a specific
-   tenant and date range, **When** the query executes, **Then** all matching interactions
-   are returned in chronological order with their message threads intact.
-2. **Given** a caller queries with a tenant ID outside their authenticated scope, **When**
-   the request is made, **Then** the response returns empty results and an access-denied
-   event is logged.
-3. **Given** a training data export is requested for a date range, **When** the export
-   completes, **Then** all messages in the range are returned in a structured format
-   suitable for model fine-tuning ingestion.
+- **FR-003**: Writes are idempotent: re-delivering the same message id does not create duplicate records -- pipeline retries must not inflate training datasets or debug views.
 
----
+- **FR-004**: When a message references a chat interaction not yet present, the service creates the interaction record before storing the message so partially ordered pipeline batches still assemble correctly.
 
-### User Story 3 — Engineer Inspects Clean Messages for Pipeline Debugging (Priority: P3)
+- **FR-005**: Tenant isolation is enforced on all reads and writes: callers see only data for tenants they are authorised to access; cross-tenant requests return empty results and emit access-denied audit signals rather than leaking records.
 
-An engineer investigates a suspected deidentification issue by querying the clean store to
-check whether a specific chat interaction was processed correctly, without ever seeing the
-original PHI.
+- **FR-006**: A query API supports filtering by tenant, chat interaction id, care episode id, date range, and direction (`inbound` / `outbound`) for interactive investigation and programmatic access.
 
-**Why this priority**: Debugging is a support function — important for team velocity but not
-a blocking capability.
+- **FR-007**: A bulk export API returns messages in a structured format suitable for ML training pipeline ingestion without requiring ad-hoc pagination logic in every consumer.
 
-**Independent Test**: Query by chat interaction ID; verify the returned messages match the
-expected count and contain no recognisable PHI patterns.
+- **FR-008**: Read access is limited to authenticated employees (engineers and data scientists) with appropriate platform roles; patient and clinician read paths are suppressed by policy and network placement.
 
-**Acceptance Scenarios**:
+- **FR-009**: Configurable data retention policies apply per tenant with a minimum retention period aligned with HIPAA obligations unless a tenant configures a longer period.
 
-1. **Given** an engineer queries by chat interaction ID, **When** the results are returned,
-   **Then** only messages belonging to that interaction within the engineer's authorised
-   tenant scope are included.
+- **FR-010**: All reads and writes append structured audit log entries including caller identity, tenant, operation, and record count -- never message content -- so internal access to clean chat remains traceable.
 
----
+## Operational requirements
 
-### Edge Cases
+Platform baseline applies ([000-platform-baseline.md](https://github.com/Neosofia/cdp/blob/main/specs/000-platform-baseline.md)). Log payloads must not include message content.
 
-- How does the service handle a message written out-of-order relative to its interaction timestamp?
-- What happens if the pipeline writes a chat interaction record but then fails before writing all messages?
-- What happens when the tenant isolation check fails at write time (misconfigured pipeline routing)?
+- **OR-001**: Operators **measure** write volume, query latency, export size, and access-denied events by tenant.
 
-## Requirements
+- **OR-002**: The clean store uses separate database infrastructure from the raw chat store; deployment configuration distinguishes this operational role from the PHI-complete Chat Service without forking application code paths unnecessarily.
 
-### Functional Requirements
+## Further reading
 
-- **FR-001**: The service MUST accept inbound message and session writes from the
-  deidentification pipeline (002) only, via an internal network-restricted write API. No public write
-  endpoint is exposed.
-- **FR-002**: Every message MUST be persisted with its clean (de-identified) content,
-  patient UUID (platform-generated, opaque), chat interaction ID, care episode ID, tenant ID,
-  channel, direction, unique message ID, and UTC timestamp.
-- **FR-003**: Message writes MUST be idempotent: re-delivering the same message ID MUST NOT
-  produce duplicate records.
-- **FR-004**: The service MUST enforce tenant isolation: reads MUST be scoped to the
-  authenticated caller's tenant and MUST NOT return cross-tenant data.
-- **FR-005**: The service MUST expose a query API supporting filtering by tenant, chat
-  interaction ID, care episode ID, date range, and direction (`inbound`/`outbound`).
-- **FR-006**: The service MUST support a bulk export API returning messages in a structured
-  format for ML training pipeline consumption.
-- **FR-007**: All writes and reads MUST produce structured audit log entries including caller
-  identity, tenant, operation, and record count. Log entries MUST NOT contain message content.
-- **FR-008**: Read access is restricted to authenticated employees (engineers and data
-  scientists) with appropriate RBAC roles; patient-facing and clinician-facing read paths
-  are suppressed by network policy and MUST NOT be reachable from outside the internal network.
-- **FR-009**: The service MUST support configurable data retention policies per tenant
-  (minimum 7 years for HIPAA compliance, unless the tenant overrides to a longer period).
-
-### Key Entities
-
-All entities (Message, ChatInteraction, AuditEvent) are owned by the **001 Chat Service** spec and are not redefined here. **CareEpisode** is owned by **015 Care Episode Service**. This service stores de-identified copies of those records; consult `001-chat-service.md` and `015-care-episode-service.md` for canonical schema definitions.
-
-Note: The patient ID stored in all entities is a platform-generated UUID assigned by the
-patient service. It does not directly identify the patient; resolving it to a real identity
-requires a call to the patient service, which is covered in a separate spec.
-
-## Success Criteria
-
-### Measurable Outcomes
-
-- **SC-001**: Clean messages are stored within 1 second of being received from the pipeline
-  for 99.9% of writes.
-- **SC-002**: Tenant isolation is verified by automated tests confirming zero cross-tenant
-  data leakage across 100% of test cases.
-- **SC-003**: Query API returns interaction results in under 500 ms for interactions up to
-  1,000 messages.
-- **SC-004**: Bulk export API supports 1 million messages per export without timeout or
-  data loss.
-- **SC-005**: Duplicate write submissions produce exactly one stored record for 100% of
-  test cases.
-
-## Assumptions
-
-- 003 is a deployment of the 001 service configured for a different operational role; all functional differences are controlled via deployment configuration.
-- The clean store and raw store share no database tables; they are entirely separate database
-  instances.
-- PHI removal is guaranteed by the deidentification pipeline (002); 003 applies no
-  additional PHI scanning at the write boundary.
-- The patient UUID stored in this service is opaque — it does not directly identify the
-  patient. Cross-referencing to a real patient identity requires the patient service
-  (separate spec).
-- Data retention enforcement (TTL deletion) is implemented at the database layer, not
-  application code.
-- Model training export scheduling and orchestration are out of scope; this service provides
-  only the export API endpoint.
-- A HIPAA BAA with AWS covers all storage infrastructure for this service.
-- Authentication and identity tokens are validated by an upstream API gateway before
-  reaching this service.
+- Platform baseline: [000-platform-baseline.md](https://github.com/Neosofia/cdp/blob/main/specs/000-platform-baseline.md)
+- Chat Service: [001-chat-service.md](https://github.com/Neosofia/cdp/blob/main/specs/001-chat-service.md)
+- Deidentification pipeline: [002-deidentification-pipeline.md](https://github.com/Neosofia/cdp/blob/main/specs/002-deidentification-pipeline.md)
+- Care Episode Service: [015-care-episode-service.md](https://github.com/Neosofia/cdp/blob/main/specs/015-care-episode-service.md)
+- Platform operational metrics: [011-operational-metrics.md](https://github.com/Neosofia/cdp/blob/main/specs/011-operational-metrics.md)

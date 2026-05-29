@@ -83,9 +83,10 @@ The platform is decomposed into independently deployable services, apps, and dat
 - **[AI Risk Agent (010)](specs/010-ai-agent-service.md)** — Evaluates every patient message for clinical risk in the background without slowing down the chat. A high-risk signal triggers the clinician notification flow.
 - **[Deidentification Pipeline (002)](specs/002-deidentification-pipeline.md)** — After a chat session ends, it strips all patient-identifying information so the conversation can be safely used for research and model improvement. Failed sessions are held for review, never silently passed through.
 - **[Clean Chat Service (003)](specs/003-clean-chat-service.md)** — Stores de-identified chat sessions for internal analysis and model training. No raw patient data is accessible here.
-- **[Bedrock AI Workbench (006)](specs/006-bedrock-ai-workbench.md)** — An isolated environment where ML engineers can experiment with de-identified data and improve the AI models. It has no connection to live patient data or production systems.
+- **[AI Workbench (006)](specs/006-ai-workbench.md)** — An isolated environment where ML engineers can experiment with de-identified data and improve the AI models. It has no connection to live patient data or production systems.
 
 **Platform Core** — chat ingestion, authentication, API gateway
+- **[Platform Baseline (000)](specs/000-platform-baseline.md)** — Cross-cutting requirements every service and app inherits: TLS, supported mobile and browser platforms, PHI-safe structured logging, published OpenAPI contracts, and WCAG accessibility for user-facing experiences.
 - **[Chat Service (001)](specs/001-chat-service.md)** — Receives and stores all messages across every channel, streams AI replies back to patients in real time, and triggers risk evaluation and deidentification in the background.
 - **[Authentication Service (014)](specs/014-authentication-service.md)** — Verifies the identity of every user and service before any request is processed. Handles clinician SSO login, patient session management, and service-to-service trust.
 - **[Authorization Service (016)](specs/016-authorization-service.md)** — The single place where access decisions are made. Every service asks "is this principal allowed to do this?" here rather than implementing its own rules. Fails closed if unavailable.

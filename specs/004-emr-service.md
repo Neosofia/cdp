@@ -1,202 +1,67 @@
-# Feature Specification: EMR Service
+# EMR Service
 
-**Feature Branch**: `004-emr-service`
-**Created**: 2026-04-17
-**Status**: Draft
-**Input**: A proxy/facade service that provides a unified, vendor-agnostic FHIR R4 interface
-to multiple upstream EMR/EHR systems. All other platform services interact with this service
-rather than directly with any EMR vendor. May be fulfilled in whole or in part by a
-third-party managed service or open-source self-hosted solution (e.g., HAPI FHIR Server,
-Health Gorilla, 1up Health) — see Assumptions.
+## Why we need this service
 
-## User Scenarios & Testing
+Clinical chat and AI assistance only work when they sit on top of real patient context -- active medications, conditions, allergies, recent encounters, discharge instructions. Hospital systems expose that data through different EMR vendors, FHIR versions, and integration patterns. If every platform service spoke directly to each vendor, normalisation would diverge, credentials would scatter, and a change at one hospital would ripple through unrelated code paths.
 
-### User Story 1 — Patient Context Retrieved for a Chat Session (Priority: P1)
+The EMR Service exists as a **single vendor-agnostic facade**: callers receive canonically normalised clinical resources without knowing which upstream EMR holds the patient or which FHIR version it speaks.
 
-Two actors consume patient clinical context through the EMR service during a chat session:
+## How this service fits into the platform
 
-- **AI Agent**: needs medications, diagnoses, and discharge summary to perform risk assessment
-  and generate informed responses, querying the EMR service via the AI Agent Service (010).
-- **Clinician**: reviews the same patient record through the Web Chat App (008), which
-  fetches the canonically normalised patient context from the EMR service to display
-  alongside the chat.
+All platform consumers -- the AI Agent Service during risk assessment and response generation, the clinician web app when displaying context beside chat, enrolment flows that seed post-discharge care -- interact with this service rather than with EMR endpoints directly. Upstream connectivity, FHIR version translation (DSTU2, STU3, R4), and vendor protocol differences are delegated to a third-party abstraction layer or self-hosted FHIR adaptor evaluated at deploy time; vendor SDKs and proprietary formats stay behind an integration boundary.
 
-In both cases the EMR service fetches the relevant resources from the upstream EMR,
-normalises them to the platform's canonical schema, and returns them to the caller —
-without the caller needing to know which EMR the patient's data lives in.
+The service is read-only in the initial version. Each tenant's EMR connection (endpoint, credentials, mapping) is configuration-driven so new hospital integrations follow a repeatable onboarding procedure without core code changes. An internal patient-to-EMR mapping table seeded at enrolment is authoritative: the service queries exactly the EMRs listed for a patient and merges or prioritises results per configured rules when a patient appears in more than one system. A shared cache scoped to records on or after the patient's most recent discharge date -- with a sliding time-to-live aligned to chat interaction length -- reduces repeated upstream load during active conversations. Write-back to the EMR remains a future capability.
 
-**Why this priority**: AI and human risk assessment depends on patient context. Without 
-reliable patient record retrieval neither actor can operate effectively. This is the most critical 
-read path.
+## Client objectives
 
-**Independent Test**: With a mock FHIR server standing in for an EMR, query the EMR service
-for a patient's MedicationRequest and Condition resources from both an AI agent caller and
-a clinician-app caller; verify both responses conform to the canonical internal schema and
-that no vendor-specific fields appear in the output.
+**AI agents** need timely, normalised medication, diagnosis, and discharge context to assess risk and compose informed replies -- without embedding vendor-specific field names or integration logic in agent code.
 
-**Acceptance Scenarios**:
+**Clinicians** want the same canonical patient record beside chat in the web app, presented consistently regardless of which hospital EMR sourced the data.
 
-1. **Given** an AI agent requests a patient's active medications, **When** the EMR service
-   queries the upstream FHIR endpoint, **Then** a list of canonically normalised
-   MedicationRequest resources is returned within 2 seconds.
-2. **Given** a clinician opens a patient record in the Web Chat App, **When** the app
-   requests patient context from the EMR service, **Then** the canonically normalised
-   patient record is returned within 2 seconds and displayed without vendor-specific fields.
-3. **Given** the upstream EMR is temporarily unavailable, **When** the request times out,
-   **Then** the service returns a structured error and the caller receives a graceful
-   degradation response (not a 500); availability of the rest of the platform is unaffected.
-4. **Given** the patient exists in more than one connected EMR (e.g., transferred care),
-   **When** data is retrieved, **Then** the service merges or prioritises records per
-   a configured precedence rule and returns a single consolidated response.
+**Integration engineers** need to onboard a new tenant EMR through configuration and a documented standard operating procedure -- endpoint, OAuth or SMART credentials, verification -- without shipping a new application release for each hospital.
 
----
+**Callers across the mesh** need graceful degradation when an upstream EMR is unavailable: structured, machine-readable errors rather than opaque failures, with partial results and explicit warnings when some FHIR resources fail validation.
 
-### User Story 2 — Configuration of a New EMR Integration (Priority: P2)
+**Compliance stakeholders** need every patient-record read attributed and auditable, with credentials confined to the platform secrets store -- never configuration files or logs.
 
-The engineering team configures a new hospital organisation's EMR connection (endpoint,
-credentials, tenant mapping) without modifying core application code. Configuration is
-performed inside the 3rd-party FHIR abstraction platform (Redox) and governed
-by an internal Standard Operating Procedure (SOP) that defines the required steps, credential
-handling, and verification checks for each new integration.
+## Functional requirements
 
-**Why this priority**: Multi-tenant SaaS growth depends on the ability to onboard new hospital
-systems quickly. Configuration-driven onboarding — backed by a repeatable SOP — is the enabler.
+- **FR-001**: The service exposes a unified internal API that returns the platform's canonical FHIR R4-based schema so callers never depend on vendor-specific shapes or identifiers outside the integration module.
 
-**Independent Test**: Add a new mock EMR endpoint via configuration only (no code change),
-following the steps in the onboarding SOP; verify the service routes requests for that tenant
-to the new endpoint and returns data correctly.
+- **FR-002**: At minimum, the service supports Patient, Encounter, MedicationRequest, Condition, AllergyIntolerance, Observation, and DocumentReference (discharge summary) resources. Each normalised record carries an explicit `resourceType` label so consumers and AI agents can interpret records regardless of upstream FHIR version.
 
-**Acceptance Scenarios**:
+- **FR-003**: Each EMR connection is configurable per tenant (endpoint URL, OAuth2 or SMART credentials, FHIR base path, status) without code changes -- multi-tenant growth depends on configuration-driven routing, not forked integrations.
 
-1. **Given** a new EMR connection is configured for a tenant following the onboarding SOP,
-   **When** a query is made for a patient in that tenant, **Then** the service routes to
-   the new EMR endpoint and returns normalised data.
-2. **Given** a tenant's EMR configuration is removed or disabled, **When** a query is made,
-   **Then** the service returns a structured "integration not configured" error rather
-   than a generic failure.
+- **FR-004**: Only authenticated callers with valid patient-access permission may retrieve patient records; every read produces an audit record suitable for compliance review.
 
----
+- **FR-005**: When an upstream EMR is unavailable or times out, the service returns a structured error the caller can handle -- platform availability does not collapse into unhandled server errors, and upstream latency is observable separately from service logic.
 
-### User Story 3 — Discharge Summary Retrieval for Post-Discharge Onboarding (Priority: P3)
+- **FR-006**: When a bundle contains partially invalid FHIR resources, the service returns all successfully normalised resources and a `warnings` array identifying each omitted resource by type and FHIR id -- callers receive a partial-but-usable response instead of rejecting the entire payload.
 
-When a patient is enrolled in the post-discharge care programme, the platform retrieves
-their discharge summary and relevant history from the EMR to initialise their care context.
+- **FR-007**: A shared cache holds patient FHIR resources scoped to records dated on or after the patient's most recent discharge date. The cache is primed when a chat interaction starts and uses a sliding TTL refreshed on access during active chat, expiring when no interaction touches the entry within that window -- matching the conversational burst pattern without caching entire lifelong histories.
 
-**Why this priority**: A good care context improves AI model accuracy from day one of
-patient enrolment. Important but not blocking for the core chat/alert flow.
+- **FR-008**: When a patient exists in more than one connected EMR, the service merges or prioritises records per configured precedence and returns a single consolidated response.
 
-**Independent Test**: Query the EMR service for a patient's most recent Encounter and
-associated ClinicalImpression resources; verify the canonical discharge summary object
-is returned with expected fields populated. Then simulate a patient with no EMR records
-and verify a low-priority alert is raised via the escalation platform.
+- **FR-009**: When discharge summary or broader EMR retrieval for a newly enrolled patient returns no records, the service still returns an empty-but-valid canonical response to the caller and raises a low-priority alert through the escalation platform to trigger missing-record review -- enrolment flows must not fail opaquely on absent upstream data.
 
-**Acceptance Scenarios**:
+- **FR-010**: When a tenant's EMR integration is removed or disabled, queries return a structured integration-not-configured error rather than a generic failure -- operators can distinguish misconfiguration from upstream outage.
 
-1. **Given** a patient is enrolled with a valid EMR patient ID, **When** the discharge
-   summary is requested, **Then** the canonical discharge summary object is returned with
-   the most recent Encounter, discharge diagnosis, and follow-up instructions.
-2. **Given** no discharge summary or EMR records exist for a newly enrolled patient,
-   **When** the request is made, **Then** an empty-but-valid canonical response is returned
-   to the caller AND a low-priority alert is raised via the escalation platform (e.g., PagerDuty) to trigger the missing-record
-   review workflow; no unhandled error is raised.
+- **FR-011**: The service is testable against FHIR R4 mock servers without live EMR connections so contract and integration tests do not depend on hospital sandboxes.
 
----
+- **FR-012**: Per-request metrics cover upstream response time, cache hit and miss rate, and error rate by tenant and EMR integration so operators can measure integration health through platform tooling.
 
-### Edge Cases
+## Operational requirements
 
-- **Cross-EMR patient identity**: The internal patient identifier mapping table is the authoritative source of truth for which EMR(s) a patient is mapped to. The service queries exactly those mapped EMRs and does not need to detect or surface missing mappings — unmapped EMRs are simply not queried.
-- **FHIR version abstraction**: Normalization of upstream FHIR versions (DSTU2, STU3, R4) is expected to be handled by a 3rd-party managed service evaluated during planning. The internal canonical schema must label each record with its resource type; strict FHIR R4 wire-format conformance in the internal representation is not required provided AI agents can identify record type.
-- What is the caching strategy for frequently read, slow-changing records (e.g., allergies)?
-- **Large patient histories**: Because the cache and query scope is limited to records dated on or after the patient's most recent discharge date (covering the procedure plus ~30 days post-discharge), result sets are expected to be well under 50 records. No explicit pagination or per-type cap is required for v1.
-- **Partially invalid FHIR resources**: The service returns all valid resources; invalid ones are omitted and identified in a `warnings[]` list in the response. Callers receive a partial-but-usable response rather than a full rejection.
+Platform baseline applies ([000-platform-baseline.md](https://github.com/Neosofia/cdp/blob/main/specs/000-platform-baseline.md)). Patient context reads are auditable through dedicated access audit records rather than log payloads containing clinical content.
 
-## Requirements
+- **OR-001**: Operators **measure** upstream latency and availability separately from service logic errors.
 
-### Functional Requirements
+- **OR-002**: EMR credentials are stored in the platform secrets store and never appear in application configuration or logs. Cache infrastructure is shared and sized for post-discharge scoped histories expected to remain small relative to full lifelong records.
 
-- **FR-001**: The 3rd party service MUST expose a unified internal API that abstracts all EMR vendor
-  differences; callers MUST interact only with the platform's canonical FHIR R4-based schema.
-- **FR-002**: No EMR vendor SDKs, proprietary data formats, or vendor-specific identifiers
-  MUST appear outside the `integrations/` module boundary.
-- **FR-003**: The service MUST support at minimum these clinical resource types: Patient,
-  Encounter, MedicationRequest, Condition, AllergyIntolerance, Observation, and
-  DocumentReference (discharge summary). Each resource in the internal canonical schema
-  MUST carry an explicit `resourceType` label so that AI agents can identify record type
-  regardless of the upstream FHIR version. Normalisation of upstream FHIR versions
-  (DSTU2/STU3/R4) is delegated to a 3rd-party abstraction layer selected during planning.
-- **FR-004**: Each EMR connection MUST be configurable per tenant via a configuration store
-  (endpoint URL, OAuth2/SMART credentials, FHIR base path) without code changes.
-- **FR-005**: The service MUST enforce that only authenticated callers with a valid
-  patient-access permission may retrieve patient records; PHI access MUST be audit-logged.
-- **FR-006**: The service MUST respond within 2 seconds for the 95th percentile of requests
-  under normal upstream availability; upstream latency MUST be surfaced in metrics.
-- **FR-007**: The service MUST implement a shared cache for patient FHIR
-  resources scoped to records dated on or after the patient's most recent discharge date.
-  The cache MUST be primed when a chat session starts and MUST use a sliding TTL of
-  15 minutes (matching the chat session timeout), refreshed on each cache access triggered
-  by a chat interaction; entries expire when no chat interaction has touched them within
-  that window.
-- **FR-008**: The service MUST return a structured, machine-readable error when an upstream
-  EMR is unavailable, rather than propagating raw HTTP errors.
-- **FR-009**: The service MUST be independently testable against FHIR R4 mock servers without
-  requiring live EMR connections.
-- **FR-010**: The service MUST record per-request metrics (upstream response time, cache
-  hit/miss rate, error rate) per tenant and per EMR integration.
-- **FR-011**: When the upstream FHIR server returns a bundle containing partially invalid
-  resources, the service MUST return all successfully normalised resources and include a
-  `warnings[]` array in the response identifying each omitted resource by type and FHIR ID;
-  it MUST NOT reject the entire response due to a subset of invalid resources.
-- **FR-012**: When a discharge summary or EMR record retrieval for a newly enrolled patient
-  returns no records, the service MUST raise a low-priority alert via the escalation platform (e.g., PagerDuty) to trigger the
-  missing-record review workflow; the empty-but-valid canonical response MUST still be
-  returned to the caller.
+## Further reading
 
-### Key Entities
-
-- **PatientContext**: Internal patient ID, tenant ID, canonical demographics, active medications,
-  active conditions, allergies, most recent discharge summary reference.
-- **EMRIntegration**: Integration ID, tenant ID, EMR vendor hint, FHIR base URL, auth scheme,
-  credential reference (identifier in the platform secrets store), status (active/disabled).
-- **FHIRCacheEntry**: Resource type, FHIR resource ID, tenant ID, patient ID, canonical
-  normalised payload, cached-at timestamp, last-touched-at timestamp, sliding TTL
-  (15 min default); scoped to records on or after the patient's most recent discharge date.
-
-## Success Criteria
-
-### Measurable Outcomes
-
-- **SC-001**: 95% of patient context queries complete in under 2 seconds end-to-end.
-- **SC-002**: The service onboards a new EMR integration without code deployment, verified
-  by adding a test integration via configuration and confirming successful queries within
-  the same deployment.
-- **SC-003**: Zero vendor-specific fields or identifiers appear in outbound responses from
-  the integration abstraction layer, verified by automated schema validation tests.
-- **SC-004**: Read-through cache reduces upstream FHIR server calls by at least 40% for
-  repeat queries within the cache TTL window.
-- **SC-005**: The service returns a structured error (not a timeout or 500) for 100% of
-  test cases simulating upstream EMR unavailability.
-- **SC-006**: PHI access audit log records are produced for 100% of patient context reads
-  in testing.
-
-## Assumptions
-
-- All EMR integrations are expected to be fronted by a 3rd-party managed service or
-  open-source FHIR adaptor (e.g., HAPI FHIR, Health Gorilla, 1up Health) that handles
-  FHIR version normalisation (DSTU2/STU3/R4) and vendor-specific protocol differences;
-  the specific provider is to be evaluated during planning. Legacy HL7 v2 support remains
-  deferred to a future version.
-- A third-party managed service or open-source self-hosted FHIR server (e.g., HAPI FHIR)
-  may be used to normalise real EMR data to FHIR R4 before it reaches this proxy layer;
-  the decision between building the normalisation in-house vs. using a managed service
-  (e.g., Health Gorilla, 1up Health) is deferred to the planning phase.
-- This service is read-only in v1; write-back to the EMR (e.g., posting clinical notes)
-  is a future capability.
-- EMR credentials are stored in the platform secrets store and are never present in application
-  configuration files or logs.
-- Patient matching across multiple EMRs (where the same patient has different IDs) is
-  handled by an internal patient identifier mapping table seeded at enrolment. The mapping
-  table is the authoritative source of truth; the service queries exactly the EMRs listed
-  for a patient and does not attempt to detect or warn on absent mappings.
-- The FHIR resource cache is backed by a shared in-memory data store. Cache entries
-  are limited to records dated on or after the patient's most recent discharge date and use
-  a 15-minute sliding TTL aligned with the chat session timeout.
+- Platform baseline: [000-platform-baseline.md](https://github.com/Neosofia/cdp/blob/main/specs/000-platform-baseline.md)
+- AI Agent Service: [010-ai-agent-service.md](https://github.com/Neosofia/cdp/blob/main/specs/010-ai-agent-service.md)
+- Clinician app: [008-clinician-app.md](https://github.com/Neosofia/cdp/blob/main/specs/008-clinician-app.md)
+- Chat Service: [001-chat-service.md](https://github.com/Neosofia/cdp/blob/main/specs/001-chat-service.md)
+- Platform operational metrics: [011-operational-metrics.md](https://github.com/Neosofia/cdp/blob/main/specs/011-operational-metrics.md)

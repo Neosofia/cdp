@@ -1,164 +1,70 @@
-# Feature Specification: AI Risk Agent Service
+# AI Risk Agent Service
 
-**Feature Branch**: `010-ai-agent-service`
-**Created**: 2026-04-17
-**Status**: Draft
-**Scope**: Agent 3 of 3 in the v1 AI agent pipeline. This spec covers the **AI Risk Agent**
-only — a message queue consumer service that evaluates each patient message for clinical risk in
-near-real-time and returns a binary yes/no intervention signal. A "yes" triggers the alert
-workflow via the notification service. This agent runs asynchronously and MUST NOT block
-the patient-facing chat interaction.
+## Why we need this service
 
-The **AI Response Agent** (agent 2) has been moved into the chat interface layer
-(see [`001-chat-service`](001-chat-service.md) and the mobile/web app specs);
-it streams replies directly to the patient via the inference provider.
-The **Deidentification Agent** (agent 1, session-end batch) is specified in
-[`002-deidentification-pipeline`](002-deidentification-pipeline.md).
+Every inbound patient message may carry a clinical risk signal -- suicidal ideation, chest pain, medication error, or another situation where waiting for a routine reply is unsafe. The platform's chat experience must stay fast and conversational; risk evaluation cannot block the patient while a model runs. The AI Risk Agent Service exists to evaluate each patient message for clinical risk **asynchronously**, return a binary intervention signal, and trigger the alert workflow when the answer is yes -- without adding latency to the visible chat interaction.
 
-## User Scenarios & Testing
+This spec covers **Agent 3** in the v1 AI pipeline: the risk agent only. The AI Response Agent (streaming replies to the patient) lives in the Chat Service and client apps. The Deidentification Agent (session-end batch processing) is specified separately. Splitting these concerns keeps patient-facing latency independent from safety-critical background evaluation.
 
-### User Story 1 — Risk Agent Evaluates a Message and Returns a Binary Signal (Priority: P1)
+## How this service fits into the platform
 
-A patient message is placed on the risk agent queue by the chat service. The risk agent
-consumes it, evaluates it against a clinical risk model, and returns a binary yes/no
-intervention signal. The patient's chat interaction is not blocked; the risk agent
-operates asynchronously alongside the chat flow.
+When the Chat Service stores an inbound patient message, it publishes a fire-and-forget event to the risk agent queue. This service consumes those events, retrieves session context from the Chat Service, invokes a versioned approved risk model through the AI inference provider, and records a binary outcome for every message. If the outcome is yes, it calls the Notification Service within the platform's escalation time budget. The patient continues receiving streamed AI replies in parallel; queue lag here does not slow the chat path.
 
-**Why this priority**: Clinical risk detection is a core patient safety function (Constitution
-Principle II). Missing a risk signal has potential life-threatening consequences.
+PHI may flow to the inference provider under a signed HIPAA BAA -- the same constitutional constraint as other AI workloads -- but raw message content, prompts, and model responses never appear in service logs or audit records. Cross-service correlation uses sanitised identifiers only. Failed evaluations after retries land in a human-review path with a queryable audit record; automatic escalation is not triggered on agent failure.
 
-**Independent Test**: Place a synthetic message containing a high-risk indicator on the
-queue; verify the risk agent returns "yes", calls the notification service within 60 seconds
-of the message timestamp, and logs the binary outcome and model version.
+## Client objectives
 
-**Acceptance Scenarios**:
+**Patients in distress** need their messages evaluated quickly even when they cannot wait for a clinician to read the transcript -- without noticing any delay in the conversational reply they see on screen.
 
-1. **Given** a patient message contains a clinical risk indicator, **When** the risk agent
-   processes it, **Then** the agent returns "yes" and the notification service is called
-   within 60 seconds of the original message timestamp.
-2. **Given** a patient message contains no clinical risk indicator, **When** the risk agent
-   processes it, **Then** the agent returns "no", no escalation is triggered, and the
-   binary evaluation result is stored for audit purposes.
-3. **Given** the risk agent itself fails (model error or timeout), **When** all retries are
-   exhausted, **Then** the failed evaluation is routed to a human review queue; no
-   automatic escalation is triggered, and an error alert is emitted.
+**Clinicians and on-call staff** need timely, deduplicated escalation alerts when the risk model says intervention is warranted, and a reliable audit trail showing which messages were evaluated, with what model version, and what binary outcome resulted.
 
----
+**Clinical safety reviewers** need to reconstruct evaluation history per message and session, including failed evaluations routed for human review, without log dumps containing raw chat content.
 
-### User Story 2 — Risk Agent Processes Without Blocking the Chat Interaction (Priority: P2)
+**Platform operators** need to detect when the risk agent stops processing, falls behind, or errors at scale -- queue lag and error rate are primary patient-safety signals, not optional performance niceties.
 
-The patient sends a message and receives a streamed AI reply from the chat interface
-immediately. In parallel, the chat service publishes the message to the risk agent message queue.
-queue. The risk agent processes and, if warranted, triggers an escalation — entirely
-decoupled from the patient's visible chat experience.
+**Deploying products** need model versions pinned through an approved registry at deploy time so live risk evaluation never runs an experimental or unapproved model.
 
-**Why this priority**: The risk agent must never introduce latency into the patient-facing
-chat flow. Decoupling via a message queue enforces this guarantee architecturally.
+## Functional requirements
 
-**Independent Test**: Simulate a high-volume message burst; verify that risk agent queue
-lag does not affect response latency in the chat interface, and that all enqueued messages
-are evaluated within the near-real-time SLA.
+- **FR-001**: The service consumes patient message events from a queue published by the Chat Service. Processing is near-real-time and does not block the patient-facing chat interaction.
 
-**Acceptance Scenarios**:
+- **FR-002**: For each consumed message, the service invokes the risk agent to produce a binary yes/no clinical intervention signal using a versioned, approved risk model resolved from the AI workbench model registry at service startup. Activating a new approved model version requires a service deployment; runtime hot-swap is not supported.
 
-1. **Given** the risk agent queue has accumulated lag, **When** a patient sends a message,
-   **Then** the chat interface response latency is unaffected.
-2. **Given** the risk agent is temporarily unavailable, **When** messages accumulate on the
-   queue, **Then** they are processed in order upon recovery with no messages lost.
+- **FR-003**: Before inference, the service retrieves the full raw message history for the session from the Chat Service and includes it as evaluation context. PHI transmission to the inference provider is permitted only when the provider operates under a signed HIPAA BAA.
 
----
+- **FR-004**: Processing is idempotent: re-delivery of the same message does not produce duplicate escalation alerts. The message identifier is the deduplication key -- if a risk evaluation record already exists for that message, the re-delivered event is acknowledged and discarded without re-evaluation.
 
-### Edge Cases
+- **FR-005**: When the risk agent returns yes, the service calls the Notification Service within the platform escalation time budget measured from the original message timestamp. When the agent fails after all retries, the message is routed to a dedicated error queue for replay, a risk evaluation record with outcome `failed-pending-review` is written, no automatic escalation is triggered, and an error alert is emitted for operators.
 
-- What happens if the message visibility timeout expires before the risk agent completes evaluation?
-- How does the service avoid processing the same message twice if agent processing is retried?
-- What PHI logging controls are in place to ensure raw session content never appears in
-  service logs or audit records (even though it is permitted to flow to the inference provider)?
-- What is the maximum acceptable queue lag before near-real-time guarantees are considered breached? **Resolved: 30 seconds (see SC-006).**
+- **FR-006**: A risk evaluation record is stored for every processed message regardless of binary outcome, forming the audit trail for clinical review. Records capture model version, binary outcome, and correlators -- not message text.
 
-## Requirements
+- **FR-007**: All inference invocations emit structured records suitable for operational measurement: model version, token count, latency, and binary outcome. On failure, logs include job, session, and message correlators plus error code -- never content fields (message text, prompt, or model response).
 
-### Functional Requirements
+- **FR-008**: Patient identity is trusted from upstream internal headers; this service does not perform patient authentication.
 
-- **FR-001**: The service MUST consume patient messages from a message queue published by the
-  chat service; messages MUST be processed in near-real-time without blocking the patient
-  chat interaction.
-- **FR-002**: For each consumed message, the service MUST invoke the risk agent to produce
-  a binary yes/no clinical intervention signal.
-- **FR-003**: Risk agent processing MUST be idempotent: re-delivery of the same message
-  MUST NOT produce duplicate escalation alerts. The message ID MUST be used as the
-  deduplication key; if a `RiskEvaluation` record already exists for a given message ID,
-  the re-delivered message MUST be acknowledged and discarded without re-evaluation.
-- **FR-004**: The risk agent MUST source the full raw session history from the chat service
-  for evaluation context. PHI MAY be transmitted to the AI inference provider provided
-  the provider operates under a signed HIPAA BAA (Constitution Principle I).
-- **FR-005**: Before invoking the AI inference provider, the risk agent MUST retrieve the
-  full raw message history for the session from the chat service and include it as context
-  in the evaluation prompt.
-- **FR-006**: The risk agent MUST evaluate each message using a versioned, approved risk
-  model; the model version MUST be resolved from the AI workbench model registry once
-  at service startup. Deploying a new approved model version requires a service deployment.
-- **FR-007**: If the risk agent returns "yes", the service MUST call the notification
-  service within 60 seconds of the original message timestamp. If the risk agent fails
-  after all retries, the failed message MUST be routed to a dedicated error queue for replay,
-  AND a `RiskEvaluation` record with outcome `failed-pending-review` MUST be
-  written to the database to provide a queryable audit trail for human reviewers. No
-  automatic escalation MUST be triggered; an error alert MUST be emitted.
-- **FR-008**: All AI inference invocations MUST be logged with: model version, token
-  count, latency, binary outcome. On evaluation failure, the service MUST emit a
-  structured log record containing: job ID, session ID, chat message ID, message ID,
-  error code, model version, and latency. No content fields (message text, prompt, or
-  response) MUST appear in any log or audit record. Cross-service correlation with
-  sanitised chat service logs provides full debug context without PHI exposure.
-- **FR-009**: The risk agent MUST store a risk evaluation record for every processed
-  message regardless of binary outcome; this forms the audit trail for clinical review.
-- **FR-010**: The risk agent type and its model version MUST be configuration-driven and
-  resolved at service startup from the AI workbench model registry. Activating a new
-  approved model version requires a service deployment; no runtime hot-swap is supported.
+- **FR-009**: The HTTP and queue-facing contract surfaces are published and kept aligned with implementation so contract tests and downstream publishers share one authoritative definition.
 
-### Key Entities
+## Operational requirements
 
-- **AgentJob**: Job ID, message ID, session ID, patient ID, tenant ID,
-  status (`pending` / `running` / `completed` / `failed`), started at, completed at.
-- **AgentResult**: Result ID, job ID, binary outcome (`yes` / `no` / `failed-pending-review`),
-  model version, token count, latency, stored at.
-- **RiskEvaluation**: Evaluation ID, message ID (unique deduplication key), chat message ID,
-  session ID, patient ID, tenant ID, model version, binary outcome
-  (`escalated` / `no-action` / `failed-pending-review`), evaluation timestamp.
-  Records with `failed-pending-review` outcome serve as the queryable human-review audit
-  trail; the corresponding raw message is retained in the error queue for replay.
-- **RiskAgentConfig**: Model version reference, prompt template reference, timeout,
-  retry policy.
+Platform baseline applies ([000-platform-baseline.md](https://github.com/Neosofia/cdp/blob/main/specs/000-platform-baseline.md)).
 
-## Success Criteria
+- **OR-001**: Events support **measuring** evaluation latency, queue lag, error rate, invocation rate, escalation rate, suppression rate, and model version in use. At minimum, operators can:
 
-### Measurable Outcomes
+  - Detect when evaluations complete and whether escalation was triggered
+  - Attribute evaluation duration and end-to-end time to notification dispatch
+  - Count duplicate-safe discards, failures, and `failed-pending-review` outcomes
+  - Correlate a single message event across Chat Service, risk agent, and notification paths via shared trace identifiers
 
-- **SC-001**: 99.9% of risk agent evaluations complete and, where the outcome is "yes",
-  trigger a notification service call — all within 60 seconds of the original message
-  timestamp (end-to-end budget covering both risk evaluation and notification delivery).
-- **SC-003**: The AI inference provider used by the risk agent operates under a signed
-  HIPAA BAA; evidence of a current BAA MUST be available before any production deployment.
-- **SC-004**: Duplicate message deliveries produce zero duplicate
-  escalations, verified by idempotency tests.
-- **SC-005**: Binary risk evaluation records are produced for 100% of processed messages,
-  verified by record count reconciliation against queue event counts in testing.
-- **SC-006**: Message queue lag MUST NOT exceed 30 seconds; lag exceeding this threshold
-  constitutes a near-real-time SLA breach and MUST trigger an operational alarm.
-  The remaining ≤30-second budget covers risk evaluation and notification service delivery.
+- **OR-002**: Evidence of a current HIPAA BAA with the inference provider is available before any production deployment involving PHI.
 
-## Assumptions
+- **OR-003**: Queue lag, error rate, and invocation silence are monitored as primary patient-safety signals; breach conditions route to the platform escalation path with runbook links.
 
-- The chat service publishes a message event to the risk agent message queue for every inbound
-  patient message; this is a fire-and-forget publish that does not block the chat flow.
-- The risk agent evaluates the full raw session history sourced directly from the chat
-  service. PHI transmission to the inference provider is permitted under the HIPAA BAA.
-- The clean chat service is exclusively for human-accessible workloads (debugging,
-  observability, model pre-training); the risk agent does not depend on it.
-- The risk model used by the risk agent is pre-approved via an AI workbench promotion
-  workflow; no unapproved experimental model may be used in the live pipeline.
-- The AI Response Agent (streaming chat reply to the patient) is implemented within the
-  chat interface layer and is out of scope for this service; it calls an AI inference
-  provider with a signed HIPAA BAA and streams the response directly to the patient.
-- The risk agent does not directly handle patient authentication; patient identity is
-  carried as a trusted internal header from the upstream chat service.
+## Further reading
+
+- Platform baseline: [000-platform-baseline.md](https://github.com/Neosofia/cdp/blob/main/specs/000-platform-baseline.md)
+- Chat service spec: [001-chat-service.md](https://github.com/Neosofia/cdp/blob/main/specs/001-chat-service.md)
+- Deidentification pipeline spec: [002-deidentification-pipeline.md](https://github.com/Neosofia/cdp/blob/main/specs/002-deidentification-pipeline.md)
+- Notification service spec: [005-notification-service.md](https://github.com/Neosofia/cdp/blob/main/specs/005-notification-service.md)
+- AI workbench spec: [006-ai-workbench.md](https://github.com/Neosofia/cdp/blob/main/specs/006-ai-workbench.md)
+- Platform operational metrics: [011-operational-metrics.md](https://github.com/Neosofia/cdp/blob/main/specs/011-operational-metrics.md)
+- Structured log schema: [log-v1.0.0.json](https://github.com/Neosofia/schemas/blob/main/log-v1.0.0.json)

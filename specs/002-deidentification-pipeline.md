@@ -1,189 +1,61 @@
-# Feature Specification: Deidentification Agent
+# Deidentification Pipeline
 
-**Feature Branch**: `002-deidentification-pipeline`
-**Created**: 2026-04-17
-**Status**: Draft
-**Scope**: Agent 1 of 3 in the v1 AI agent pipeline. This spec covers the **Deidentification
-Agent** only — an event-driven AI agent that triggers at chat session-end, strips all PII and
-PHI from raw chat messages, and writes the clean session to the clean chat service for use by
-downstream human-accessible workloads (debugging, observability, EDA, model pre-training).
+## Why we need this service
 
-The remaining two v1 agents — the **AI Response Agent** (real-time patient reply generation)
-and the **AI Risk Agent** (real-time binary clinical intervention signal) — are specified in
-[`010-ai-agent-service`](010-ai-agent-service.md).
+Raw patient chat is PHI-complete by design -- names, dates, medications, and free-text clinical detail must survive in the chat store so clinicians and real-time agents can act on what was actually said. Employee debugging, observability, exploratory analysis, and model pre-training cannot safely use that same store. Constitution Principle I requires a deliberate boundary: PHI is stripped before any human-accessible clean workload or batch ML pipeline sees message text.
 
-## Clarifications
+The Deidentification Pipeline exists to enforce that boundary at scale. When a chat interaction ends, it processes every message in the session, detects and replaces identifiable content, forwards clean copies to the clean chat service, and quarantines anything it cannot confidently deidentify -- so downstream consumers never inherit raw PHI by accident.
 
-## User Scenarios & Testing
+## How this service fits into the platform
 
-### User Story 1 — Raw Message Is Deidentified and Written to Clean Store (Priority: P1)
+The pipeline is event-driven and session-scoped. The Chat Service publishes an interaction-end event (identifiers only); this pipeline consumes that signal, reads the full message log from raw storage over an internal network path, and runs each message through deidentification models -- optionally including an AI inference step only after a deterministic pre-filter removes gross PHI. Successfully cleaned messages are written to the Clean Chat Service with correlation keys; failures route to a quarantine queue rather than contaminating the clean store.
 
-A chat session ends and the pipeline is triggered to process all messages in that session. The pipeline
-processes each message through a set of models/agents that detect and redact all PII and PHI, producing
-a structurally identical but de-identified copy of each message, which is then forwarded to the clean chat
-service.
+Real-time patient-facing agents (AI Response, AI Risk) are specified separately and may operate on raw content under BAA-covered providers; this pipeline is the batch path for **post-interaction** clean data. Correlation metadata (original message id to clean message id, token positions) may be written to the patient database for downstream apps; raw PHI values are never stored in pipeline-owned artefacts, logs, or queue bodies. Human review tooling for quarantined messages, attachment OCR, and multilingual models are out of scope for the initial version -- English text only, quarantine as the safety net.
 
-**Why this priority**: This is the core pipeline moment where PHI safety (Constitution Principle I)
-is enforced. No AI or model workload may operate without this step. Everything downstream
-depends on it.
+## Client objectives
 
-**Independent Test**: Inject a synthetic message containing known PII/PHI patterns (names,
-dates of birth, medications, diagnoses). Verify the clean output contains none of the original
-PHI tokens and that a mapping record (original message ID → clean message ID) is stored.
+**Compliance and security stakeholders** need assurance that employee and ML workloads never receive raw PHI from chat -- and that anything the pipeline cannot clean is isolated, auditable, and never forwarded as if it were safe.
 
-**Acceptance Scenarios**:
+**Engineers and data scientists** need structurally identical conversation copies with placeholders instead of identifiers, correlated back to source messages when debugging pipeline behaviour -- without ever seeing original PHI in the clean store.
 
-1. **Given** a raw message containing patient name, DOB, and medication names is placed on
-   the queue, **When** the pipeline processes it, **Then** the clean output replaces all
-   identified PHI with placeholder tokens (e.g., `[PERSON]`, `[DATE]`, `[MEDICATION]`),
-   and none of the original PHI values appear in the output.
-2. **Given** a message with no PII/PHI is processed, **When** the pipeline completes,
-   **Then** the clean output is content-identical to the input.
-3. **Given** the agent fails to process a message (error or timeout), **When** all retries
-   are exhausted, **Then** the message is routed to the quarantine queue and is NOT written
-   to the clean store.
+**Platform operators** need to deploy improved deidentification models without stopping in-flight work, measure processing lag and quarantine rates, and detect sessions that stall before the clean store is updated.
 
----
+**Downstream services** need idempotent, batch-complete session processing so a retried event or a model upgrade does not duplicate clean records or drop messages silently.
 
-### User Story 2 — Failed Messages Are Quarantined (Priority: P2)
+## Functional requirements
 
-When a message cannot be deidentified — because the agent returns a failure or a processing
-timeout occurs — the pipeline routes the message to a quarantine queue for human review
-rather than allowing unprocessed output to contaminate the clean store.
+- **FR-001**: The pipeline is triggered at chat interaction end and processes all messages in that interaction as a batch, consuming interaction-end events from the raw chat event queue and fetching full content from raw storage -- events carry references, not message bodies, so queue metadata stays PHI-free.
 
-**Why this priority**: A false-clean message (PHI that survived deidentification) reaching
-the AI workbench is a HIPAA violation. Quarantine is the safety net.
+- **FR-002**: Each message is individually deidentified. At minimum, the logic detects and replaces names, dates (including date of birth and admission or discharge dates), geographic identifiers below state level, phone numbers, email addresses, medical record numbers, health plan numbers, medication names, diagnoses, and free-text clinical notes with placeholder tokens (for example `[PERSON]`, `[DATE]`, `[MEDICATION]`).
 
-**Independent Test**: Submit a message that triggers a simulated agent failure; verify it
-appears in the quarantine queue with the original message ID and that no clean output is
-written to the clean store.
+- **FR-003**: Messages with no detectable PII or PHI pass through content-identical; successfully deidentified messages are forwarded to the clean chat service with the original message id as a correlation key.
 
-**Acceptance Scenarios**:
+- **FR-004**: PHI does not appear in agent logs, environment variables, or intermediate pipeline storage. Correlation keys and token-position metadata may be persisted for downstream use; raw PHI values are never written to pipeline-owned stores.
 
-1. **Given** the deidentification agent returns a failure for a message, **When** the pipeline
-   finalises the message, **Then** the message is placed in the quarantine queue and is NOT
-   forwarded to the clean chat service.
-2. **Given** the agent processing a message times out, **When** the event is retried three
-   times, **Then** after the third failure the message moves to the quarantine queue and a
-   structured alert is emitted.
+- **FR-005**: When deidentification fails or times out after retries, the message is routed to a quarantine queue and is not written to the clean store -- a false-clean message reaching employee or ML workloads is treated as a safety violation, not a degraded success path.
 
----
+- **FR-006**: Processing is idempotent: queue re-deliveries and duplicate events produce exactly one clean output record per original message id.
 
-### User Story 3 — Deidentification Models Can Be Updated Without Pipeline Downtime (Priority: P3)
+- **FR-007**: Model versions are independently deployable; the version used for each message is recorded in audit output so operators can reconcile behaviour before and after upgrades or rollbacks without losing in-flight work.
 
-The team can deploy a new version of a deidentification model and have the pipeline use it
-for new messages without interrupting processing of in-flight messages.
+- **FR-008**: Every pipeline invocation produces a structured audit record with original message id, invocation id, model version, outcome (`clean`, `quarantine`, or `failed`), and processing duration. Audit records are retained indefinitely in the initial version; cold-storage archival policy is a future concern.
 
-**Why this priority**: Clinical NLP models improve over time. The ability to update models
-independently ensures the pipeline can get better without risky big-bang deployments.
+- **FR-009**: Deidentification completes on a best-effort basis within one hour of the interaction-end event -- this is a batch hygiene path, not a real-time synchronous step in the patient reply loop.
 
-**Independent Test**: Deploy a new model version; verify that messages processed before and
-after the deployment are handled by their respective model versions (via version tag in
-audit log), and that no messages are lost or duplicated during the transition.
+- **FR-010**: Platform metrics cover sessions processed, messages processed, quarantine rate, processing lag from interaction end to completion, and agent error rate so operators can alert on elevated failure or backlog without embedding alert thresholds in this spec.
 
-**Acceptance Scenarios**:
+## Operational requirements
 
-1. **Given** a new model version is deployed to the agent, **When** new messages arrive,
-   **Then** they are processed using the new version; in-flight messages on the old version
-   are completed before cutover.
-2. **Given** a new model version is rolled back, **When** the rollback is applied,
-   **Then** the pipeline seamlessly reverts to the previous version for all subsequent messages.
+Platform baseline applies ([000-platform-baseline.md](https://github.com/Neosofia/cdp/blob/main/specs/000-platform-baseline.md)).
 
----
+- **OR-001**: Operators **measure** pipeline throughput, lag, quarantine rate, and error rate.
 
-### Edge Cases
+- **OR-002**: The pipeline runs in an execution environment with internal network access to raw message storage. Any external AI inference provider used within the pipeline operates under a HIPAA BAA, with deterministic pre-filtering applied before LLM interaction.
 
-- What happens when a message language is outside the supported NLP models (e.g., a non-English patient)?
-- How does the pipeline handle messages that are entirely images or attachments?
-- What if the same message is enqueued twice (duplicate event from chat service retry)?
-- What is the maximum acceptable pipeline latency before the downstream AI agents are starved? (Addressed: 1-hour best-effort SLA.)
+## Further reading
 
-## Requirements
-
-### Functional Requirements
-
-- **FR-001**: The pipeline MUST be triggered at session-end and process all messages in a
-  session as a batch; each message MUST be individually deidentified by the agent.
-  The pipeline MUST consume session-close events from the raw chat event queue to initiate processing.
-- **FR-002**: The deidentification logic MUST detect and replace at minimum the following PHI
-  categories: names, dates (DOB, admission/discharge dates), geographic identifiers below
-  state level, phone numbers, email addresses, medical record numbers, health plan numbers,
-  medication names, diagnoses, and free-text clinical notes.
-- **FR-003**: Each successfully deidentified message MUST be forwarded to the clean chat
-  service with the original message ID as a correlation key.
-- **FR-004**: PHI MUST NOT appear in any agent log output, environment variable, or
-  intermediate storage artefact. The pipeline MUST write a correlation key (original
-  message ID → clean message ID, plus token-position metadata) to the patient database;
-  it MUST NOT store raw PHI values in any pipeline-owned store.
-- **FR-005**: Every pipeline invocation MUST produce a structured audit record containing:
-  original message ID, invocation ID, model version used, agent outcome
-  (`clean` / `quarantine` / `failed`), and processing duration.
-- **FR-006**: Messages where the deidentification agent returns a failure MUST be routed
-  to a quarantine queue; they MUST NOT be forwarded to the clean store.
-- **FR-007**: The pipeline MUST tolerate processing timeouts and message queue
-  re-deliveries without producing duplicate clean messages (idempotent processing).
-- **FR-008**: Model versions MUST be independently deployable; the model version used MUST
-  be recorded in the audit log for every processed message.
-- **FR-009**: The pipeline MUST complete deidentification of a session's messages within
-  1 hour of the session-close event on a best-effort basis; there is no real-time or
-  synchronous latency requirement.
-- **FR-010**: Audit records MUST be retained indefinitely; purge or archival policies are
-  out of scope for v1 and will be addressed in a future cold-storage migration.
-- **FR-011**: The pipeline MUST emit platform metrics for: sessions processed, messages
-  processed, quarantine rate, processing lag (time from session-close event to completion),
-  and agent error rate. Operational alerts MUST be configured to notify the on-call team
-  (e.g., via an escalation platform, email, or SMS) when:
-  - The agent failure/quarantine rate exceeds 5% over a rolling 15-minute window.
-  - Any session remains unprocessed beyond the 1-hour SLA window.
-  - Agent error rate exceeds a configurable threshold.
-
-### Key Entities
-
-- **DeidentificationJob**: Job ID, original message ID, tenant ID, model version used,
-  agent outcome (`clean` / `quarantine` / `failed`), processing duration, timestamp.
-- **PHIToken**: Token type (e.g., `[PERSON]`, `[DATE]`), original value hash (correlation
-  key written to the patient database for use by downstream apps), position in original
-  message. The pipeline does NOT store the original PHI value; raw PHI is never surfaced
-  in any UI. Access control for the patient database is out of scope for this spec.
-- **QuarantineRecord**: Original message ID, job ID, reason (agent failure / timeout /
-  agent error), timestamp, review status.
-- **ModelVersion**: Model ID, version tag, deployment timestamp, supported PHI categories.
-
-## Success Criteria
-
-### Measurable Outcomes
-
-- **SC-001**: 99.9% of sessions are fully processed (all messages clean or quarantine) within
-  1 hour of the session-close event. The pipeline MUST sustain a peak ingest rate of
-  **1,800 messages/minute (90 sessions/min)**, derived from the Erlang C model in spec 009
-  (peak chat ingestion = 30 msg/sec across all channels; 30 msg/sec ÷ 20 msg/session =
-  90 sessions/min). Average load is ~1,000 sessions/hour (~333 msg/min); the 1-hour SLA
-  window provides the queue-drain buffer for peak bursts. Real-time processing is not required.
-- **SC-002**: Zero PHI tokens appear in the clean output for 100% of test cases using a
-  standardised synthetic PHI test suite.
-- **SC-003**: The agent failure rate (quarantine) for synthetic "clean" messages (no PHI
-  content) is less than 1% (false-failure rate).
-- **SC-004**: Duplicate message submissions produce exactly one clean output record (idempotency
-  verified for 100% of test cases).
-- **SC-005**: Model version updates complete with zero message loss, verified by processing
-  count reconciliation before and after deployment.
-- **SC-006**: Audit records are produced for 100% of pipeline invocations with no gaps in
-  testing.
-- **SC-007**: Audit records are durably stored and queryable indefinitely; no records are
-  deleted or lost during normal operations (purge/archival policy verification deferred to
-  future cold-storage migration feature).
-
-## Assumptions
-
-- The raw chat event queue publishes one event per session at session-end, containing the
-  session ID and references to the storage locations of all messages in that session
-  (not the raw content in the event body, to avoid PHI in queue metadata).
-- The agent execution environment has network access to the raw message store
-  without traversing the public internet.
-- An AI inference provider (under HIPAA BAA) may be used as one component within the deidentification
-  pipeline; however, the content sent to the inference provider MUST itself be processed for gross PHI
-  removal by a deterministic pre-filter before any LLM interaction.
-- A human review workflow for quarantined messages is out of scope for v1 (quarantine queue
-  is the boundary; UI tooling for reviewers is a separate feature).
-- Attachment/image processing (OCR-based PHI detection) is deferred to a future version.
-- Language support for v1 is English only; multilingual support is a future enhancement.
+- Platform baseline: [000-platform-baseline.md](https://github.com/Neosofia/cdp/blob/main/specs/000-platform-baseline.md)
+- Chat Service: [001-chat-service.md](https://github.com/Neosofia/cdp/blob/main/specs/001-chat-service.md)
+- Clean Chat Service: [003-clean-chat-service.md](https://github.com/Neosofia/cdp/blob/main/specs/003-clean-chat-service.md)
+- AI Agent Service: [010-ai-agent-service.md](https://github.com/Neosofia/cdp/blob/main/specs/010-ai-agent-service.md)
+- Platform operational metrics: [011-operational-metrics.md](https://github.com/Neosofia/cdp/blob/main/specs/011-operational-metrics.md)

@@ -1,198 +1,73 @@
-# Feature Specification: SMS Service
+# SMS Service
 
-**Feature Branch**: `009-sms-service`
-**Created**: 2026-04-17
-**Status**: Draft
-**Input**: A service that enables post-discharge patients to interact with the platform via
-standard SMS text messages, without requiring a smartphone app or internet access. Inbound
-SMS messages from patients are received, normalized, and forwarded to the chat service.
-Outbound responses from the AI agent or clinicians are delivered as SMS to the patient's
-registered phone number.
+## Why we need this service
 
-## User Scenarios & Testing
+Not every patient has a smartphone, a data plan, or the ability to install an app -- yet post-discharge care still needs to reach them where they are. Standard SMS is the lowest-barrier channel: any mobile phone can send and receive text messages without internet access. The SMS Service exists so patients can participate in platform care conversations through text alone, while the rest of the platform continues to treat chat as a single logical conversation regardless of whether the patient is on app, web, or SMS.
 
-### User Story 1 — Patient Sends a Text Message and Receives a Reply (Priority: P1)
+The service is a **channel adapter**, not a second chat store. It receives inbound texts from a managed gateway, normalises and authenticates them, matches the sender to a registered patient, and forwards content to the Chat Service. Outbound replies from the AI response path or clinicians travel back through the same adapter to the patient's registered phone number. TCPA opt-out handling, delivery tracking, and carrier-specific protocol details stay here so upstream services never need to speak Twilio or Pinpoint directly.
 
-A patient texts a platform-assigned number from their registered mobile phone. The SMS
-service receives the message, creates or resumes a chat session, forwards the message to
-the chat service for AI processing, and delivers the AI response back to the patient as
-an SMS.
+## How this service fits into the platform
 
-**Why this priority**: SMS is the lowest-barrier channel. It reaches patients without
-smartphones, without data plans, and without the ability to install apps. It is the
-most inclusive channel.
+Inbound SMS arrives at the gateway provider's webhook; this service validates the webhook, resolves the sender's phone number to a patient record (via the Patient Service), maintains SMS-specific session and authentication state, and calls the Chat Service ingestion API. The Chat Service owns message storage, care-episode association, AI streaming, and downstream queue publication -- the SMS Service does not duplicate any of that.
 
-**Independent Test**: Using a test phone number, send an SMS to the platform number; verify
-the message appears in the chat service with the correct patient and session association,
-and an AI response SMS is delivered back within the target time.
+On the outbound path, channel adapters or the Chat Service request delivery of a reply; this service segments long text, dispatches through the tenant's configured number, and records delivery receipts. When a patient replies STOP or START, suppression state is enforced here before any outbound message is sent. New SMS sessions require a cross-channel OTP challenge (PIN to registered email) before patient content is forwarded -- bridging the trust gap between an unauthenticated SMS sender and a known platform account.
 
-**Acceptance Scenarios**:
+## Client objectives
 
-1. **Given** a patient texts the platform number from their registered phone, **When**
-   the SMS is received, **Then** the message is stored in the chat service and an AI response
-   SMS is delivered back within 30 seconds.
-2. **Given** a patient texts from a phone number not registered to any patient account,
-   **When** the SMS is received, **Then** an automated reply is sent instructing the sender
-   how to enrol, and the unmatched message is logged (no patient record created automatically).
-3. **Given** an outbound SMS fails to deliver (e.g., phone off), **When** delivery fails
-   after the carrier retry window, **Then** the delivery failure is logged, the message
-   status is set to `failed`, and the failure is escalated if the message was a clinician
-   reply (not an AI-generated response).
+**Patients without app access** want to text a care number and get helpful replies in plain language, in the same ongoing conversation as their clinical team would see elsewhere -- without installing anything or creating confusion about whether their message was received.
 
----
+**Patients who change their mind about SMS** need a legally compliant way to opt out (STOP) and back in (START), with immediate effect and a clear pointer to web or app channels if they still want to continue care conversations there.
 
-### User Story 2 — Patient Session Context Is Maintained Across SMS Replies (Priority: P2)
+**Clinicians and care teams** need confidence that SMS replies reach the patient and that delivery failures on clinician-authored messages are visible and escalated -- not silently dropped when a phone is off or a carrier rejects the message.
 
-A patient sends multiple SMS messages in sequence as part of an ongoing care conversation.
-Each message is associated with the same care session rather than creating a new session per
-SMS, so the AI agent has conversational context.
+**Platform operators** need per-tenant phone numbers, authenticated webhooks, durable retry when the SMS provider is unavailable, and observability that never puts message body content in logs.
 
-**Why this priority**: Without session continuity, the AI agent cannot reference earlier
-messages from the same conversation, reducing care quality.
+**Downstream services** (Chat Service, Notification Service) need a reliable adapter that preserves session continuity, enforces opt-out before send, and surfaces delivery status without re-implementing carrier semantics.
 
-**Independent Test**: Send five SMS messages from the same test phone number; verify all
-five are stored under the same session ID in the chat service.
+## Functional requirements
 
-**Acceptance Scenarios**:
+- **FR-001**: The service receives inbound SMS from a managed gateway provider and forwards matched messages to the Chat Service via its internal ingestion API. Carrier webhook handling and normalisation stay in this adapter.
 
-1. **Given** a patient has an active session and sends a follow-up SMS, **When** the SMS
-   is received, **Then** it is appended to the existing session rather than creating a new one.
-2. **Given** a patient session has been inactive for longer than the configured session
-   timeout (e.g., 24 hours), **When** the patient sends a new SMS, **Then** a new session
-   is created and the AI response acknowledges the fresh start.
+- **FR-002**: Inbound phone numbers are matched to registered patient accounts using normalised E.164 format. Unmatched numbers receive a configured enrolment-instruction reply; no patient record is created from an unmatched inbound message.
 
----
+- **FR-003**: The service maintains or resumes an ongoing SMS session per patient phone number, appending follow-up texts to the existing Chat Service session. A new session is created only after the configured inactivity timeout (for example 24 hours), at which point the AI response may acknowledge a fresh start.
 
-### User Story 3 — Opt-Out and TCPA Compliance (Priority: P3)
+- **FR-004**: Outbound SMS -- AI or clinician replies -- is delivered to the patient's registered phone number on the tenant's configured long code or short code. Each tenant may have one or more dedicated numbers; shared numbers across tenants are not used.
 
-A patient replies STOP to opt out of SMS communications. The service immediately and
-permanently suppresses all future outbound SMS to that number and sends the federally
-required confirmation message. The confirmation message MUST inform the patient that they
-can continue to access their care conversations via the web portal or mobile app.
+- **FR-005**: TCPA opt-out compliance is enforced: a STOP reply immediately suppresses all future outbound SMS to that number and sends the federally required confirmation, including notice that the patient may continue care conversations via the web portal or mobile app. A START reply lifts the suppression and sends a resubscription confirmation.
 
-**Why this priority**: TCPA compliance is a legal requirement for SMS communications in the
-United States. Non-compliance exposes the platform to significant legal risk.
+- **FR-006**: Outbound messages exceeding the SMS character limit are split into sequenced multi-part messages (160 characters GSM / 153 characters UCS-2 per segment when concatenated). AI responses intended for SMS are constrained to a practical maximum (for example two standard parts); longer AI output is summarised before delivery.
 
-**Independent Test**: Send STOP from a test number; verify all future outbound SMS to that
-number are blocked, the opt-out record is stored, and the confirmation reply is sent
-including the web/app alternative channel notice.
+- **FR-007**: Delivery status for every outbound message is tracked through provider receipts (`sent`, `delivered`, `failed`). Clinician reply failures are escalated; AI reply failures are logged without the same escalation path.
 
-**Acceptance Scenarios**:
+- **FR-008**: Inbound multi-part (concatenated) SMS segments are buffered and reassembled in sequence order before forwarding. A short reassembly timeout applies; if segments are incomplete when it expires, the partial message is forwarded and a warning is recorded.
 
-1. **Given** a patient replies STOP, **When** the SMS is received, **Then** the opt-out
-   is recorded immediately, a confirmation SMS is sent informing the patient they can
-   continue care conversations via the web portal or mobile app, and all subsequent
-   outbound messages to that number are suppressed.
-2. **Given** an opted-out patient replies START, **When** the SMS is received, **Then**
-   the opt-out is lifted, a resubscription confirmation is sent, and outbound messaging
-   is restored.
+- **FR-009**: On the first inbound SMS of each new session, an OTP authentication challenge is issued: a one-time PIN is sent to the patient's registered email address. The patient must reply with the PIN via SMS within a configurable window (default ten minutes). No message content is forwarded to the Chat Service until the OTP is verified; failed or expired challenges are recorded and the patient is notified via SMS.
 
----
+- **FR-010**: Inbound provider webhooks are authenticated (for example HMAC signature validation or allowlisted source ranges) so spoofed messages cannot enter the platform.
 
-### Edge Cases
+- **FR-011**: Message body content does not appear in application logs; logs reference message identifiers only. Structured lifecycle events follow the platform log schema without PHI in payloads.
 
-- How does the service handle multi-part (concatenated) SMS messages that arrive out of order?
-  **Resolved**: Buffer all segments with a 5-second reassembly timeout; forward the
-  reconstructed message to the chat service only when all segments are received in order.
-  If the timeout expires before all segments arrive, forward the partial message and log a warning.
-- What if the patient's registered phone number changes?
-- How does the service handle non-English SMS content?
-- **Provider outage**: Undelivered outbound messages are persisted to a local durable queue and retried with exponential backoff until the provider recovers.
-- What is the maximum message length for AI responses sent as SMS?
+- **FR-012**: When the SMS provider is unavailable, undelivered outbound messages are persisted to a local durable queue and retried with exponential backoff until the provider recovers or a maximum retry TTL is exceeded.
 
-## Requirements
+## Operational requirements
 
-### Functional Requirements
+Platform baseline applies ([000-platform-baseline.md](https://github.com/Neosofia/cdp/blob/main/specs/000-platform-baseline.md)). Log payloads must not include phone numbers, message text, or patient-identifying fields.
 
-- **FR-001**: The service MUST receive inbound SMS from patients via a managed SMS gateway provider
-  (e.g., Twilio, AWS Pinpoint) and forward them to the chat service via its
-  internal API.
-- **FR-002**: The service MUST match inbound SMS phone numbers to registered patient accounts;
-  unmatched numbers MUST receive a configured enrollment instruction reply and MUST NOT
-  create patient records.
-- **FR-003**: The service MUST maintain or resume an ongoing session for a patient's phone
-  number, creating a new session only after the configured inactivity timeout.
-- **FR-004**: The service MUST deliver outbound SMS (AI or clinician responses) to the
-  patient's registered phone number.
-- **FR-005**: The service MUST implement TCPA opt-out compliance: STOP reply MUST
-  immediately suppress all outbound SMS and send the required confirmation reply, which
-  MUST include a notice directing the patient to the web portal or mobile app to continue
-  their care conversations; START reply MUST restore outbound messaging.
-- **FR-006**: The service MUST split outbound messages exceeding the SMS character limit
-  (160 chars GSM / 153 chars UCS-2 for concatenated) into sequenced multi-part messages.
-- **FR-007**: The service MUST track delivery status for all outbound SMS (`sent` /
-  `delivered` / `failed`) using provider delivery receipts.
-- **FR-008**: The service MUST NOT log the full content of inbound patient SMS in any
-  unencrypted log output; message content MUST be referenced by message ID in logs.
-- **FR-009**: Inbound SMS webhooks from the provider MUST be authenticated (e.g., validated
-  via HMAC signature or allowlisted IP range) to prevent spoofed messages.
-- **FR-010**: The service MUST be configurable with multiple long codes or short codes
-  per tenant; organisations may use their own dedicated platform number.
-- **FR-011**: When the SMS provider is unavailable, the service MUST persist undelivered
-  outbound messages to a local durable queue and retry delivery using
-  exponential backoff until the provider recovers or a maximum retry TTL is exceeded.
-- **FR-012**: The service MUST buffer inbound multi-part (concatenated) SMS segments and
-  reassemble them in sequence order before forwarding to the chat service. A 5-second
-  reassembly timeout applies; if exceeded, the partial message is forwarded and a warning
-  is logged.
-- **FR-013**: On the first inbound SMS of each new session, the service MUST issue an
-  OTP authentication challenge. A one-time PIN MUST be sent to the patient's registered
-  email address (cross-channel second factor). The patient must reply with the PIN via
-  SMS within a configurable window (default: 10 minutes). No message content is forwarded
-  to the chat service until the OTP is verified. Failed or expired challenges MUST be
-  logged and the patient notified via SMS.
+- **OR-001**: Logs support **measuring** ingestion latency, outbound delivery outcomes, opt-out processing, OTP challenge results, provider errors, and queue depth. At minimum:
 
-### Key Entities
+  - Classifying inbound webhook processing outcomes by result (matched, unmatched, opt-out, OTP pending)
+  - Attributing end-to-end processing duration for inbound and outbound paths
+  - Counting outbound messages by terminal delivery status
+  - Counting opt-out and opt-in events
+  - Counting OTP challenges issued, verified, expired, and failed
 
-- **SMSMessage**: Message ID, patient ID (if matched), phone number, tenant ID, direction
-  (`inbound` / `outbound`), content, provider message ID, delivery status, timestamp.
-- **PhoneNumberRegistration**: Patient ID, phone number (E.164, stored in the patient database),
-  tenant ID, opt-in status, opt-out
-  timestamp (if applicable). No additional field-level encryption or separate hash lookup
-  is required beyond database at-rest encryption.
-- **SMSSession**: Session ID, patient ID, phone number, last activity timestamp, status
-  (`active` / `timed-out`), authentication status (`pending` / `verified`).
-- **SMSAuthChallenge**: Challenge ID, session ID, patient ID, OTP hash, issued timestamp,
-  expiry timestamp (default +10 min), status (`pending` / `verified` / `expired` / `failed`).
+- **OR-002**: The service is sized for expected SMS channel volume with headroom above modelled peak throughput so carrier bursts and multi-part expansion do not saturate the adapter during busy care hours.
 
-## Success Criteria
+## Further reading
 
-### Measurable Outcomes
-
-- **SC-001**: 95% of inbound SMS are ingested into the chat service within 5 seconds of
-  delivery to the platform webhook.
-- **SC-002**: 95% of outbound SMS responses are delivered to patients within 30 seconds of
-  being generated by the AI agent service.
-- **SC-003**: Opt-out (STOP) is processed and all future outbound suppressed within 5 seconds
-  of receipt, for 100% of test cases.
-- **SC-004**: 100% of inbound SMS webhooks are validated before processing; unauthenticated
-  webhooks are rejected, verified by automated security tests.
-- **SC-005**: Multi-part message splitting delivers messages in correct sequence for 100%
-  of test cases with responses over 160 characters.
-- **SC-006**: Delivery status tracking reaches a terminal state (`delivered` or `failed`)
-  for 99% of outbound messages within 5 minutes.
-- **SC-007**: The service MUST sustain a peak ingestion and delivery throughput of
-  **3 messages/second (180 msg/min)** with p99 processing latency ≤5 seconds
-  (Erlang C model: 10k SMS patients/month — 10% of 100k total — 3 US TZs, 17% busy-hour factor).
-- **SC-008**: 100% of new SMS sessions MUST require a verified OTP (sent to registered
-  email) before any patient message is forwarded to the chat service, verified by automated
-  security tests.
-
-## Assumptions
-
-- An SMS gateway provider (e.g., Twilio, AWS Pinpoint) is provisioned with a HIPAA BAA or equivalent
-  data processing agreement; the choice between providers is deferred to the planning phase.
-- Each tenant has at least one dedicated long code or short code; shared numbers are not
-  used across tenants.
-- The SMS channel is text-only for v1; MMS (images, voice) support is a future enhancement.
-- TCPA compliance applies to US-based patients; international regulatory requirements
-  (GDPR consent for SMS in the EU) are deferred to future versions.
-- Phone number lookup and patient matching are based on the normalized E.164 format.
-- AI response length is constrained to ≤320 characters (2 standard SMS parts) to avoid
-  excessive multi-part splitting; longer AI responses are summarized before SMS delivery.
-- **Scale baseline**: 100,000 patients/month across 3 US time zones, of which **10% are
-  expected to use the SMS channel** (remainder use the web/mobile app). Erlang C modelling
-  (10k SMS patients/month, 2 sessions/patient, 30 msg/session, 30 s inter-message interval,
-  17% busy-hour factor) yields a peak of ~2.3 msg/sec. The service MUST be sized for
-  **3 msg/sec (180 msg/min)** to provide 30% headroom; daily peak volume is approximately
-  48,000 SMS.
+- Platform baseline: [000-platform-baseline.md](https://github.com/Neosofia/cdp/blob/main/specs/000-platform-baseline.md)
+- Chat service spec: [001-chat-service.md](https://github.com/Neosofia/cdp/blob/main/specs/001-chat-service.md)
+- Patient service spec: [012-patient-service.md](https://github.com/Neosofia/cdp/blob/main/specs/012-patient-service.md)
+- Platform operational metrics: [011-operational-metrics.md](https://github.com/Neosofia/cdp/blob/main/specs/011-operational-metrics.md)
+- Structured log schema: [log-v1.0.0.json](https://github.com/Neosofia/schemas/blob/main/log-v1.0.0.json)

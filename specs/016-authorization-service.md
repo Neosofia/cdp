@@ -1,86 +1,78 @@
-# Feature Specification: Authorization Service
+# Authorization Service
 
-## Overview
+## Why we need this service
 
-The Authorization Service is the platform's policy distribution service for access control. It provides Cedar policy definitions and version metadata to internal platform services and their shared authorization middleware. No end-user client or public-facing client calls it directly.
+Knowing *who* is calling -- from the Authentication Service -- is not enough. A patient may read their own chat history but not another patient’s. A clinician may act on patients in their clinic but not across the hospital. An internal notifier may dispatch push messages but not rotate machine credentials. If each service encodes those rules ad hoc with string comparisons and copy-pasted role checks, policies drift, audits disagree, and a single missed branch becomes a data breach.
 
-Identity (who the caller is) is established by the Authentication Service (014-authentication-service) and encoded in the token. The Authorization Service does not evaluate access requests itself. Instead, consuming services fetch the applicable policies, evaluate them locally using their own data, and return `Allow` or `Deny` decisions accordingly. No service in the platform implements its own role-string checks beyond authorized middleware and SDK behavior.
+The Authorization Service exists so the platform has **one authoritative distribution point** for Cedar policy definitions and version metadata. Consuming services fetch applicable policies, evaluate them locally against identity claims and service-owned resource data, and fail closed when policy material is unavailable. It distributes policy; it does not sit in the request path as a remote “allow/deny” oracle for every call.
 
-The service is the authoritative source of policy definitions and distribution metadata; it is not the runtime decision endpoint.
+## How this service fits into the platform
 
+Identity arrives on every request as validated platform token claims. Before business logic runs, each service’s shared authorization middleware loads the Cedar policy bundle (from disk or from this service’s distribution endpoint), builds principal and resource entities from local data, and evaluates `principal + action + resource` in-process. The handler runs only on `Allow`; missing attributes or unavailable policy bundles produce `Deny`.
 
-## Consumer Scenarios & Testing
+No end-user client calls this service directly. Human-facing UI entitlements (menu visibility, feature toggles) are a separate concern handled by the Capabilities Service and product-owned policy bundles -- not duplicated here. API-boundary authorization stays at each service, using policies this service distributes and middleware from the platform SDK.
 
-### Service Validates an Inbound Platform Request
+Policies are authored in version control, reviewed like code, and deployed to the distribution surface this service serves. Resource attributes (owner, clinic, tenant) are resolved by the calling service and passed into evaluation; this service does not query application databases at runtime.
 
-Each platform service must validate incoming requests using shared authorization middleware. After the Authentication Service validates the token, the service's middleware loads the applicable Cedar policies from the Authorization Service, evaluates them against local identity claims, the target resource, and the requested action, and then returns `Allow` or `Deny`. The service only processes the request if the middleware returns `Allow`.
+## Client objectives
 
+**Service teams** want a standard way to protect routes without inventing authorization plumbing per repo. They need fetchable policy bundles, cache guidance, and SDK middleware that handles retrieval, evaluation, expiry, and fail-closed behaviour.
 
-#### Self Referential Scope
+**Patients** expect the platform to enforce self-access -- their data is visible to them and not to other patients -- consistently across chat, profile, and care experiences.
 
-The service should support the ability to answer access requests when the prinicpal owns the resource in question.
+**Clinicians** expect clinic-scoped access: they can act on assigned patients within their organisation context and are denied when the resource belongs elsewhere or their role is insufficient for destructive actions.
 
-1. **Given** an authenticated patient making a request to read their own chat history, **When** the service's authorization middleware evaluates the applicable policies, **Then** an `Allow` decision is returned and the request is processed
-2. **Given** an authenticated patient making a request to read another patient's chat history, **When** the service's authorization middleware evaluates the applicable policies, **Then** a `Deny` decision is returned with reason `principal-not-owner` and the request is rejected
+**Platform security reviewers** want policies versioned, reviewable, and default-deny. Machine service identities should receive only the permits defined for their service principal -- nothing implied by possession of a token alone.
 
+**Operators** need to measure policy distribution health and confirm consumers fail closed when bundles cannot be loaded, without PHI or credential material in logs.
 
-#### Group Scope
+## Functional requirements
 
-The service should support the ability to answer access requests when the prinicapl is a member of a group of resources.
+- **FR-001**: The service exposes a policy distribution mechanism -- filesystem-backed bundle endpoint or equivalent -- so authorized platform services fetch the latest Cedar policy definitions for their deployment.
 
-4. **Given** an authenticated clinician with a valid token and a patient assigned to the same clinic, **When** the service's authorization middleware evaluates the applicable policies with the patient UUID as the resource, **Then** an `Allow` decision is returned
-4. **Given** a clinician with a valid token and a patient assigned to a different clinic, **When** the service's authorization middleware evaluates the applicable policies, **Then** a `Deny` decision is returned with reason `clinic-mismatch`
-5. **Given** a request to delete a patient record by a non-admin clinician, **When** the service's authorization middleware evaluates the applicable policies, **Then** a `Deny` decision is returned with reason `insufficient-roles`
+- **FR-002**: Policy metadata includes version identifiers and cache lifetime guidance so consuming middleware selects and refreshes the correct bundle without ad hoc TTL assumptions.
 
-####
+- **FR-003**: Runtime `Allow`/`Deny` decisions for individual HTTP requests are evaluated by consuming middleware and SDKs using service-owned data. This service does not perform per-request authorization over the network.
 
+- **FR-004**: Consumers respect service-provided cache expiry when refreshing bundles so stale policy does not linger silently and thundering herds do not hammer the distribution endpoint.
 
+- **FR-005**: Authorization middleware returns `Deny` when required principal or resource attributes are missing. Missing attributes are never treated as a policy bypass.
 
+- **FR-006**: Default-deny holds: when no `permit` policy covers a principal, action, and resource combination, the decision is `Deny`.
 
-#### Edge Cases and fallback logic
+- **FR-007**: Structured logs cover policy bundle distribution and metadata access. Logs do not contain PHI or raw credential values.
 
-6. **Given** a machine service token for `svc-notification`, **When** the service requests an action not covered by any `permit` policy for `cdp::Service::"svc-notification"`, **Then** a `Deny` decision is returned (default-deny)
-7. **Given** the Authorization Service is unavailable or the policy bundle cannot be fetched, **When** the middleware attempts evaluation, **Then** the service MUST fail closed — the request is denied and not processed
+- **FR-008**: A health endpoint reports policy distribution availability so consumers can circuit-break and refresh logic can detect outage.
 
+- **FR-009**: Policies are managed in version control and served from the distribution store -- not hardcoded in consuming service application code.
 
-## Requirements
+- **FR-010**: Policy distribution endpoints are reachable only from the platform private network; they are not publicly routable.
 
-### Functional Requirements
+- **FR-011**: Distribution endpoints require a valid platform service machine token. Human user tokens are not accepted for bundle fetch.
 
-- **FR-001**: The service MUST expose a filesystem-backed policy distribution mechanism or equivalent policy bundle endpoint that lets authorized platform services fetch the latest Cedar policy definitions.
-- **FR-002**: The service MUST expose policy metadata, including version identifiers and cache guidance, so consuming middleware can select and refresh the correct set of policies.
-- **FR-003**: Policy evaluation MUST be performed by consuming middleware / SDKs using service-owned data. The Authorization Service must not perform runtime `Allow`/`Deny` decisions for individual requests.
-- **FR-004**: The service MUST make cache lifetime guidance available to consumers and consumers MUST respect the service-provided expiry rather than making their own caching assumptions.
-- **FR-005**: The authorization middleware MUST return `Deny` if required principal or resource attributes are missing; missing attributes MUST NOT be treated as a policy bypass.
-- **FR-006**: The service MUST emit structured logs for policy bundle distribution and metadata access; logs MUST NOT contain PHI or raw credential values.
-- **FR-007**: The service MUST expose a health endpoint (`GET /health`) that reports policy distribution availability; downstream consumers may use this for circuit-breaking and policy refresh logic.
-- **FR-008**: Policies MUST be managed in version control and served by the Authorization Service from the filesystem or policy bundle store; no policies are hardcoded in consuming service application code.
-- **FR-009**: The service MUST be callable only from within the platform's private network; the policy distribution endpoint is not publicly routable.
-- **FR-010**: The policy distribution endpoints MUST require a valid platform service machine token (`user_type=service`) from the caller; human user tokens MUST NOT be accepted.
-- **FR-011** *(M2.1 Dependency)*: The service MUST expose a roles API (internal only, private-network-scoped) that returns the canonical set of valid platform roles. This endpoint is consumed by the Authentication Service (014) to validate roles at token issuance time.
-- **FR-012**: The service MUST make cache lifetime guidance available to consumers and consumers MUST respect the service-provided expiry rather than making their own caching assumptions.
+- **FR-012**: An internal roles API (private-network scope) exposes the canonical set of valid platform roles for consumers such as the Authentication Service at token issuance time. Role catalog authority for assignment lives in the User Service; this endpoint supports validation against the shared vocabulary.
 
-### Operational Requirements
+- **FR-013**: The platform provides an official authorization SDK and middleware for supported languages, encapsulating policy retrieval, local Cedar evaluation, cache expiry handling, and fail-closed behaviour so teams do not re-implement those concerns per service.
 
-- **OR-001**: Policy bundle retrieval p99 latency MUST be ≤ 100 ms under normal load, so consuming middleware can refresh policy definitions without excessive delay.
-- **OR-002**: The service MUST be horizontally scalable; no in-process state; all policy state is served from the filesystem or static bundle storage.
-- **OR-003**: Policy changes in version control MUST be deployable to the policy distribution service without requiring manual policy editing in runtime components.
-- **OR-004**: The platform MUST provide an official Authorization SDK and middleware for supported languages. SDKs MUST encapsulate policy retrieval, local policy evaluation, cache expiry handling, and fail-closed behavior so that each team does not need to re-invent these concerns. Teams implementing services must use the SDK.
+## Operational requirements
 
-## Assumptions
+Platform baseline applies ([000-platform-baseline.md](https://github.com/Neosofia/cdp/blob/main/specs/000-platform-baseline.md)).
 
-- Cedar policies are authored and version-controlled outside of this service's runtime code, stored in a dedicated `policies/` repository or file system, and served as policy bundles by the Authorization Service.
-- The Authentication Service (014-authentication-service) is the sole issuer of tokens; the Authorization Service trusts identity claims only after the caller has been authenticated.
-- The Authorization Service does not validate token signatures; callers are responsible for providing pre-validated claims (the API gateway validates via 014 introspection before calling 017).
-- Policy authoring, review, and deployment is the responsibility of the platform security team; this service provides policy distribution only, not runtime decisions.
-- Resource attributes (owner, clinic, tenant) are resolved by the calling service and passed into the authorization middleware; the Authorization Service does not perform its own data lookups against application databases.
-- The initial policy set covers: patient self-access, clinician clinic-based access, clinician role-gated actions (takeover, alert dismiss), and machine service role checks; additional policies are published as new features are specced.
-- The service's execution permissions are scoped to policy distribution actions only; no policy evaluation permissions are granted to the service runtime.
+- **OR-001**: Logs support **measuring** bundle fetch outcomes, latency, and consumer fail-closed rates.
 
+- **OR-002**: The service is horizontally scalable with no in-process authorization state; policy material is served from filesystem or static bundle storage.
 
-## Out of Scope
+- **OR-003**: Policy changes merged in version control are deployable to the distribution service without manual runtime editing in consuming components.
 
-- Human-facing policy management UI
-- Audit log querying UI (the platform log query interface is sufficient for this phase)
-- Relationship-based access control (ReBAC) patterns beyond what the policy engine natively supports
-- Cross-tenant authorization flows
+- **OR-004**: When the Authorization Service is unavailable or a bundle cannot be fetched, consuming middleware denies requests rather than proceeding unaudited -- operators can detect elevated deny rates correlated with distribution outage.
+
+## Further reading
+
+- Platform baseline: [000-platform-baseline.md](https://github.com/Neosofia/cdp/blob/main/specs/000-platform-baseline.md)
+- Authorization middleware (SDK): [authorization-middleware](https://github.com/Neosofia/sdk/tree/main/python/authorization-middleware)
+- Service policy template: [templates/python/service/policies](https://github.com/Neosofia/templates/tree/main/python/service/policies)
+- Authentication service spec: [014-authentication-service.md](https://github.com/Neosofia/cdp/blob/main/specs/014-authentication-service.md)
+- User service spec (role catalog): [018-user-service.md](https://github.com/Neosofia/cdp/blob/main/specs/018-user-service.md)
+- UI capabilities (separate control plane): [0012-ui-capabilities-control-plane.md](https://github.com/Neosofia/cdp/blob/main/architecture/adrs/0012-ui-capabilities-control-plane.md)
+- Capabilities service: [capabilities](https://github.com/Neosofia/capabilities)
+- Platform operational metrics: [011-operational-metrics.md](https://github.com/Neosofia/cdp/blob/main/specs/011-operational-metrics.md)
