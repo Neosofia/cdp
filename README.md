@@ -91,6 +91,7 @@ The platform is decomposed into independently deployable services, apps, and dat
 - **[Authorization Service (016)](specs/016-authorization-service.md)** — The single place where access decisions are made. Every service asks "is this principal allowed to do this?" here rather than implementing its own rules. Fails closed if unavailable.
 - **[Operational Metrics (011)](specs/011-operational-metrics.md)** — Collects and aggregates structured log events across the platform to provide SLI/SLO dashboards, alerting thresholds, and derived metrics without exposing PHI.
 - **[Audit Infrastructure (017)](specs/017-audit-infrastructure.md)** — Ensures every service that stores patient data maintains a tamper-evident audit trail automatically, without each team needing to build it themselves.
+- **[User Service (018)](specs/018-user-service.md)** — Tier-2 platform roles registry; CDP Admin → Users (Stage 2).
 - **[Notification Service (005)](specs/005-notification-service.md)** — When a high-risk message is detected, gives logged-in clinicians 60 seconds to self-assign before escalating to on-call via PagerDuty.
 
 ### Security Considerations

@@ -17,6 +17,8 @@ cp .authentication.env.sample .authentication.env
 cp .authentication-postgres.env.sample .authentication-postgres.env
 cp .capabilities.env.sample .capabilities.env
 cp .template.env.sample .template.env
+cp .user.env.sample .user.env
+cp .user-postgres.env.sample .user-postgres.env
 ```
 
 A service may also include helper scripts inside its docker image to simplify setup. For example, the authentication service provides a bootstrap container that generates its env file for you:
@@ -47,7 +49,7 @@ CDP owns the UI entitlement policy bundle in `policies/`. The capabilities servi
 
 **Local development:** volume-mount `cdp/policies/` over `/app/policies` (see `docker-compose.dev.yml`). No policy image required.
 
-The bundle includes `entitlements.json`, `schema.cedar.json`, and `*.cedar` files. The UI calls `GET /api/v1/capabilities/ui`.
+The bundle includes `entitlements.json` and `*.cedar` files. The UI calls `GET /api/v1/capabilities/ui`.
 
 See [ADR 0012: UI Capabilities Control Plane](architecture/adrs/0012-ui-capabilities-control-plane.md).
 
@@ -64,9 +66,9 @@ That document explains why local JWKS (`http://authentication:8014/...` in `.cap
 | Component | Notes |
 |-----------|-------|
 | **UI policy bundle** | `cdp-ui-policies` GHCR image pinned in capabilities Dockerfile |
-| **UI build args** | `VITE_CAPABILITIES_API_URL`, `VITE_AUTH_API_URL` — public HTTPS URLs |
+| **UI build args** | `VITE_CAPABILITIES_API_URL`, `VITE_AUTH_API_URL`, `VITE_USER_API_URL` — public HTTPS URLs |
 | **Capabilities CORS** | `FRONTEND_URL` = public CDP UI origin |
-| **Authentication** | `JWT_WEB_AUDIENCE` must include `capabilities`; explicit `PORT` for private JWKS refs |
+| **Authentication** | `JWT_WEB_AUDIENCE` must include `capabilities` and `user`; explicit `PORT` for private JWKS refs |
 
 See the Railway worked example in the infrastructure guide for `${{cdp.RAILWAY_PUBLIC_DOMAIN}}` and `${{authentication.RAILWAY_PRIVATE_DOMAIN}}` patterns.
 
@@ -85,7 +87,7 @@ Once you have generated all your environment variables, you can bring up the who
 docker compose -f docker-compose.dev.yml up -d
 ```
 
-Then access the platform by starting at localhost:5173 for the UI, and whatever other services your stack exposes (e.g. Authentication at localhost:8014).
+Then access the platform at localhost:5173 (UI). Default API ports: Authentication **8014**, Capabilities **8019**, Python template **8018**. **Admin → Users** needs the user service on **8015** — that is only in `docker-compose.local.yml`, not the GHCR-only `docker-compose.dev.yml` stack.
 
 ### Full stack from local service checkouts
 
@@ -95,7 +97,7 @@ When working across platform services, build everything from sibling repos inste
 docker compose -f docker-compose.local.yml up -d --build
 ```
 
-`docker-compose.local.yml` includes `docker-compose.dev.yml` and points `authentication`, `capabilities`, and `python-template` at `../authentication`, `../capabilities`, and `../templates/python/service`. The UI still builds from `cdp/ui`. Repos must sit next to `cdp/` in your workspace (same layout as the Neosofia multi-repo checkout).
+`docker-compose.local.yml` includes `docker-compose.dev.yml` and points `authentication`, `capabilities`, `user`, and `python-template` at sibling repos. Configure the user service via `.user.env` and `.user-postgres.env` (see samples). The UI still builds from `cdp/ui`. Repos must sit next to `cdp/` in your workspace (same layout as the Neosofia multi-repo checkout).
 
 
 

@@ -16,7 +16,7 @@ We treat the **capabilities service** as the platform UI control plane and **CDP
 
 2. **CDP (product configuration)** version-controls the policy bundle under `cdp/policies/`:
    - `entitlements.json` — declares namespaces and the entitlement keys the UI may query
-   - `schema.cedar.json` and `*.cedar` — Cedar schema and rules for UI entities (for example, `ui::Menu`)
+   - `*.cedar` — Cedar rules for UI entities (for example, `ui::Menu`)
 
 3. **Backend services** retain complex Cedar evaluation at the API boundary. Capabilities does not replace per-service authorization.
 

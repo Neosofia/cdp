@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { setupTracing } from './otel';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -10,6 +10,7 @@ import { Breadcrumb, BreadcrumbList, BreadcrumbItem, BreadcrumbLink, BreadcrumbP
 import { jwtDecode } from 'jwt-decode';
 import { ShieldCheckIcon as Shield, ChartBarIcon as Activity, ArrowRightOnRectangleIcon as LogOut, BuildingOfficeIcon as Building } from '@heroicons/react/24/outline';
 import ServiceManagement from '@/components/ServiceManagement';
+import UserManagement from '@/components/UserManagement';
 import Dashboard from '@/components/Dashboard';
 import PatientChat from '@/components/PatientChat';
 import PatientRecords from '@/components/PatientRecords';
@@ -49,6 +50,7 @@ interface UserProfile {
   first_name: string;
   last_name: string;
   email: string;
+  tenant_uuid?: string | null;
   tenant_name: string;
   roles: string[];
 }
@@ -94,6 +96,21 @@ function prefetchEntitlementsInBackground(
   }
 }
 
+const TIER1_ACTOR_CLASSES = new Set(['operator', 'clinician', 'patient']);
+
+function jwtTier1Roles(profile: UserProfile | null, decoded: JwtTokenData): string[] {
+  const raw = profile?.roles?.length ? profile.roles : decoded['neosofia:roles'] ?? [];
+  const seen = new Set<string>();
+  const tier1: string[] = [];
+  for (const role of raw) {
+    if (TIER1_ACTOR_CLASSES.has(role) && !seen.has(role)) {
+      seen.add(role);
+      tier1.push(role);
+    }
+  }
+  return tier1;
+}
+
 function resolveActiveRole(roles: string[]): string {
   if (roles.length === 0) return '';
 
@@ -124,6 +141,11 @@ export default function App() {
   const [selectedSection, setSelectedSection] = useState<string>('');
   const [selectedAction, setSelectedAction] = useState<string | null>(null);
   const [clinicianPatientId, setClinicianPatientId] = useState<string | null>(null);
+
+  const tier1Roles = useMemo(
+    () => (tokenInfo ? jwtTier1Roles(profile, tokenInfo.decoded) : []),
+    [profile, tokenInfo],
+  );
 
   const showPatientMenu = entitlements['ui:menu:patient'];
   const showClinicianMenu = entitlements['ui:menu:clinician'];
@@ -280,7 +302,8 @@ export default function App() {
 
         startPrefetch(jwtRoles);
 
-        const profileRes = await fetch(`${AUTH_API}/api/profile`, {
+        const profileId = decoded.sub;
+        const profileRes = await fetch(`${AUTH_API}/api/v1/profiles/${profileId}`, {
           headers: { Authorization: `Bearer ${tokenData.access_token}` },
         });
         const newProfile = profileRes.ok ? await profileRes.json() : null;
@@ -534,6 +557,7 @@ export default function App() {
                   <NavigationMenuContent className="min-w-48 rounded-2xl p-2 shadow-2xl" style={{ background: '#05050f', border: '1px solid rgba(34,211,238,0.18)', boxShadow: '0 0 40px rgba(34,211,238,0.08)' }}>
                     <div className="space-y-1">
                       <Button onClick={() => handleMenuAction('Admin', 'Services', () => {})} variant="ghost" className="w-full justify-start rounded-xl px-3 py-2 text-sm text-slate-400 hover:bg-cyan-500/10 hover:text-cyan-300">Services</Button>
+                      <Button onClick={() => handleMenuAction('Admin', 'Users', () => {})} variant="ghost" className="w-full justify-start rounded-xl px-3 py-2 text-sm text-slate-400 hover:bg-cyan-500/10 hover:text-cyan-300">Users</Button>
                     </div>
                   </NavigationMenuContent>
                 </NavigationMenuItem>)}
@@ -761,6 +785,20 @@ export default function App() {
               <div className="col-span-2">
                 <ServiceManagement token={tokenInfo.raw} activeRole={activeRole} />
               </div>
+            ) : selectedSection === 'Admin' && selectedAction === 'Users' ? (
+              <div className="col-span-2">
+                <UserManagement
+                  token={tokenInfo.raw}
+                  activeRole={activeRole}
+                  tier1Roles={tier1Roles}
+                  sessionTenantUuid={
+                    profile?.tenant_uuid ??
+                    (typeof tokenInfo.decoded['neosofia:tenant_uuid'] === 'string'
+                      ? tokenInfo.decoded['neosofia:tenant_uuid']
+                      : null)
+                  }
+                />
+              </div>
             ) : selectedSection === 'Patient' && selectedAction === 'Start chat' ? (
               <PatientChat
                 token={tokenInfo.raw}
@@ -794,7 +832,7 @@ export default function App() {
                       <p className="text-sm font-medium" style={{ color: 'rgba(34,211,238,0.8)' }}>Use these buttons to verify your session, JWT, and role handling via the auth API.</p>
                     </div>
                     <div className="mb-6 grid gap-3 md:grid-cols-3">
-                      <Button onClick={() => runDebugTest('Profile', `${AUTH_API}/api/profile`)} variant="outline" size="lg" className="w-full text-cyan-300 hover:text-white" style={{ borderColor: 'rgba(34,211,238,0.3)', background: 'rgba(34,211,238,0.05)' }}>Profile</Button>
+                      <Button onClick={() => runDebugTest('Profile', `${AUTH_API}/api/v1/profiles/${tokenInfo?.decoded?.sub ?? ''}`)} variant="outline" size="lg" className="w-full text-cyan-300 hover:text-white" style={{ borderColor: 'rgba(34,211,238,0.3)', background: 'rgba(34,211,238,0.05)' }}>Profile</Button>
                       {!IS_PROD && (
                         <Button onClick={() => runDebugTest('Token Inspect', `${AUTH_API}/api/token-inspect`)} variant="outline" size="lg" className="w-full text-cyan-300 hover:text-white" style={{ borderColor: 'rgba(34,211,238,0.3)', background: 'rgba(34,211,238,0.05)' }}>Token Inspect</Button>
                       )}
