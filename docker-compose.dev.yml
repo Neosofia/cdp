@@ -1,4 +1,5 @@
 x-auth-image: &auth_image ghcr.io/neosofia/authentication:v0.30.0
+x-user-image: &user_image ghcr.io/neosofia/user:v0.2.0
 
 services:
   authentication-migrate:
@@ -89,6 +90,53 @@ services:
       retries: 5
       start_period: 10s
 
+  user-postgres:
+    image: postgres:18
+    container_name: cdp-user-postgres
+    env_file:
+      - ./.user-postgres.env
+    ports:
+      - "5015:5432"
+    volumes:
+      - user_postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user_template -d cdp_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  user-migrate:
+    image: *user_image
+    container_name: cdp-user-migrate
+    env_file:
+      - ./.user.env
+    command: ["python", "-m", "alembic", "upgrade", "head"]
+    depends_on:
+      user-postgres:
+        condition: service_healthy
+    restart: "no"
+
+  user:
+    image: *user_image
+    container_name: cdp-user
+    env_file:
+      - ./.user.env
+    ports:
+      - "8015:8015"
+    depends_on:
+      user-postgres:
+        condition: service_healthy
+      user-migrate:
+        condition: service_completed_successfully
+      authentication:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "/app/.venv/bin/python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:8015/health', timeout=3)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
   ui:
     build:
       context: ./ui
@@ -99,6 +147,10 @@ services:
         condition: service_healthy
       capabilities:
         condition: service_healthy
+      user:
+        condition: service_healthy
+    environment:
+      VITE_USER_API_URL: http://localhost:8015
     volumes:
       - ./ui:/app
       - /app/node_modules
@@ -109,3 +161,4 @@ services:
 
 volumes:
   authentication_postgres_data:
+  user_postgres_data:
