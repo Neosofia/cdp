@@ -42,7 +42,7 @@ The registry is intentionally narrow. It does not issue tokens, run the identity
 
 - **FR-009**: Every create, update, and delete on registry data appends a full-row audit history entry. Compliance and incident review need to know who changed what, not merely that a row changed.
 
-- **FR-010**: All registry and catalog access requires a valid human platform token except an unauthenticated health check. Authorization is evaluated in service policy before business logic so denied requests fail closed.
+- **FR-010**: Registry and catalog access requires a valid platform token except an unauthenticated health check. Human registry actions use human tokens; login-time provisioning uses an Authentication service token with `aud=user`. Authorization is evaluated in service policy before business logic so denied requests fail closed.
 
 ## Operational requirements
 

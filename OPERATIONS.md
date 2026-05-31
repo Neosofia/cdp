@@ -29,6 +29,8 @@ docker compose -f docker-compose.dev.yml run --rm authentication-bootstrap > .au
 
 This runs `scripts/setup-env.py` inside the auth image, generates a local auth environment file, and writes it to the CDP repo root. The top-level compose file then mounts `.authentication.env` into the auth container as `/app/.env`.
 
+`AUTHENTICATION_CLIENT_SECRET` is generated into that env file by the auth bootstrap script. If an operator provisions the env manually instead, they must supply it themselves. Authentication migration `002` now fails hard if this variable is blank so service-to-service provisioning cannot start half-configured.
+
 After generation, fill in these required values manually in `.authentication.env`:
 
 - `WORKOS_CLIENT_ID`

@@ -13,6 +13,10 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
+import {
+  AuditHistorySheet,
+  type UserAuditItem,
+} from '@/components/AuditHistorySheet';
 import PlatformRolePicker from '@/components/PlatformRolePicker';
 import {
   USER_FIELD_LABEL_CLASS,
@@ -28,6 +32,7 @@ import {
 const USER_API = import.meta.env.VITE_USER_API_URL ?? 'http://localhost:8018';
 const AUTH_API = import.meta.env.VITE_AUTH_API_URL ?? 'http://localhost:8014';
 const PAGE_SIZE = 20;
+const AUDIT_PAGE_SIZE = 10;
 
 interface TenantSummary {
   uuid: string;
@@ -52,19 +57,11 @@ interface UserListResponse {
   page_size: number;
 }
 
-interface AuditItem {
-  history_uuid: string | null;
-  uuid: string;
-  tenant_uuid: string;
-  idp_id: string;
-  first_name: string | null;
-  last_name: string | null;
-  email: string | null;
-  platform_roles: string[];
-  changed_at: string;
-  changed_by_uuid: string;
-  changed_by_type: number;
-  change_type: number;
+interface AuditResponse {
+  total: number;
+  page: number;
+  page_size: number;
+  items: UserAuditItem[];
 }
 
 interface Props {
@@ -96,8 +93,11 @@ export default function UserManagement({ token, activeRole, tier1Roles, sessionT
   const [editError, setEditError] = useState<string | null>(null);
 
   const [auditUser, setAuditUser] = useState<UserRecord | null>(null);
-  const [auditItems, setAuditItems] = useState<AuditItem[]>([]);
+  const [auditItems, setAuditItems] = useState<UserAuditItem[]>([]);
+  const [auditPage, setAuditPage] = useState(1);
+  const [auditTotal, setAuditTotal] = useState(0);
   const [auditLoading, setAuditLoading] = useState(false);
+  const [auditError, setAuditError] = useState<string | null>(null);
 
   useEffect(() => {
     const id = setTimeout(() => {
@@ -212,20 +212,39 @@ export default function UserManagement({ token, activeRole, tier1Roles, sessionT
     }
   };
 
-  const loadAudits = async (user: UserRecord) => {
+  const loadAudits = async (user: UserRecord, pageNum: number, reset: boolean) => {
     setAuditUser(user);
     setAuditLoading(true);
-    setAuditItems([]);
+    setAuditError(null);
+    if (reset) {
+      setAuditItems([]);
+      setAuditTotal(0);
+    }
     try {
       const res = await fetch(
-        `${USER_API}/api/v1/users/${user.uuid}/audits?page=1&page_size=20`,
+        `${USER_API}/api/v1/users/${user.uuid}/audits?page=${pageNum}&page_size=${AUDIT_PAGE_SIZE}`,
         { headers: authHeaders() },
       );
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
+      const data: AuditResponse = await res.json();
       setAuditItems(data.items ?? []);
+      setAuditPage(data.page ?? pageNum);
+      setAuditTotal(data.total ?? 0);
+    } catch (e) {
+      setAuditError(e instanceof Error ? e.message : 'Failed to load audit history');
     } finally {
       setAuditLoading(false);
+    }
+  };
+
+  const openAudits = (user: UserRecord) => {
+    setAuditPage(1);
+    void loadAudits(user, 1, true);
+  };
+
+  const handleAuditPageChange = (newPage: number) => {
+    if (auditUser && !auditLoading) {
+      void loadAudits(auditUser, newPage, false);
     }
   };
 
@@ -274,7 +293,7 @@ export default function UserManagement({ token, activeRole, tier1Roles, sessionT
                 ) : items.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="px-3 py-6 text-center text-slate-500">
-                      No users found
+                      Users appear after first login
                     </td>
                   </tr>
                 ) : (
@@ -295,7 +314,7 @@ export default function UserManagement({ token, activeRole, tier1Roles, sessionT
                             variant="ghost"
                             size="icon-sm"
                             title="Audit history"
-                            onClick={() => loadAudits(user)}
+                            onClick={() => openAudits(user)}
                           >
                             <ClockIcon className="size-4" />
                           </Button>
@@ -445,36 +464,35 @@ export default function UserManagement({ token, activeRole, tier1Roles, sessionT
         </SheetContent>
       </Sheet>
 
-      <Sheet open={!!auditUser} onOpenChange={(open) => !open && setAuditUser(null)}>
-        <SheetContent side="right" className={USER_SHEET_CONTENT_CLASS}>
-          <SheetHeader className={USER_SHEET_HEADER_CLASS}>
-            <SheetTitle className={USER_SHEET_TITLE_CLASS} style={USER_SHEET_TITLE_STYLE}>
-              Audit — {auditUser ? displayName(auditUser) : ''}
-            </SheetTitle>
-          </SheetHeader>
-          <div className={`${USER_SHEET_BODY_CLASS} pt-0`}>
-            {auditLoading ? (
-              <p className="text-slate-500 text-sm">Loading…</p>
-            ) : auditItems.length === 0 ? (
-              <p className="text-slate-500 text-sm">No history rows yet</p>
-            ) : (
-              auditItems.map((row) => (
-                <div
-                  key={row.history_uuid ?? row.changed_at}
-                  className="rounded border border-slate-800 p-3 text-xs text-slate-400"
-                >
-                  <div className="text-slate-300 mb-1">
-                    {new Date(row.changed_at).toLocaleString()} —{' '}
-                    {row.change_type === 1 ? 'created' : row.change_type === 2 ? 'updated' : 'deleted'}
-                  </div>
-                  <div>Actor: {row.changed_by_uuid}</div>
-                  <div>Roles: {(row.platform_roles ?? []).join(', ') || '—'}</div>
-                </div>
-              ))
-            )}
-          </div>
-        </SheetContent>
-      </Sheet>
+      <AuditHistorySheet
+        open={!!auditUser}
+        onOpenChange={(open) => !open && setAuditUser(null)}
+        title={(
+          <>
+            Audit history —{' '}
+            {auditUser ? (
+              <>
+                <span className="normal-case text-slate-300">{displayName(auditUser)}</span>{' '}
+                <span className="font-mono normal-case text-slate-600">({auditUser.uuid})</span>
+              </>
+            ) : null}
+          </>
+        )}
+        sections={[
+          {
+            key: 'user',
+            rows: auditError ? null : auditItems,
+            loading: auditLoading && auditItems.length === 0,
+            emptyMessage: 'No history rows yet',
+            errorMessage: auditError ?? 'Failed to load audit history.',
+            total: auditTotal,
+            page: auditPage,
+            pageSize: AUDIT_PAGE_SIZE,
+            onPageChange: handleAuditPageChange,
+            kind: 'user',
+          },
+        ]}
+      />
     </div>
   );
 }

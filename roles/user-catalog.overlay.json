@@ -1,0 +1,18 @@
+{
+  "roles": [
+    "patient.function.self",
+    "clinical.function.surgeon",
+    "clinical.function.staff-nurse",
+    "clinical.function.care-coordinator",
+    "clinical.function.readonly",
+    "clinical.risk.reviewer",
+    "clinical.risk.quality-analyst",
+    "clinical.license.rn",
+    "research.function.crc",
+    "research.function.pi"
+  ],
+  "assigner_prefixes": {
+    "clinician": ["clinical.", "research."],
+    "patient": ["patient."]
+  }
+}

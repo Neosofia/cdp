@@ -45,6 +45,9 @@ x-template-local: &template_local
 services:
   authentication-migrate:
     <<: *auth_local
+    volumes:
+      - ../authentication/policies:/app/policies:ro
+      - ../templates/sql/audit:/app/audit-templates:ro
   authentication:
     <<: *auth_local
   authentication-bootstrap:
@@ -56,8 +59,9 @@ services:
     container_name: cdp-user-migrate
     env_file:
       - ./.user.env
-    environment:
-      APP_DATABASE_URL: postgresql+psycopg://app:change-me@user-postgres:5432/cdp_user
+    volumes:
+      - ./roles/user-catalog.overlay.json:/app/roles/cdp-overlay.json:ro
+      - ../templates/sql/audit:/app/audit-templates:ro
     command: ["python", "-m", "alembic", "upgrade", "head"]
     depends_on:
       user-postgres:
@@ -68,9 +72,8 @@ services:
     container_name: cdp-user
     env_file:
       - ./.user.env
-    environment:
-      # sql-template bootstrap creates the restricted role as ``app`` (not user_app).
-      APP_DATABASE_URL: postgresql+psycopg://app:change-me@user-postgres:5432/cdp_user
+    volumes:
+      - ./roles/user-catalog.overlay.json:/app/roles/cdp-overlay.json:ro
     ports:
       - "8018:8018"
     depends_on:

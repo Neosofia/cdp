@@ -12,7 +12,6 @@ import {
 } from '@heroicons/react/24/outline';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Sheet,
@@ -20,6 +19,10 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
+import {
+  AuditHistorySheet,
+  type ServiceAuditItem,
+} from '@/components/AuditHistorySheet';
 import { cn } from '@/lib/utils';
 
 // ---------------------------------------------------------------------------
@@ -43,27 +46,13 @@ interface ServiceListResponse {
   page_size: number;
 }
 
-interface AuditItem {
-  history_uuid: string | null;
-  source: 'service' | 'credential';
-  credential_uuid: string | null;
-  name: string | null;
-  slug: string | null;
-  base_url: string | null;
-  changed_at: string;
-  changed_by_uuid: string;
-  changed_by_type: number;
-  changed_by_name: string | null;
-  change_type: number;
-}
-
 interface AuditResponse {
   service_uuid: string;
   slug: string;
   total: number;
   page: number;
   page_size: number;
-  items: AuditItem[];
+  items: ServiceAuditItem[];
 }
 
 interface RotationResult {
@@ -85,7 +74,7 @@ const AUTH_API = import.meta.env.VITE_AUTH_API_URL ?? 'http://localhost:8014';
 const PAGE_SIZE = 20;
 const AUDIT_PAGE_SIZE = 5;
 
-function downloadCSV(rows: AuditItem[], source: 'service' | 'credential', slug: string): void {
+function downloadCSV(rows: ServiceAuditItem[], source: 'service' | 'credential', slug: string): void {
   const headers = source === 'service'
     ? ['Changed at (UTC)', 'Event', 'Actor Type', 'Actor UUID', 'Name', 'Slug', 'Base URL']
     : ['Changed at (UTC)', 'Event', 'Actor Type', 'Actor UUID', 'Secret'];
@@ -118,88 +107,6 @@ function rotationWarningClass(days: number | null): string {
   if (days >= 365) return 'text-red-400';
   if (days >= 300) return 'text-amber-400';
   return 'text-slate-400';
-}
-
-function AuditTable({ rows, source }: { rows: AuditItem[]; source: 'service' | 'credential' }) {
-  return (
-    <table className="min-w-max max-w-full text-xs table-auto">
-      <colgroup>
-        <col className="w-40" />
-        <col className="w-16" />
-        <col className="w-40" />
-        {source === 'service' ? (<><col /><col /><col /></>) : (<col />)}
-      </colgroup>
-      <thead>
-        <tr className="border-b border-slate-700/60">
-          <th className="text-left py-2 pr-3 whitespace-nowrap text-xs font-semibold text-slate-500 uppercase tracking-widest">Changed at (UTC)</th>
-          <th className="text-left py-2 pr-3 whitespace-nowrap text-xs font-semibold text-slate-500 uppercase tracking-widest">Event</th>
-          <th className="text-left py-2 pr-3 whitespace-nowrap text-xs font-semibold text-slate-500 uppercase tracking-widest">Actor</th>
-          {source === 'service' ? (
-            <>
-              <th className="text-left py-2 pr-3 text-xs font-semibold text-slate-500 uppercase tracking-widest">Name</th>
-              <th className="text-left py-2 pr-3 text-xs font-semibold text-slate-500 uppercase tracking-widest">Slug</th>
-              <th className="text-left py-2 text-xs font-semibold text-slate-500 uppercase tracking-widest">Base URL</th>
-            </>
-          ) : (
-            <th className="text-left py-2 text-xs font-semibold text-slate-500 uppercase tracking-widest">Secret</th>
-          )}
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((row) => (
-          <tr key={row.history_uuid ?? `${row.source}-${row.changed_at}`} className="border-b border-slate-800/60">
-            <td className="py-2 pr-3 font-mono text-slate-400 whitespace-nowrap">
-              {new Date(row.changed_at).toLocaleString(undefined, { timeZone: 'UTC' })}
-            </td>
-            <td className="py-2 pr-3 text-slate-300 capitalize whitespace-nowrap">{changeTypeLabel(row.change_type)}</td>
-            <td className="py-2 pr-3 whitespace-nowrap">{actorLabel(row.changed_by_type, row.changed_by_uuid, row.changed_by_name)}</td>
-            {source === 'service' ? (
-              <>
-                <td className="py-2 pr-3 text-slate-300">{row.name ?? '—'}</td>
-                <td className="py-2 pr-3 font-mono text-slate-400">{row.slug ?? '—'}</td>
-                <td className="py-2 font-mono text-slate-500 truncate">{row.base_url ?? '—'}</td>
-              </>
-            ) : (
-              <td className="py-2 font-mono text-slate-600">***</td>
-            )}
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  );
-}
-
-function changeTypeLabel(ct: number): string {
-  return ct === 1 ? 'created' : ct === 2 ? 'updated' : ct === 3 ? 'deleted' : String(ct);
-}
-
-const BOOTSTRAP_UUID = '00000000-0000-7000-8000-000000000000';
-
-function actorLabel(changedByType: number, changedByUuid: string, changedByName?: string | null) {
-  if (changedByUuid === BOOTSTRAP_UUID) {
-    return (
-      <span title={changedByUuid}>
-        <Badge variant="outline" className="border-slate-600 text-slate-400">Bootstrap</Badge>
-      </span>
-    );
-  }
-  const truncated = changedByUuid ? changedByUuid.slice(0, 8) : '—';
-  if (changedByType === 1) {
-    return (
-      <span title={changedByUuid} className="inline-flex items-center gap-1">
-        <Badge variant="outline" className="border-cyan-700/60 text-cyan-400">User</Badge>
-        {changedByName
-          ? <span className="text-slate-300">{changedByName}</span>
-          : <span className="font-mono text-slate-500">{truncated}</span>}
-      </span>
-    );
-  }
-  return (
-    <span title={changedByUuid} className="inline-flex items-center gap-1">
-      <Badge variant="outline" className="border-amber-700 text-amber-400">Service</Badge>
-      <span className="font-mono text-slate-500">{truncated}</span>
-    </span>
-  );
 }
 
 // ---------------------------------------------------------------------------
@@ -453,7 +360,7 @@ export default function ServiceManagement({ token, activeRole }: Props) {
       const FETCH_SIZE = 100;
       const total = sourceData.total;
       const pages = Math.ceil(total / FETCH_SIZE);
-      const allRows: AuditItem[] = [];
+      const allRows: ServiceAuditItem[] = [];
       for (let p = 1; p <= pages; p++) {
         const params = new URLSearchParams({ page: String(p), page_size: String(FETCH_SIZE), source });
         const res = await fetch(
@@ -750,95 +657,81 @@ export default function ServiceManagement({ token, activeRole }: Props) {
       {/* ------------------------------------------------------------------ */}
       {/* Audit Sheet                                                         */}
       {/* ------------------------------------------------------------------ */}
-      <Sheet open={!!auditService} onOpenChange={(open) => { if (!open) setAuditService(null); }}>
-        <SheetContent side="right" className="bg-slate-950 border-slate-700 text-slate-300 overflow-y-auto" style={{ width: '80vw', maxWidth: '80vw' }}>
-          <SheetHeader className="border-b border-slate-700/60 pb-4 mb-6">
-            <SheetTitle className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'rgba(34,211,238,0.7)' }}>
-              Audit history — <span className="font-mono normal-case">{auditService?.slug}</span>
-            </SheetTitle>
-          </SheetHeader>
-
-          <div className="px-6 pb-6 space-y-6">
-            {/* Service section */}
-            <div>
-              <div className="flex flex-col">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-widest">
-                    Service <span className="font-mono normal-case text-slate-600">({serviceAudits?.service_uuid ?? auditService?.uuid})</span>
-                  </h3>
-                  {serviceAudits && serviceAudits.total > 0 && (
-                    <button onClick={() => handleDownloadCSV('service')} disabled={downloadingCSV === 'service'} className="text-slate-500 hover:text-slate-300 transition-colors disabled:opacity-40" title="Download full history as CSV">
-                      {downloadingCSV === 'service'
-                        ? <ArrowPathIcon className="w-4 h-4 animate-spin" />
-                        : <ArrowDownTrayIcon className="w-4 h-4" />}
-                    </button>
-                  )}
-                </div>
-                <div className="overflow-y-auto max-h-112 min-h-64 border border-slate-800/70 rounded-lg bg-slate-950/60 p-2">
-                  {serviceAuditLoading && !serviceAudits ? (
-                    <p className="text-slate-400 text-xs">Loading…</p>
-                  ) : !serviceAudits ? (
-                    <p className="text-red-400 text-xs">Failed to load service audit.</p>
-                  ) : serviceAudits.items.length === 0 ? (
-                    <p className="text-slate-600 text-xs">No service records.</p>
-                  ) : (
-                    <AuditTable rows={serviceAudits.items} source="service" />
-                  )}
-                </div>
-                {serviceAudits && serviceAudits.total > AUDIT_PAGE_SIZE && (
-                  <div className="flex items-center justify-between pt-2 text-xs text-slate-500">
-                    <span>{serviceAudits.total} records</span>
-                    <div className="flex items-center gap-2">
-                      <Button variant="outline" size="xs" disabled={serviceAuditPage <= 1} onClick={() => handleServicePageChange(serviceAuditPage - 1)}>Prev</Button>
-                      <span>Page {serviceAuditPage} / {Math.ceil(serviceAudits.total / AUDIT_PAGE_SIZE)}</span>
-                      <Button variant="outline" size="xs" disabled={serviceAuditPage >= Math.ceil(serviceAudits.total / AUDIT_PAGE_SIZE)} onClick={() => handleServicePageChange(serviceAuditPage + 1)}>Next</Button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Credential section */}
-            <div>
-              <div className="flex flex-col">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-widest">
-                    Credential <span className="font-mono normal-case text-slate-600">({credentialAudits?.items[0]?.credential_uuid ?? '—'})</span>
-                  </h3>
-                  {credentialAudits && credentialAudits.total > 0 && (
-                    <button onClick={() => handleDownloadCSV('credential')} disabled={downloadingCSV === 'credential'} className="text-slate-500 hover:text-slate-300 transition-colors disabled:opacity-40" title="Download full history as CSV">
-                      {downloadingCSV === 'credential'
-                        ? <ArrowPathIcon className="w-4 h-4 animate-spin" />
-                        : <ArrowDownTrayIcon className="w-4 h-4" />}
-                    </button>
-                  )}
-                </div>
-                <div className="overflow-y-auto max-h-112 min-h-64 border border-slate-800/70 rounded-lg bg-slate-950/60 p-2">
-                  {credentialAuditLoading && !credentialAudits ? (
-                    <p className="text-slate-400 text-xs">Loading…</p>
-                  ) : !credentialAudits ? (
-                    <p className="text-red-400 text-xs">Failed to load credential audit.</p>
-                  ) : credentialAudits.items.length === 0 ? (
-                    <p className="text-slate-600 text-xs">No credential records.</p>
-                  ) : (
-                    <AuditTable rows={credentialAudits.items} source="credential" />
-                  )}
-                </div>
-                {credentialAudits && credentialAudits.total > AUDIT_PAGE_SIZE && (
-                  <div className="flex items-center justify-between pt-2 text-xs text-slate-500">
-                    <span>{credentialAudits.total} records</span>
-                    <div className="flex items-center gap-2">
-                      <Button variant="outline" size="xs" disabled={credentialAuditPage <= 1} onClick={() => handleCredentialPageChange(credentialAuditPage - 1)}>Prev</Button>
-                      <span>Page {credentialAuditPage} / {Math.ceil(credentialAudits.total / AUDIT_PAGE_SIZE)}</span>
-                      <Button variant="outline" size="xs" disabled={credentialAuditPage >= Math.ceil(credentialAudits.total / AUDIT_PAGE_SIZE)} onClick={() => handleCredentialPageChange(credentialAuditPage + 1)}>Next</Button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </SheetContent>
-      </Sheet>
+      <AuditHistorySheet
+        open={!!auditService}
+        onOpenChange={(open) => { if (!open) setAuditService(null); }}
+        title={(
+          <>
+            Audit history — <span className="font-mono normal-case">{auditService?.slug}</span>
+          </>
+        )}
+        sections={[
+          {
+            key: 'service',
+            title: (
+              <>
+                Service{' '}
+                <span className="font-mono normal-case text-slate-600">
+                  ({serviceAudits?.service_uuid ?? auditService?.uuid})
+                </span>
+              </>
+            ),
+            actions: serviceAudits && serviceAudits.total > 0 ? (
+              <button
+                onClick={() => handleDownloadCSV('service')}
+                disabled={downloadingCSV === 'service'}
+                className="text-slate-500 hover:text-slate-300 transition-colors disabled:opacity-40"
+                title="Download full history as CSV"
+              >
+                {downloadingCSV === 'service'
+                  ? <ArrowPathIcon className="w-4 h-4 animate-spin" />
+                  : <ArrowDownTrayIcon className="w-4 h-4" />}
+              </button>
+            ) : null,
+            rows: serviceAudits ? serviceAudits.items : null,
+            loading: serviceAuditLoading && !serviceAudits,
+            emptyMessage: 'No service records.',
+            errorMessage: 'Failed to load service audit.',
+            total: serviceAudits?.total,
+            page: serviceAuditPage,
+            pageSize: AUDIT_PAGE_SIZE,
+            onPageChange: handleServicePageChange,
+            kind: 'service',
+          },
+          {
+            key: 'credential',
+            title: (
+              <>
+                Credential{' '}
+                <span className="font-mono normal-case text-slate-600">
+                  ({credentialAudits?.items[0]?.credential_uuid ?? '—'})
+                </span>
+              </>
+            ),
+            actions: credentialAudits && credentialAudits.total > 0 ? (
+              <button
+                onClick={() => handleDownloadCSV('credential')}
+                disabled={downloadingCSV === 'credential'}
+                className="text-slate-500 hover:text-slate-300 transition-colors disabled:opacity-40"
+                title="Download full history as CSV"
+              >
+                {downloadingCSV === 'credential'
+                  ? <ArrowPathIcon className="w-4 h-4 animate-spin" />
+                  : <ArrowDownTrayIcon className="w-4 h-4" />}
+              </button>
+            ) : null,
+            rows: credentialAudits ? credentialAudits.items : null,
+            loading: credentialAuditLoading && !credentialAudits,
+            emptyMessage: 'No credential records.',
+            errorMessage: 'Failed to load credential audit.',
+            total: credentialAudits?.total,
+            page: credentialAuditPage,
+            pageSize: AUDIT_PAGE_SIZE,
+            onPageChange: handleCredentialPageChange,
+            kind: 'credential',
+          },
+        ]}
+      />
 
       {/* ------------------------------------------------------------------ */}
       {/* New Service Sheet                                                   */}

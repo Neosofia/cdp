@@ -112,6 +112,10 @@ services:
     container_name: cdp-user-migrate
     env_file:
       - ./.user.env
+    environment:
+      ROLE_CATALOG_OVERLAY: /app/roles/cdp-overlay.json
+    volumes:
+      - ./roles/user-catalog.overlay.json:/app/roles/cdp-overlay.json:ro
     command: ["python", "-m", "alembic", "upgrade", "head"]
     depends_on:
       user-postgres:
@@ -123,6 +127,10 @@ services:
     container_name: cdp-user
     env_file:
       - ./.user.env
+    environment:
+      ROLE_CATALOG_OVERLAY: /app/roles/cdp-overlay.json
+    volumes:
+      - ./roles/user-catalog.overlay.json:/app/roles/cdp-overlay.json:ro
     ports:
       - "8018:8018"
     depends_on:

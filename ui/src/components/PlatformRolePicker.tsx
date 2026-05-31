@@ -3,16 +3,13 @@ import { MagnifyingGlassIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 
-const ROLE_GROUPS: { id: string; label: string; prefix: string }[] = [
-  { id: 'operator', label: 'Operator', prefix: 'operator.' },
-  { id: 'clinical', label: 'Clinical', prefix: 'clinical.' },
-  { id: 'research', label: 'Research', prefix: 'research.' },
-  { id: 'patient', label: 'Patient', prefix: 'patient.' },
-];
-
 export function formatRoleLabel(role: string): string {
   const segment = role.split('.').slice(1).join(' ');
   return segment.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function formatGroupLabel(branch: string): string {
+  return branch.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 function toggleRole(roles: string[], role: string): string[] {
@@ -30,12 +27,6 @@ interface PlatformRolePickerProps {
   assignerTier1Roles: string[];
 }
 
-const ASSIGNEE_PREFIXES: Record<string, string[]> = {
-  operator: ['operator.'],
-  clinician: ['clinical.', 'research.'],
-  patient: ['patient.'],
-};
-
 export default function PlatformRolePicker({
   roleCatalog,
   selected,
@@ -44,34 +35,27 @@ export default function PlatformRolePicker({
 }: PlatformRolePickerProps) {
   const [filter, setFilter] = useState('');
 
-  const assignablePrefixes = useMemo(() => {
-    const prefixes = new Set<string>();
-    for (const tier1 of assignerTier1Roles) {
-      for (const prefix of ASSIGNEE_PREFIXES[tier1] ?? []) {
-        prefixes.add(prefix);
-      }
-    }
-    return [...prefixes];
-  }, [assignerTier1Roles]);
-
-  const assignableCatalog = useMemo(() => {
-    return roleCatalog.filter((role) =>
-      assignablePrefixes.some((prefix) => role.startsWith(prefix)),
-    );
-  }, [roleCatalog, assignablePrefixes]);
-
   const grouped = useMemo(() => {
     const q = filter.trim().toLowerCase();
     const matches = (role: string) =>
       !q || role.toLowerCase().includes(q) || formatRoleLabel(role).toLowerCase().includes(q);
 
-    return ROLE_GROUPS.map((group) => ({
-      ...group,
-      roles: assignableCatalog.filter((r) => r.startsWith(group.prefix) && matches(r)),
-    })).filter((g) => g.roles.length > 0);
-  }, [assignableCatalog, filter]);
+    const byBranch = new Map<string, string[]>();
+    for (const role of roleCatalog.filter(matches)) {
+      const branch = role.split('.')[0] || 'platform';
+      byBranch.set(branch, [...(byBranch.get(branch) ?? []), role]);
+    }
 
-  if (assignableCatalog.length === 0) {
+    return [...byBranch.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([branch, roles]) => ({
+        id: branch,
+        label: formatGroupLabel(branch),
+        roles: roles.sort((a, b) => a.localeCompare(b)),
+      }));
+  }, [roleCatalog, filter]);
+
+  if (roleCatalog.length === 0) {
     return (
       <p className="text-sm text-slate-500 rounded-md border border-slate-800 bg-slate-900/50 px-3 py-2">
         Role catalog unavailable. Check user API and sign-in.
@@ -154,7 +138,7 @@ export default function PlatformRolePicker({
         )}
       </div>
       <p className="text-[11px] text-slate-500">
-        {selected.length} selected · {assignableCatalog.length} assignable (
+        {selected.length} selected · {roleCatalog.length} assignable (
         {assignerTier1Roles.length > 0 ? assignerTier1Roles.join(', ') : 'no Tier-1 roles'})
       </p>
     </div>
