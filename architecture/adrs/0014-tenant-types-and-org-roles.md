@@ -1,100 +1,47 @@
-# 14. Tenant types and org roles
+# 14. Tenant types and roles
 
 Date: 2026-05-31
 
 ## Context
 
-The platform uses **Tier-1 roles** on the JWT (`operator`, `clinician`, `patient`) to express who someone is in broad terms. **Tier-2** today is a flat `platform_roles[]` list with long dotted slugs (`cro.function.field-cra`, `sponsor.systems.etmf-specialist`, …). That vocabulary is useful for product pickers and audit labels, but it is the wrong shape for authorization:
+Tier-1 **actors** (`operator`, `clinician`, `patient`) express broad principal class on the human JWT. Tier-2 authorization cannot use hundreds of dotted job-function slugs in Cedar -- policies become unmaintainable, and a parallel JSON policy matrix drifts from real permissions.
 
-- Cedar policies balloon when every job function needs its own `contains()` check.
-- A separate JSON "admin policy matrix" plus generated Cedar duplicates the same facts and drifts.
-- **Tenant type** already exists implicitly in role prefixes (`cro.`, `sponsor.`, `research.`) but is not a first-class scope on the organization.
-
-Enterprise deployments organize around **org kind** (platform operator, CRO, sponsor, investigator site, SMO). Permissions should be expressed in Cedar against a small, stable set of facts—like Tier-1—not against hundreds of catalog slugs.
+Enterprise customers organise by **org kind** (platform, CRO, sponsor, site, SMO). Permissions need a small, stable Tier-2 model scoped to that kind, the same way Tier-1 stays a short enum.
 
 ## Decision
 
-Introduce two coordinated concepts, parallel to Tier-1 / Tier-2:
+1. **Tier-2 is tenant type plus roles.** Tenant type is org kind on the Authentication tenant row. Roles are admin or functional hats within that type, stored in the User registry as `{tenant_type}.{role}` slugs (for example `cro.clinical-ops`) and carried on the JWT as short names (`clinical-ops`) together with `neosofia:tenant_type`.
 
-| Concept | Where it lives | Purpose |
-|---------|----------------|---------|
-| **Tenant type** | `tenants.type` (Authentication), JWT `neosofia:tenant_type`, Cedar `tenantType` on principal and tenant resource | Org-kind scope: what kind of organization this tenant is |
-| **Org roles** | `users.org_roles[]` (User registry), JWT `neosofia:org_roles`, Cedar `orgRoles` on principal | Job/admin hat **within** that tenant type: `admin`, `clinical-ops`, `readonly`, … |
+2. **User registry is the source of truth for `roles[]`.** Authentication mirrors `roles[]` into `users.roles` for JWT embedding only. Token mint reads the Authentication database and does not call User on the critical path. The mirror updates on best-effort provision after login.
 
-**Authorization (Cedar, Capabilities UI)** evaluates only:
+3. **Cedar is the source of truth for authorization.** Service and CDP UI policy files define who may do what. The role catalog (`roles/*.json`, optional product overlay) validates assignments and powers pickers; it does not generate Cedar and does not hold a parallel permission matrix.
 
-- Tier-1 JWT roles (`operator`, `clinician`, `patient`)
-- Tenant type (principal and resource must align for cross-user admin)
-- Org roles (small enum per tenant type)
+4. **Job functions stay in the catalog for UX only.** Fine-grained titles (for example `clinical.function.staff-nurse`) are not Cedar dimensions. Future job-level scope uses overrides on roles, not new policy axes.
 
-**Catalog** (`roles/*.json`) lists valid org roles **per tenant type** and optional **job functions** for pickers and labels. Job functions are not repeated in Cedar.
+5. **v1 tenant types and role enums** live in the User service catalog and deploy-time overlay. Human-readable tables: [user/roles/README.md](https://github.com/Neosofia/user/blob/main/roles/README.md). Machine source: `user/roles/default.json`; CDP overlay: [roles/user-catalog.overlay.json](https://github.com/Neosofia/cdp/blob/main/roles/user-catalog.overlay.json). `tenants.type` has no default.
 
-There is **no** intermediate policy matrix JSON and **no** codegen between config and Cedar. Cedar files in `cdp/policies/` and `user/policies/` are edited directly and are the source of truth for permissions.
-
-### Tenant types (v1)
-
-| Type | Typical org | Notes |
-|------|-------------|--------|
-| `platform` | Neosofia / operator tenant | Full cross-tenant platform ops when combined with `operator` Tier-1 |
-| `cro` | Contract research org | Study delivery, monitoring, systems |
-| `sponsor` | Pharma / biotech sponsor | Oversight, vendor governance |
-| `site` | Hospital / clinic site | Investigator site staff |
-| `smo` | Site management org | Site activation, enrollment support |
-| `patient` | Patient-facing org (if distinct) | Self-service and patient advocates (caregivers, navigators); pairs with Tier-1 `patient` |
-
-Deploy-time overlay may omit types the product does not use.
-
-### Org roles (v1, per tenant type)
-
-Small slugs—no `-lead` / `-manager`; seniority is **role overrides** (future).
-
-| Tenant type | Org roles (authorization) |
-|-------------|---------------------------|
-| `platform` | `admin`, `audit` |
-| `cro` | `admin`, `clinical-ops`, `systems`, `monitor`, `readonly` |
-| `sponsor` | `admin`, `clinical-ops`, `systems`, `oversight`, `readonly` |
-| `site` | `admin`, `research`, `clinical`, `readonly` |
-| `smo` | `admin`, `activation`, `readonly` |
-| `patient` | `self`, `advocate` |
-
-### Cedar rules (pattern)
-
-All cross-user admin requires **same tenant** (`principal.tenantId == resource.tenantId`) unless platform `admin` explicitly allows platform-tenant operations.
-
-Examples (User service):
-
-- `tenant.user.list` → `user:list` when `principal.orgRoles.contains("admin")` (or `audit` for read-only list) and tenant match.
-- `tenant.user.update_roles` → `user:update` when `principal.orgRoles.contains("admin")` and tenant match; assignable org roles validated against catalog for `principal.tenantType`.
-
-Capabilities UI mirrors the same `tenantType` + `orgRoles` checks on `ui::Feature` entities.
-
-### Job functions (optional, non-authorization)
-
-Fine-grained titles (`clinical.function.staff-nurse`, `research.function.crc`) may remain in catalog under `job_functions` for UX, reporting, and future study scope. They do **not** appear in Cedar until a concrete product requirement needs job-level authz—and then prefer **overrides** on org roles, not new Cedar dimensions.
+Registry obligations and operator-facing behavior are in [spec 018](https://github.com/Neosofia/cdp/blob/main/specs/018-user-service.md). Field names and service policy depth are in [openapi.json](https://github.com/Neosofia/user/blob/main/openapi.json) and [SECURITY.md](https://github.com/Neosofia/user/blob/main/SECURITY.md).
 
 ## Rationale
 
-- **Same pattern as Tier-1**: a few stable enums in the token; Cedar stays readable.
-- **Tenant type does scope heavy lifting**: a CRO admin assigns CRO org roles, not sponsor roles; prefix rules become `tenant_type` + catalog section, not string prefix logic alone.
-- **No abstraction layer**: one Cedar file per service/bundle; catalog validates assignment only.
-- **DRY**: org role vocabulary is defined once in `roles/*-catalog.json`; Cedar references the same slug strings.
+- **Same pattern as Tier-1:** a few stable facts in the token; Cedar stays readable and auditable.
+- **Tenant type scopes assignment:** a CRO administrator grants CRO roles, not sponsor roles; catalog `assigner_prefixes` tie Tier-1 actors to grantable tenant-type prefixes.
+- **Fault-tolerant login:** sessions and tokens still issue when User is temporarily unavailable; the registry catches up on provision without blocking mint.
+- **DRY:** one vocabulary in catalog JSON; one permission story in Cedar per service or UI bundle.
 
 ## Consequences
 
-- Authentication gains `tenants.type` and emits `neosofia:tenant_type` on human tokens from its own DB.
-- Authentication mirrors `users.org_roles[]` for JWT claims only (updated on best-effort User provision; token mint does not call User).
-- User registry is the source of truth for `org_roles[]`.
-- Remove `user-admin-policy.json` and `*.cedar.review` drafts; replace with direct Cedar using `tenantType` / `orgRoles`.
-- Capabilities principal builder must pass `tenant_type` and `org_roles` from JWT (same as other `neosofia:*` attrs).
-- Stage 4 JWT embedding carries `tenant_type` + `org_roles`, not full job-function lists.
+- Authentication owns `tenants.type` and the `users.roles` mirror; User owns registry `roles[]`.
+- Human JWTs use `neosofia:actors`, `neosofia:tenant_type` (when set), and `neosofia:roles` (short names). Capabilities and User API evaluation both consume those facts; UI menu gating remains a separate concern ([ADR-0012](0012-ui-capabilities-control-plane.md)).
+- Adding a tenant type or role requires catalog overlay (and usually Cedar) changes; products do not fork the User service for vocabulary alone.
+- Superseding this model requires a new ADR; do not revive flat `platform_roles` or job-function Cedar checks without an explicit decision.
 
 ## Status
 
-Accepted. User **v0.5.0** and Authentication **v0.32.0** implement DB, JWT, and Cedar; CDP catalog and UI policies use the same model.
+Accepted
 
 ## References
 
 - [ADR-0010: Single active role UI](0010-single-active-role-ui.md)
 - [ADR-0012: UI Capabilities control plane](0012-ui-capabilities-control-plane.md)
 - [Spec 018-user-service](https://github.com/Neosofia/cdp/blob/main/specs/018-user-service.md)
-- Role model: [authentication#11](https://github.com/Neosofia/authentication/issues/11)
