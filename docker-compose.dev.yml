@@ -81,8 +81,6 @@ services:
     container_name: cdp-python-template
     env_file:
       - ./.template.env
-    environment:
-      PORT: "8900"
     ports:
       - "8900:8900"
     healthcheck:
@@ -112,8 +110,6 @@ services:
     container_name: cdp-user-migrate
     env_file:
       - ./.user.env
-    environment:
-      ROLE_CATALOG_OVERLAY: /app/roles/cdp-overlay.json
     volumes:
       - ./roles/user-catalog.overlay.json:/app/roles/cdp-overlay.json:ro
     command: ["python", "-m", "alembic", "upgrade", "head"]
@@ -127,8 +123,6 @@ services:
     container_name: cdp-user
     env_file:
       - ./.user.env
-    environment:
-      ROLE_CATALOG_OVERLAY: /app/roles/cdp-overlay.json
     volumes:
       - ./roles/user-catalog.overlay.json:/app/roles/cdp-overlay.json:ro
     ports:
@@ -159,9 +153,6 @@ services:
         condition: service_healthy
       user:
         condition: service_healthy
-    environment:
-      VITE_USER_API_URL: http://localhost:8018
-      VITE_TEMPLATE_API_URL: http://localhost:8900
     volumes:
       - ./ui:/app
       - /app/node_modules

@@ -19,6 +19,7 @@ cp .capabilities.env.sample .capabilities.env
 cp .template.env.sample .template.env
 cp .user.env.sample .user.env
 cp .user-postgres.env.sample .user-postgres.env
+cp ui/.env.sample ui/.env
 ```
 
 A service may also include helper scripts inside its docker image to simplify setup. For example, the authentication service provides a bootstrap container that generates its env file for you:
@@ -89,7 +90,7 @@ Once you have generated all your environment variables, you can bring up the who
 docker compose -f docker-compose.dev.yml up -d
 ```
 
-Then access the platform at localhost:5173 (UI). Default API ports (8000 + spec number): Authentication **8014**, User **8018** (spec 018), Capabilities **8019**. Python template demo **8900** (outside the spec port range).
+Then access the platform at localhost:5173 (UI). Default API ports (8000 + spec number): Authentication **8014**, User **8018** (spec 018), Capabilities **8019**. Python template demo **8900** (outside the spec port range). In `ui/.env`, `VITE_TEMPLATE_API_URL` must point at the template service (**8900**), not the user service (**8018**).
 
 ### Full stack from local service checkouts
 

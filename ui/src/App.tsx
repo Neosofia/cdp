@@ -11,6 +11,7 @@ import { jwtDecode } from 'jwt-decode';
 import { ShieldCheckIcon as Shield, ChartBarIcon as Activity, ArrowRightOnRectangleIcon as LogOut, BuildingOfficeIcon as Building } from '@heroicons/react/24/outline';
 import ServiceManagement from '@/components/ServiceManagement';
 import UserManagement from '@/components/UserManagement';
+import { formatRoleLabel } from '@/components/PlatformRolePicker';
 import Dashboard from '@/components/Dashboard';
 import PatientChat from '@/components/PatientChat';
 import PatientRecords from '@/components/PatientRecords';
@@ -30,6 +31,7 @@ import {
 } from '@/lib/auth';
 
 const AUTH_API = import.meta.env.VITE_AUTH_API_URL ?? 'http://localhost:8014';
+const USER_API = import.meta.env.VITE_USER_API_URL ?? 'http://localhost:8018';
 const CAPABILITIES_API = import.meta.env.VITE_CAPABILITIES_API_URL ?? 'http://localhost:8019';
 const TEMPLATE_API = import.meta.env.VITE_TEMPLATE_API_URL ?? 'http://localhost:8900';
 const IS_PROD = import.meta.env.PROD;
@@ -46,17 +48,38 @@ interface LocalOauthToken {
   id_token?: string;
 }
 
+interface UserRegistryRecord {
+  uuid: string;
+  tenant_uuid: string;
+  display_code: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+  roles: string[];
+}
+
+function formatTenantLabel(name: string, displayCode?: string | null): string {
+  const code = displayCode?.trim();
+  return code ? `${name} (${code})` : name;
+}
+
 interface UserProfile {
+  uuid: string;
   first_name: string;
   last_name: string;
   email: string;
-  tenant_uuid?: string | null;
+  tenant_uuid: string;
   tenant_name: string;
+  tenant_display_code?: string | null;
+  /** Tier-2 organization roles from the User registry. */
   roles: string[];
+  /** Tier-1 actor classes from the platform JWT. */
+  actors: string[];
 }
 
 interface JwtTokenData {
   exp?: number;
+  'neosofia:actors'?: string[];
   'neosofia:roles'?: string[];
   [key: string]: unknown;
 }
@@ -71,7 +94,7 @@ async function fetchRoleEntitlements(
   const res = await fetch(`${CAPABILITIES_API}/api/v1/capabilities/ui`, {
     headers: {
       Authorization: `Bearer ${token}`,
-      'X-Active-Role': role,
+      'X-Active-Actor': role,
     },
   });
   if (!res.ok) {
@@ -99,7 +122,7 @@ function prefetchEntitlementsInBackground(
 const TIER1_ACTOR_CLASSES = new Set(['operator', 'clinician', 'patient']);
 
 function jwtTier1Roles(profile: UserProfile | null, decoded: JwtTokenData): string[] {
-  const raw = profile?.roles?.length ? profile.roles : decoded['neosofia:roles'] ?? [];
+  const raw = profile?.actors?.length ? profile.actors : decoded['neosofia:actors'] ?? [];
   const seen = new Set<string>();
   const tier1: string[] = [];
   for (const role of raw) {
@@ -111,15 +134,33 @@ function jwtTier1Roles(profile: UserProfile | null, decoded: JwtTokenData): stri
   return tier1;
 }
 
-function resolveActiveRole(roles: string[]): string {
+function resolveActiveActor(actors: string[]): string {
+  if (actors.length === 0) return '';
+
+  const stored = localStorage.getItem(LOCAL_AUTH_KEY);
+  if (stored) {
+    try {
+      const { activeActor } = JSON.parse(stored) as { activeActor?: string };
+      if (activeActor && actors.includes(activeActor)) {
+        return activeActor;
+      }
+    } catch {
+      // ignore corrupt local storage
+    }
+  }
+
+  return actors[0];
+}
+
+function resolveActiveOrgRole(roles: string[]): string {
   if (roles.length === 0) return '';
 
   const stored = localStorage.getItem(LOCAL_AUTH_KEY);
   if (stored) {
     try {
-      const { activeRole } = JSON.parse(stored) as { activeRole?: string };
-      if (activeRole && roles.includes(activeRole)) {
-        return activeRole;
+      const { activeOrgRole } = JSON.parse(stored) as { activeOrgRole?: string };
+      if (activeOrgRole && roles.includes(activeOrgRole)) {
+        return activeOrgRole;
       }
     } catch {
       // ignore corrupt local storage
@@ -137,12 +178,13 @@ export default function App() {
   const [testResult, setTestResult] = useState<{api: string, data: unknown, status: number} | null>(null);
   const [entitlements, setEntitlements] = useState<EntitlementsMap>({});
   const [entitlementsByRole, setEntitlementsByRole] = useState<EntitlementsByRole>({});
-  const [activeRole, setActiveRole] = useState<string>('');
+  const [activeActor, setActiveActor] = useState<string>('');
+  const [activeOrgRole, setActiveOrgRole] = useState<string>('');
   const [selectedSection, setSelectedSection] = useState<string>('');
   const [selectedAction, setSelectedAction] = useState<string | null>(null);
   const [clinicianPatientId, setClinicianPatientId] = useState<string | null>(null);
 
-  const tier1Roles = useMemo(
+  const sessionActors = useMemo(
     () => (tokenInfo ? jwtTier1Roles(profile, tokenInfo.decoded) : []),
     [profile, tokenInfo],
   );
@@ -219,31 +261,37 @@ export default function App() {
     callback();
   };
 
-  const persistActiveRole = (role: string) => {
+  const persistSessionSelection = (patch: { activeActor?: string; activeOrgRole?: string }) => {
     const stored = localStorage.getItem(LOCAL_AUTH_KEY);
     if (!stored) return;
 
     try {
-      const parsed = JSON.parse(stored) as { profile?: UserProfile | null; activeRole?: string };
-      localStorage.setItem(
-        LOCAL_AUTH_KEY,
-        JSON.stringify({ ...parsed, activeRole: role }),
-      );
+      const parsed = JSON.parse(stored) as {
+        profile?: UserProfile | null;
+        activeActor?: string;
+        activeOrgRole?: string;
+      };
+      localStorage.setItem(LOCAL_AUTH_KEY, JSON.stringify({ ...parsed, ...patch }));
     } catch {
       // ignore corrupt local storage
     }
   };
 
-  const handleActiveRoleChange = (role: string) => {
-    setActiveRole(role);
-    setEntitlements(entitlementsByRole[role] ?? {});
-    persistActiveRole(role);
+  const handleActiveActorChange = (actor: string) => {
+    setActiveActor(actor);
+    setEntitlements(entitlementsByRole[actor] ?? {});
+    persistSessionSelection({ activeActor: actor });
     goHome();
   };
 
-  const fetchSessionData = useCallback(async (retries = 2) => {
+  const handleActiveOrgRoleChange = (role: string) => {
+    setActiveOrgRole(role);
+    persistSessionSelection({ activeOrgRole: role });
+  };
+
+  const fetchSessionData = useCallback(async (retries = 2): Promise<string | null> => {
     if (hasLoggedOutLocally()) {
-      return;
+      return null;
     }
 
     for (let attempt = 0; attempt <= retries; attempt += 1) {
@@ -273,15 +321,16 @@ export default function App() {
 
         const decoded = jwtDecode<JwtTokenData>(tokenData.access_token);
         const newTokenInfo = { raw: tokenData.access_token, decoded };
-        const jwtRoles = decoded?.['neosofia:roles'] || [];
-        const resolvedRole = resolveActiveRole(jwtRoles);
+        const jwtActors = decoded?.['neosofia:actors'] || [];
+        const resolvedActor = resolveActiveActor(jwtActors);
 
         // Clear any pending refresh timer before scheduling a new one
         if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
 
         // Publish JWT and active role immediately so profile and capabilities overlap.
         setTokenInfo(newTokenInfo);
-        setActiveRole(resolvedRole);
+        setActiveActor(resolvedActor);
+        setActiveOrgRole('');
         setEntitlements({});
         setEntitlementsByRole({});
 
@@ -300,29 +349,74 @@ export default function App() {
           prefetchEntitlementsInBackground(tokenData.access_token, pending, cacheRoleEntitlements);
         };
 
-        startPrefetch(jwtRoles);
+        startPrefetch(jwtActors);
 
-        const profileId = decoded.sub;
-        const profileRes = await fetch(`${AUTH_API}/api/v1/profiles/${profileId}`, {
-          headers: { Authorization: `Bearer ${tokenData.access_token}` },
-        });
-        const newProfile = profileRes.ok ? await profileRes.json() : null;
-        const profileRoles =
-          newProfile?.roles?.length > 0 ? newProfile.roles : jwtRoles;
-        const finalRole = resolveActiveRole(profileRoles);
+        const profileId = String(decoded.sub ?? '');
+        const authHeaders = {
+          Authorization: `Bearer ${tokenData.access_token}`,
+          'X-Active-Actor': resolvedActor,
+        };
 
-        startPrefetch(profileRoles);
+        let registry: UserRegistryRecord | null = null;
+        let tenantName = 'Unknown organization';
+
+        if (profileId) {
+          const userRes = await fetch(`${USER_API}/api/v1/users/${profileId}`, { headers: authHeaders });
+          if (userRes.ok) {
+            registry = (await userRes.json()) as UserRegistryRecord;
+            if (registry.tenant_uuid) {
+              const tenantRes = await fetch(
+                `${AUTH_API}/api/v1/tenants/${registry.tenant_uuid}`,
+                { headers: authHeaders },
+              );
+              if (tenantRes.ok) {
+                const tenant = (await tenantRes.json()) as {
+                  name?: string;
+                  display_code?: string | null;
+                };
+                if (tenant.name) {
+                  tenantName = formatTenantLabel(tenant.name, tenant.display_code);
+                }
+              }
+            }
+          }
+        }
+
+        const sessionActors = jwtTier1Roles(null, decoded);
+        const orgRoles = registry?.roles ?? [];
+        const newProfile: UserProfile | null = registry
+          ? {
+              uuid: registry.uuid,
+              first_name: registry.first_name ?? '',
+              last_name: registry.last_name ?? '',
+              email: registry.email ?? '',
+              tenant_uuid: registry.tenant_uuid,
+              tenant_name: tenantName,
+              roles: orgRoles,
+              actors: sessionActors,
+            }
+          : null;
+
+        const finalActor = resolveActiveActor(sessionActors.length ? sessionActors : jwtActors);
+        const finalOrgRole = resolveActiveOrgRole(orgRoles);
+
+        startPrefetch(sessionActors.length ? sessionActors : jwtActors);
         setProfile(newProfile);
-        if (finalRole !== resolvedRole) {
+        if (finalActor !== resolvedActor) {
           setEntitlements({});
         }
-        setActiveRole(finalRole);
+        setActiveActor(finalActor);
+        setActiveOrgRole(finalOrgRole);
         localStorage.setItem(
           LOCAL_AUTH_KEY,
-          JSON.stringify({ profile: newProfile, activeRole: finalRole })
+          JSON.stringify({
+            profile: newProfile,
+            activeActor: finalActor,
+            activeOrgRole: finalOrgRole,
+          }),
         );
 
-        return;
+        return tokenData.access_token;
       } catch (err) {
         if (err && typeof err === 'object' && 'isAuthError' in err) {
           // Break cleanly without retrying if it's a known auth failure
@@ -337,19 +431,22 @@ export default function App() {
     // All retries failed — session is gone; show login button
     setTokenInfo(null);
     setProfile(null);
-    setActiveRole('');
+    setActiveActor('');
+    setActiveOrgRole('');
     setEntitlements({});
     setEntitlementsByRole({});
     localStorage.removeItem(LOCAL_AUTH_KEY);
+    return null;
   }, []);
 
-  const pingApi = async (url: string, label?: string) => {
-    if (!tokenInfo) return;
+  const pingApi = async (url: string, label?: string, bearerToken?: string) => {
+    const token = bearerToken ?? tokenInfo?.raw;
+    if (!token) return;
     try {
       const res = await fetch(url, {
         headers: {
-          'Authorization': `Bearer ${tokenInfo.raw}`,
-          'X-Active-Role': activeRole,
+          'Authorization': `Bearer ${token}`,
+          'X-Active-Actor': activeActor,
         }
       });
       if (res.status === 401) {
@@ -373,10 +470,9 @@ export default function App() {
   const runDebugTest = async (label: string, url: string) => {
     setSelectedSection('Debug');
     setSelectedAction('Test API endpoints');
-    if (!tokenInfo) {
-      await fetchSessionData();
-    }
-    pingApi(url, label);
+    const token = tokenInfo?.raw ?? (await fetchSessionData());
+    if (!token) return;
+    pingApi(url, label, token);
   };
 
   useEffect(() => {
@@ -394,34 +490,34 @@ export default function App() {
 
   // Show menu when the active role's entitlements arrive; ignore other roles' prefetches.
   useEffect(() => {
-    if (!activeRole) {
+    if (!activeActor) {
       return;
     }
-    const cached = entitlementsByRole[activeRole];
+    const cached = entitlementsByRole[activeActor];
     if (cached) {
       setEntitlements(cached);
     }
-  }, [activeRole, entitlementsByRole]);
+  }, [activeActor, entitlementsByRole]);
 
   useEffect(() => {
-    if (!tokenInfo?.raw || !activeRole || entitlementsByRole[activeRole]) {
+    if (!tokenInfo?.raw || !activeActor || entitlementsByRole[activeActor]) {
       return;
     }
 
     let cancelled = false;
     const loadEntitlements = async () => {
-      const data = await fetchRoleEntitlements(tokenInfo.raw, activeRole);
+      const data = await fetchRoleEntitlements(tokenInfo.raw, activeActor);
       if (cancelled || data === null) {
         return;
       }
-      setEntitlementsByRole((prev) => ({ ...prev, [activeRole]: data }));
+      setEntitlementsByRole((prev) => ({ ...prev, [activeActor]: data }));
     };
 
     void loadEntitlements();
     return () => {
       cancelled = true;
     };
-  }, [tokenInfo, activeRole, entitlementsByRole]);
+  }, [tokenInfo, activeActor, entitlementsByRole]);
 
   useEffect(() => {
     if (!showPatientMenu && selectedSection === 'Patient') {
@@ -440,7 +536,8 @@ export default function App() {
     if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
     setTokenInfo(null);
     setProfile(null);
-    setActiveRole('');
+    setActiveActor('');
+    setActiveOrgRole('');
     setEntitlements({});
     setEntitlementsByRole({});
     setSelectedSection('');
@@ -617,7 +714,18 @@ export default function App() {
                     <DropdownMenuLabel className="font-normal flex flex-col space-y-1 p-2">
                       <span className="text-sm font-semibold leading-none text-white">{profile.first_name} {profile.last_name}</span>
                       <span className="text-xs text-slate-400 leading-none mt-0.5">{profile.email}</span>
-                      <span className="text-xs text-slate-400 leading-none mt-1">Active role: <span className="text-white">{activeRole ? activeRole.replace(/-/g, ' ') : 'None'}</span></span>
+                      <span className="text-xs text-slate-400 leading-none mt-1">
+                        Active actor:{' '}
+                        <span className="text-white capitalize">
+                          {activeActor ? activeActor.replace(/-/g, ' ') : 'None'}
+                        </span>
+                      </span>
+                      {activeOrgRole ? (
+                        <span className="text-xs text-slate-400 leading-none mt-1">
+                          Active role:{' '}
+                          <span className="text-white">{formatRoleLabel(activeOrgRole)}</span>
+                        </span>
+                      ) : null}
                     </DropdownMenuLabel>
                   </DropdownMenuGroup>
 
@@ -634,32 +742,82 @@ export default function App() {
 
                   <DropdownMenuSeparator style={{ background: 'rgba(34,211,238,0.12)' }} />
 
-                  {/* Role picker */}
+                  {sessionActors.length > 1 ? (
+                    <>
+                      <DropdownMenuGroup>
+                        <DropdownMenuLabel
+                          className="text-xs font-semibold uppercase tracking-widest"
+                          style={{ color: 'rgba(34,211,238,0.45)' }}
+                        >
+                          Choose active actor
+                        </DropdownMenuLabel>
+                        <div className="space-y-1 px-1.5 pb-1">
+                          {sessionActors.map((actor) => {
+                            const selected = actor === activeActor;
+                            return (
+                              <DropdownMenuItem
+                                key={actor}
+                                onClick={() => handleActiveActorChange(actor)}
+                                className={`flex items-center justify-between cursor-pointer rounded-lg px-2 py-2 text-sm hover:bg-cyan-500/10 hover:text-cyan-300 ${selected ? 'text-cyan-300' : 'text-slate-400'}`}
+                              >
+                                <span className="flex items-center gap-2">
+                                  <Shield className="h-4 w-4" style={{ color: selected ? '#22d3ee' : undefined }} />
+                                  <span className="capitalize">{actor.replace(/-/g, ' ')}</span>
+                                </span>
+                                {selected ? (
+                                  <Badge
+                                    variant="outline"
+                                    className="text-[10px]"
+                                    style={{ borderColor: 'rgba(34,211,238,0.4)', color: '#22d3ee' }}
+                                  >
+                                    Active
+                                  </Badge>
+                                ) : null}
+                              </DropdownMenuItem>
+                            );
+                          })}
+                        </div>
+                      </DropdownMenuGroup>
+                      <DropdownMenuSeparator style={{ background: 'rgba(34,211,238,0.12)' }} />
+                    </>
+                  ) : null}
+
                   <DropdownMenuGroup>
-                    <DropdownMenuLabel className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'rgba(34,211,238,0.45)' }}>
-                      Choose active role
+                    <DropdownMenuLabel
+                      className="text-xs font-semibold uppercase tracking-widest"
+                      style={{ color: 'rgba(34,211,238,0.45)' }}
+                    >
+                      Organization roles
                     </DropdownMenuLabel>
                     <div className="space-y-1 px-1.5 pb-1">
-                      {profile.roles.map(role => {
-                        const selected = role === activeRole;
-                        return (
-                          <DropdownMenuItem
-                            key={role}
-                            onClick={() => handleActiveRoleChange(role)}
-                            className={`flex items-center justify-between cursor-pointer rounded-lg px-2 py-2 text-sm hover:bg-cyan-500/10 hover:text-cyan-300 ${selected ? 'text-cyan-300' : 'text-slate-400'}`}
-                          >
-                            <span className="flex items-center gap-2">
-                              <Shield className="h-4 w-4" style={{ color: selected ? '#22d3ee' : undefined }} />
-                              <span className="capitalize">{role.replace(/-/g, ' ')}</span>
-                            </span>
-                            {selected ? (
-                              <Badge variant="outline" className="text-[10px]" style={{ borderColor: 'rgba(34,211,238,0.4)', color: '#22d3ee' }}>
-                                Active
-                              </Badge>
-                            ) : null}
-                          </DropdownMenuItem>
-                        )
-                      })}
+                      {profile.roles.length === 0 ? (
+                        <p className="px-2 py-2 text-xs text-slate-500">No roles assigned in the user registry.</p>
+                      ) : (
+                        profile.roles.map((role) => {
+                          const selected = role === activeOrgRole;
+                          return (
+                            <DropdownMenuItem
+                              key={role}
+                              onClick={() => handleActiveOrgRoleChange(role)}
+                              className={`flex items-center justify-between cursor-pointer rounded-lg px-2 py-2 text-sm hover:bg-cyan-500/10 hover:text-cyan-300 ${selected ? 'text-cyan-300' : 'text-slate-400'}`}
+                            >
+                              <span className="flex items-center gap-2">
+                                <Shield className="h-4 w-4" style={{ color: selected ? '#22d3ee' : undefined }} />
+                                <span>{formatRoleLabel(role)}</span>
+                              </span>
+                              {selected ? (
+                                <Badge
+                                  variant="outline"
+                                  className="text-[10px]"
+                                  style={{ borderColor: 'rgba(34,211,238,0.4)', color: '#22d3ee' }}
+                                >
+                                  Active
+                                </Badge>
+                              ) : null}
+                            </DropdownMenuItem>
+                          );
+                        })
+                      )}
                     </div>
                   </DropdownMenuGroup>
 
@@ -783,14 +941,14 @@ export default function App() {
           >
             {selectedSection === 'Admin' && selectedAction === 'Services' ? (
               <div className="col-span-2">
-                <ServiceManagement token={tokenInfo.raw} activeRole={activeRole} />
+                <ServiceManagement token={tokenInfo.raw} activeActor={activeActor} />
               </div>
             ) : selectedSection === 'Admin' && selectedAction === 'Users' ? (
               <div className="col-span-2">
                 <UserManagement
                   token={tokenInfo.raw}
-                  activeRole={activeRole}
-                  tier1Roles={tier1Roles}
+                  activeActor={activeActor}
+                  sessionActors={sessionActors}
                   sessionTenantUuid={
                     profile?.tenant_uuid ??
                     (typeof tokenInfo.decoded['neosofia:tenant_uuid'] === 'string'
@@ -802,7 +960,7 @@ export default function App() {
             ) : selectedSection === 'Patient' && selectedAction === 'Start chat' ? (
               <PatientChat
                 token={tokenInfo.raw}
-                activeRole={activeRole}
+                activeActor={activeActor}
                 patientName={profile ? `${profile.first_name} ${profile.last_name}` : undefined}
               />
             ) : selectedSection === 'Patient' && selectedAction === 'Review records' ? (
@@ -832,7 +990,7 @@ export default function App() {
                       <p className="text-sm font-medium" style={{ color: 'rgba(34,211,238,0.8)' }}>Use these buttons to verify your session, JWT, and role handling via the auth API.</p>
                     </div>
                     <div className="mb-6 grid gap-3 md:grid-cols-3">
-                      <Button onClick={() => runDebugTest('Profile', `${AUTH_API}/api/v1/profiles/${tokenInfo?.decoded?.sub ?? ''}`)} variant="outline" size="lg" className="w-full text-cyan-300 hover:text-white" style={{ borderColor: 'rgba(34,211,238,0.3)', background: 'rgba(34,211,238,0.05)' }}>Profile</Button>
+                      <Button onClick={() => runDebugTest('User registry', `${USER_API}/api/v1/users/${tokenInfo?.decoded?.sub ?? ''}`)} variant="outline" size="lg" className="w-full text-cyan-300 hover:text-white" style={{ borderColor: 'rgba(34,211,238,0.3)', background: 'rgba(34,211,238,0.05)' }}>User registry</Button>
                       {!IS_PROD && (
                         <Button onClick={() => runDebugTest('Token Inspect', `${AUTH_API}/api/token-inspect`)} variant="outline" size="lg" className="w-full text-cyan-300 hover:text-white" style={{ borderColor: 'rgba(34,211,238,0.3)', background: 'rgba(34,211,238,0.05)' }}>Token Inspect</Button>
                       )}
@@ -858,7 +1016,7 @@ export default function App() {
             ) : (
               <div className="col-span-2">
                 <Dashboard
-                  activeRole={activeRole}
+                  activeActor={activeActor}
                   firstName={profile?.first_name}
                   onPatientStartChat={() => navigatePatient('Start chat')}
                   onPatientReviewRecords={() => navigatePatient('Review records')}

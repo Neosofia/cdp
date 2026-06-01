@@ -63,7 +63,7 @@ interface RotationResult {
 
 interface Props {
   token: string;
-  activeRole: string;
+  activeActor: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -144,7 +144,7 @@ function CopyButton({ value }: { value: string }) {
 // Main component
 // ---------------------------------------------------------------------------
 
-export default function ServiceManagement({ token, activeRole }: Props) {
+export default function ServiceManagement({ token, activeActor }: Props) {
   // List state
   const [items, setItems] = useState<ServiceItem[]>([]);
   const [total, setTotal] = useState(0);
@@ -213,7 +213,7 @@ export default function ServiceManagement({ token, activeRole }: Props) {
       const res = await fetch(`${AUTH_API}/api/services?${params}`, {
         headers: {
           Authorization: `Bearer ${token}`,
-          'X-Active-Role': activeRole,
+          'X-Active-Actor': activeActor,
         },
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -226,7 +226,7 @@ export default function ServiceManagement({ token, activeRole }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [token, activeRole, page, debouncedSearch]);
+  }, [token, activeActor, page, debouncedSearch]);
 
   useEffect(() => {
     fetchServices();
@@ -270,7 +270,7 @@ export default function ServiceManagement({ token, activeRole }: Props) {
             method: 'POST',
             headers: {
               Authorization: `Bearer ${token}`,
-              'X-Active-Role': activeRole,
+              'X-Active-Actor': activeActor,
             },
           });
           if (!res.ok) {
@@ -315,7 +315,7 @@ export default function ServiceManagement({ token, activeRole }: Props) {
       });
       const res = await fetch(
         `${AUTH_API}/api/services/${encodeURIComponent(svc.slug)}/audits?${params}`,
-        { headers: { Authorization: `Bearer ${token}`, 'X-Active-Role': activeRole } },
+        { headers: { Authorization: `Bearer ${token}`, 'X-Active-Actor': activeActor } },
       );
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setData(await res.json());
@@ -365,7 +365,7 @@ export default function ServiceManagement({ token, activeRole }: Props) {
         const params = new URLSearchParams({ page: String(p), page_size: String(FETCH_SIZE), source });
         const res = await fetch(
           `${AUTH_API}/api/services/${encodeURIComponent(auditService.slug)}/audits?${params}`,
-          { headers: { Authorization: `Bearer ${token}`, 'X-Active-Role': activeRole } },
+          { headers: { Authorization: `Bearer ${token}`, 'X-Active-Actor': activeActor } },
         );
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data: AuditResponse = await res.json();
@@ -397,7 +397,7 @@ export default function ServiceManagement({ token, activeRole }: Props) {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
-          'X-Active-Role': activeRole,
+          'X-Active-Actor': activeActor,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ name: newName, slug: newSlug, base_url: newBaseUrl }),
@@ -441,7 +441,7 @@ export default function ServiceManagement({ token, activeRole }: Props) {
           method: 'PUT',
           headers: {
             Authorization: `Bearer ${token}`,
-            'X-Active-Role': activeRole,
+            'X-Active-Actor': activeActor,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({ name: editName, slug: editSlug, base_url: editBaseUrl }),

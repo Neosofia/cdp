@@ -37,6 +37,7 @@ const AUDIT_PAGE_SIZE = 10;
 interface TenantSummary {
   uuid: string;
   name: string;
+  display_code?: string | null;
   idp_id: string;
 }
 
@@ -44,10 +45,16 @@ interface UserRecord {
   uuid: string;
   tenant_uuid: string;
   idp_id: string;
+  display_code: string | null;
   first_name: string | null;
   last_name: string | null;
   email: string | null;
-  platform_roles: string[];
+  roles: string[];
+}
+
+function formatTenantLabel(name: string, displayCode?: string | null): string {
+  const code = displayCode?.trim();
+  return code ? `${name} (${code})` : name;
 }
 
 interface UserListResponse {
@@ -66,9 +73,9 @@ interface AuditResponse {
 
 interface Props {
   token: string;
-  activeRole: string;
+  activeActor: string;
   /** All Tier-1 JWT roles (operator, clinician, patient) for role assignment. */
-  tier1Roles: string[];
+  sessionActors: string[];
   sessionTenantUuid?: string | null;
 }
 
@@ -77,7 +84,7 @@ function displayName(user: UserRecord): string {
   return name || user.email || user.idp_id;
 }
 
-export default function UserManagement({ token, activeRole, tier1Roles, sessionTenantUuid }: Props) {
+export default function UserManagement({ token, activeActor, sessionActors, sessionTenantUuid }: Props) {
   const [items, setItems] = useState<UserRecord[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -110,17 +117,17 @@ export default function UserManagement({ token, activeRole, tier1Roles, sessionT
   const authHeaders = useCallback(
     () => ({
       Authorization: `Bearer ${token}`,
-      'X-Active-Role': activeRole,
+      'X-Active-Actor': activeActor,
       'Content-Type': 'application/json',
     }),
-    [token, activeRole],
+    [token, activeActor],
   );
 
   const fetchRoles = useCallback(async () => {
     const res = await fetch(`${USER_API}/api/v1/roles`, { headers: authHeaders() });
     if (!res.ok) return;
     const data = await res.json();
-    setRoleCatalog(data.platform_roles ?? []);
+    setRoleCatalog(data.roles ?? []);
   }, [authHeaders]);
 
   const resolveTenantName = useCallback(
@@ -131,7 +138,7 @@ export default function UserManagement({ token, activeRole, tier1Roles, sessionT
       const tenant: TenantSummary = await res.json();
       setTenantNames((prev) => {
         if (prev[tenant.uuid]) return prev;
-        return { ...prev, [tenant.uuid]: tenant.name };
+        return { ...prev, [tenant.uuid]: formatTenantLabel(tenant.name, tenant.display_code) };
       });
     },
     [authHeaders],
@@ -182,7 +189,7 @@ export default function UserManagement({ token, activeRole, tier1Roles, sessionT
   }, [items, resolveTenantName]);
 
   const openEdit = (user: UserRecord) => {
-    setEditUser({ ...user, platform_roles: [...user.platform_roles] });
+    setEditUser({ ...user, roles: [...user.roles] });
     setEditError(null);
   };
 
@@ -198,7 +205,8 @@ export default function UserManagement({ token, activeRole, tier1Roles, sessionT
           first_name: editUser.first_name,
           last_name: editUser.last_name,
           email: editUser.email,
-          platform_roles: editUser.platform_roles,
+          display_code: editUser.display_code,
+          roles: editUser.roles,
         }),
       });
       const body = await res.json().catch(() => ({}));
@@ -267,7 +275,7 @@ export default function UserManagement({ token, activeRole, tier1Roles, sessionT
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search name, email, idp id…"
+              placeholder="Search name, email, display code, idp id…"
               className="pl-9 bg-slate-900 border-slate-700"
             />
           </div>
@@ -277,6 +285,7 @@ export default function UserManagement({ token, activeRole, tier1Roles, sessionT
               <thead className="text-xs uppercase text-slate-500 bg-slate-900/80">
                 <tr>
                   <th className="px-3 py-2">Name</th>
+                  <th className="px-3 py-2">Display code</th>
                   <th className="px-3 py-2">Email</th>
                   <th className="px-3 py-2">Roles</th>
                   <th className="px-3 py-2">Tenant</th>
@@ -286,13 +295,13 @@ export default function UserManagement({ token, activeRole, tier1Roles, sessionT
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={5} className="px-3 py-6 text-center text-slate-500">
+                    <td colSpan={6} className="px-3 py-6 text-center text-slate-500">
                       Loading…
                     </td>
                   </tr>
                 ) : items.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-3 py-6 text-center text-slate-500">
+                    <td colSpan={6} className="px-3 py-6 text-center text-slate-500">
                       Users appear after first login
                     </td>
                   </tr>
@@ -300,9 +309,12 @@ export default function UserManagement({ token, activeRole, tier1Roles, sessionT
                   items.map((user) => (
                     <tr key={user.uuid} className="border-t border-slate-800 hover:bg-slate-900/50">
                       <td className="px-3 py-2 text-white">{displayName(user)}</td>
+                      <td className="px-3 py-2 font-mono text-xs text-slate-400">
+                        {user.display_code ?? '—'}
+                      </td>
                       <td className="px-3 py-2 text-slate-400">{user.email ?? '—'}</td>
                       <td className="px-3 py-2 text-slate-400 max-w-xs truncate">
-                        {user.platform_roles.join(', ') || '—'}
+                        {user.roles.join(', ') || '—'}
                       </td>
                       <td className="px-3 py-2 text-slate-400">
                         {tenantNames[user.tenant_uuid] ?? `${user.tenant_uuid.slice(0, 8)}…`}
@@ -390,6 +402,22 @@ export default function UserManagement({ token, activeRole, tier1Roles, sessionT
                 <p className="font-mono text-xs text-slate-400 break-all">{editUser.idp_id}</p>
               </div>
               <div>
+                <label className={USER_FIELD_LABEL_CLASS} htmlFor="edit-display-code">
+                  Display code
+                </label>
+                <Input
+                  id="edit-display-code"
+                  className={USER_INPUT_CLASS}
+                  placeholder="e.g. DET-4035"
+                  value={editUser.display_code ?? ''}
+                  onChange={(e) =>
+                    setEditUser((u) =>
+                      u ? { ...u, display_code: e.target.value || null } : u,
+                    )
+                  }
+                />
+              </div>
+              <div>
                 <label className={USER_FIELD_LABEL_CLASS} htmlFor="edit-first-name">
                   First name
                 </label>
@@ -433,15 +461,15 @@ export default function UserManagement({ token, activeRole, tier1Roles, sessionT
                 <label className={USER_FIELD_LABEL_CLASS}>Platform roles</label>
                 <p className="text-xs text-slate-500 mb-2">
                   Assignable under your Tier-1 roles (
-                  {tier1Roles.length > 0 ? tier1Roles.join(', ') : 'none on JWT'})
+                  {sessionActors.length > 0 ? sessionActors.join(', ') : 'none on JWT'})
                 </p>
                 <PlatformRolePicker
                   roleCatalog={roleCatalog}
-                  selected={editUser.platform_roles}
-                  onChange={(platform_roles) =>
-                    setEditUser((u) => (u ? { ...u, platform_roles } : u))
+                  selected={editUser.roles}
+                  onChange={(roles) =>
+                    setEditUser((u) => (u ? { ...u, roles } : u))
                   }
-                  assignerTier1Roles={tier1Roles}
+                  assignerActors={sessionActors}
                 />
               </div>
               {editError && <p className="text-sm text-red-400">{editError}</p>}

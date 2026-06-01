@@ -54,6 +54,8 @@ services:
     <<: *auth_local
   capabilities:
     <<: *capabilities_local
+    volumes:
+      - ./policies:/app/policies:ro
   user-migrate:
     <<: *user_local
     container_name: cdp-user-migrate

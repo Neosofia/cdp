@@ -44,7 +44,7 @@ export interface UserAuditItem extends AuditBaseItem {
   first_name: string | null;
   last_name: string | null;
   email: string | null;
-  platform_roles: string[];
+  roles: string[];
 }
 
 interface AuditSectionBase {
@@ -222,7 +222,7 @@ const USER_COLUMNS: AuditColumn<UserAuditItem>[] = [
     header: 'Roles',
     headerClassName: 'pr-0',
     cellClassName: 'text-slate-500 pr-0',
-    render: (row) => row.platform_roles.join(', ') || '—',
+    render: (row) => row.roles.join(', ') || '—',
   },
 ];
 

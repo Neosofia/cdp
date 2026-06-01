@@ -21,6 +21,26 @@
           "key": "ui:menu:clinician",
           "resource": "ui::Menu::\"clinician\"",
           "action": "View"
+        },
+        {
+          "key": "ui:tenant:user:list",
+          "resource": "ui::Feature::\"tenant-user:list\"",
+          "action": "View"
+        },
+        {
+          "key": "ui:tenant:user:read",
+          "resource": "ui::Feature::\"tenant-user:read\"",
+          "action": "View"
+        },
+        {
+          "key": "ui:tenant:user:update-roles",
+          "resource": "ui::Feature::\"tenant-user:update-roles\"",
+          "action": "View"
+        },
+        {
+          "key": "ui:tenant:user:audit",
+          "resource": "ui::Feature::\"tenant-user:audit\"",
+          "action": "View"
         }
       ]
     }

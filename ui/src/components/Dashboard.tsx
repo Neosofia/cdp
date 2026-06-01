@@ -20,7 +20,7 @@ import {
 } from '@heroicons/react/24/outline';
 
 interface DashboardProps {
-  activeRole: string;
+  activeActor: string;
   firstName?: string;
   onPatientStartChat?: () => void;
   onPatientReviewRecords?: () => void;
@@ -438,13 +438,13 @@ function NoRoleDashboard() {
 // ---------------------------------------------------------------------------
 
 export default function Dashboard({
-  activeRole,
+  activeActor,
   firstName,
   onPatientStartChat,
   onPatientReviewRecords,
   onClinicianOpenPatients,
 }: DashboardProps) {
-  const role = activeRole.toLowerCase();
+  const role = activeActor.toLowerCase();
 
   if (role === 'clinician') return <ClinicianDashboard onOpenPatients={onClinicianOpenPatients} />;
   if (role === 'operator')  return <AdminDashboard />;

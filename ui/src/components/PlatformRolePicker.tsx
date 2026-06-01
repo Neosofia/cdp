@@ -23,15 +23,15 @@ interface PlatformRolePickerProps {
   roleCatalog: string[];
   selected: string[];
   onChange: (roles: string[]) => void;
-  /** All Tier-1 roles on the assigner's JWT (not only the UI active role). */
-  assignerTier1Roles: string[];
+  /** All actor classes on the assigner's JWT (not only the UI active actor). */
+  assignerActors: string[];
 }
 
 export default function PlatformRolePicker({
   roleCatalog,
   selected,
   onChange,
-  assignerTier1Roles,
+  assignerActors,
 }: PlatformRolePickerProps) {
   const [filter, setFilter] = useState('');
 
@@ -139,7 +139,7 @@ export default function PlatformRolePicker({
       </div>
       <p className="text-[11px] text-slate-500">
         {selected.length} selected · {roleCatalog.length} assignable (
-        {assignerTier1Roles.length > 0 ? assignerTier1Roles.join(', ') : 'no Tier-1 roles'})
+        {assignerActors.length > 0 ? assignerActors.join(', ') : 'no actors on JWT'})
       </p>
     </div>
   );

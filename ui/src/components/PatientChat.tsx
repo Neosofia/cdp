@@ -21,7 +21,7 @@ export interface ChatMessage {
 
 interface Props {
   token: string;
-  activeRole: string;
+  activeActor: string;
   patientName?: string;
 }
 
@@ -58,7 +58,7 @@ function stubReply(userText: string, patientName?: string): string {
 async function fetchAssistantReply(
   messages: ChatMessage[],
   token: string,
-  activeRole: string,
+  activeActor: string,
 ): Promise<string> {
   if (!CHAT_API) {
     const lastUser = [...messages].reverse().find(m => m.role === 'user');
@@ -71,7 +71,7 @@ async function fetchAssistantReply(
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
-      'X-Active-Role': activeRole,
+      'X-Active-Actor': activeActor,
     },
     body: JSON.stringify({
       messages: messages.map(m => ({ role: m.role, content: m.content })),
@@ -86,7 +86,7 @@ async function fetchAssistantReply(
   return data.content ?? data.message ?? 'No response from assistant.';
 }
 
-export default function PatientChat({ token, activeRole, patientName }: Props) {
+export default function PatientChat({ token, activeActor, patientName }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([WELCOME]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
@@ -113,7 +113,7 @@ export default function PatientChat({ token, activeRole, patientName }: Props) {
     try {
       let reply: string;
       if (CHAT_API) {
-        reply = await fetchAssistantReply([...messages, userMsg], token, activeRole);
+        reply = await fetchAssistantReply([...messages, userMsg], token, activeActor);
       } else {
         await new Promise(r => setTimeout(r, 600 + Math.random() * 400));
         reply = stubReply(text, patientName);

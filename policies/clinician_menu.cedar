@@ -3,5 +3,5 @@ permit (
     action == Action::"View",
     resource == ui::Menu::"clinician"
 ) when {
-    principal.roles.contains("clinician")
+    principal.actors.contains("clinician")
 };

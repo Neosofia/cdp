@@ -3,5 +3,5 @@ permit (
     action == Action::"View",
     resource == ui::Menu::"debug"
 ) when {
-    principal.roles.contains("operator")
+    principal.actors.contains("operator")
 };
