@@ -509,7 +509,7 @@ export default function UserManagement({ token, activeActor, sessionActors, sess
         sections={[
           {
             key: 'user',
-            rows: auditError ? null : auditItems,
+            rows: auditError ? null : auditLoading && auditItems.length === 0 ? null : auditItems,
             loading: auditLoading && auditItems.length === 0,
             emptyMessage: 'No history rows yet',
             errorMessage: auditError ?? 'Failed to load audit history.',

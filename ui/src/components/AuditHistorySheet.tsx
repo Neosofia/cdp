@@ -222,7 +222,7 @@ const USER_COLUMNS: AuditColumn<UserAuditItem>[] = [
     header: 'Roles',
     headerClassName: 'pr-0',
     cellClassName: 'text-slate-500 pr-0',
-    render: (row) => row.roles.join(', ') || '—',
+    render: (row) => (row.roles ?? []).join(', ') || '—',
   },
 ];
 
@@ -274,11 +274,11 @@ function AuditTable<Row>({
 }
 
 function AuditSectionContent({ section }: { section: AuditSection }) {
-  if (section.loading && !section.rows) {
+  if (section.loading && (section.rows == null || section.rows.length === 0)) {
     return <p className="text-slate-400 text-xs">Loading…</p>;
   }
 
-  if (!section.rows) {
+  if (section.rows == null) {
     return <p className="text-red-400 text-xs">{section.errorMessage}</p>;
   }
 
