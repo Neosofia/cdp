@@ -91,6 +91,15 @@ export function displayNameForUser(user: Pick<RegistryPatientUser, 'first_name' 
   return name || user.email || 'Unknown patient';
 }
 
+/** Registry patients not yet on the clinician active roster (post-care enroll pick list). */
+export function registryUsersNotYetEnrolled(
+  registryUsers: RegistryPatientUser[],
+  enrolledSessions: ActivePatientSession[],
+): RegistryPatientUser[] {
+  const enrolledUuids = new Set(enrolledSessions.map((session) => session.patientUuid));
+  return registryUsers.filter((user) => !enrolledUuids.has(user.uuid));
+}
+
 export function mergePatientSession(user: RegistryPatientUser): ActivePatientSession | null {
   if (!user.roles.includes('patient.self')) {
     return null;

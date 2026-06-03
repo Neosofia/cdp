@@ -46,6 +46,7 @@ import {
   PATIENT_LIST_PAGE_SIZE,
   riskForSession,
   sortPatientSessionsByRiskAndRecency,
+  registryUsersNotYetEnrolled,
   type ActivePatientSession,
   type ClinicianActivityFilter,
   type ClinicianListFilters,
@@ -603,6 +604,11 @@ export default function ClinicianActivePatients({
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
 
+  const enrollableRegistryUsers = useMemo(
+    () => registryUsersNotYetEnrolled(registryUsers, patients),
+    [registryUsers, patients],
+  );
+
   const openEditSheet = (patientToEdit: ActivePatientSession) => {
     const matchedUser = registryUsers.find((user) => user.uuid === patientToEdit.patientUuid);
     const [fallbackFirstName = '', ...rest] = patientToEdit.displayName.trim().split(/\s+/);
@@ -733,7 +739,7 @@ export default function ClinicianActivePatients({
       <PatientEnrollSheet
         open={enrollOpen}
         onOpenChange={setEnrollOpen}
-        existingPatients={registryUsers}
+        existingPatients={enrollableRegistryUsers}
         tenantUuid={tenantUuid}
         onEnroll={onEnrollInPostCare}
       />

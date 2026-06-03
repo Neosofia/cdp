@@ -17,7 +17,10 @@ import {
   USER_SHEET_HEADER_CLASS,
   USER_SHEET_TITLE_CLASS,
   USER_SHEET_TITLE_STYLE,
+  USER_SHEET_TOGGLE_IDLE_CLASS,
+  USER_SHEET_TOGGLE_SELECTED_CLASS,
 } from '@/components/userFormStyles';
+import { cn } from '@/lib/utils';
 import type { PostCareEnrollmentInput } from '@/lib/postCareEnrollment';
 import { displayNameForUser, type RegistryPatientUser } from '@/lib/demoPatients';
 
@@ -61,7 +64,14 @@ export default function PatientEnrollSheet({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (open && existingPatients.length > 0 && !existingPatientUuid) {
+    if (!open) return;
+    if (existingPatients.length === 0) {
+      setMode('new');
+      setExistingPatientUuid('');
+      return;
+    }
+    const stillValid = existingPatients.some((patient) => patient.uuid === existingPatientUuid);
+    if (!stillValid) {
       setExistingPatientUuid(existingPatients[0].uuid);
     }
   }, [open, existingPatients, existingPatientUuid]);
@@ -157,23 +167,32 @@ export default function PatientEnrollSheet({
               <Button
                 type="button"
                 size="sm"
-                variant={mode === 'existing' ? 'default' : 'outline'}
+                variant="outline"
                 disabled={existingPatients.length === 0}
                 onClick={() => setMode('existing')}
-                className={mode === 'existing' ? 'bg-cyan-500/20 text-cyan-200 border-cyan-500/40' : ''}
+                className={cn(
+                  mode === 'existing' ? USER_SHEET_TOGGLE_SELECTED_CLASS : USER_SHEET_TOGGLE_IDLE_CLASS,
+                )}
               >
                 Existing
               </Button>
               <Button
                 type="button"
                 size="sm"
-                variant={mode === 'new' ? 'default' : 'outline'}
+                variant="outline"
                 onClick={() => setMode('new')}
-                className={mode === 'new' ? 'bg-cyan-500/20 text-cyan-200 border-cyan-500/40' : ''}
+                className={cn(
+                  mode === 'new' ? USER_SHEET_TOGGLE_SELECTED_CLASS : USER_SHEET_TOGGLE_IDLE_CLASS,
+                )}
               >
                 New patient
               </Button>
             </div>
+            {mode === 'existing' && existingPatients.length === 0 ? (
+              <p className="text-xs text-slate-500">
+                All registry patients are already on the active roster. Use New patient to enroll someone else.
+              </p>
+            ) : null}
             {mode === 'existing' ? (
               <select
                 className={USER_SELECT_CLASS}
@@ -286,7 +305,12 @@ export default function PatientEnrollSheet({
             >
               {saving ? 'Enrolling…' : 'Start post-care monitoring'}
             </Button>
-            <Button type="button" variant="outline" onClick={() => handleClose(false)}>
+            <Button
+              type="button"
+              variant="outline"
+              className={USER_SHEET_TOGGLE_IDLE_CLASS}
+              onClick={() => handleClose(false)}
+            >
               Cancel
             </Button>
           </div>
