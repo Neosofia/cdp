@@ -1302,22 +1302,32 @@ export default function App() {
                   if (!tenantUuid) {
                     throw new Error('Missing tenant context for patient profile update.');
                   }
-                  await updatePatientUser(tokenInfo.raw, activeActor, input.patient_uuid, {
-                    display_code: input.display_code,
-                    first_name: input.first_name,
-                    last_name: input.last_name,
-                    email: input.email,
-                  });
-                  await upsertCareEpisodeSession(tokenInfo.raw, activeActor, {
-                    patient_uuid: input.patient_uuid,
-                    tenant_uuid: tenantUuid,
-                    display_code: input.display_code,
-                    display_name: `${input.first_name} ${input.last_name}`.trim(),
-                    surgery: input.surgery,
-                    procedure_date: input.procedure_date,
-                    session_id: input.session_id,
-                    risk_level: input.risk_level,
-                  });
+                  try {
+                    await updatePatientUser(tokenInfo.raw, activeActor, input.patient_uuid, {
+                      display_code: input.display_code,
+                      first_name: input.first_name,
+                      last_name: input.last_name,
+                      email: input.email,
+                    });
+                  } catch (err) {
+                    const detail = err instanceof Error ? err.message : String(err);
+                    throw new Error(`User registry: ${detail}`);
+                  }
+                  try {
+                    await upsertCareEpisodeSession(tokenInfo.raw, activeActor, {
+                      patient_uuid: input.patient_uuid,
+                      tenant_uuid: tenantUuid,
+                      display_code: input.display_code,
+                      display_name: `${input.first_name} ${input.last_name}`.trim(),
+                      surgery: input.surgery,
+                      procedure_date: input.procedure_date,
+                      session_id: input.session_id,
+                      risk_level: input.risk_level,
+                    });
+                  } catch (err) {
+                    const detail = err instanceof Error ? err.message : String(err);
+                    throw new Error(`Care episode: ${detail}`);
+                  }
                   reload();
                 }}
               />
