@@ -55,6 +55,35 @@ export async function createPatientUser(
   return body as RegistryUser;
 }
 
+export async function updatePatientUser(
+  token: string,
+  activeActor: string,
+  userUuid: string,
+  input: Pick<UpsertPatientUserInput, 'display_code' | 'first_name' | 'last_name' | 'email'>,
+): Promise<RegistryUser> {
+  const res = await fetch(`${USER_API}/api/v1/users/${userUuid}`, {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'X-Active-Actor': activeActor,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      display_code: input.display_code,
+      first_name: input.first_name,
+      last_name: input.last_name,
+      email: input.email,
+    }),
+  });
+
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const message = typeof body.message === 'string' ? body.message : `HTTP ${res.status}`;
+    throw new Error(message);
+  }
+  return body as RegistryUser;
+}
+
 export async function upsertPatientUser(
   token: string,
   activeActor: string,

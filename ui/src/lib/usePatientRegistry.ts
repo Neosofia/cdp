@@ -139,31 +139,34 @@ export function usePatientRegistry(
         }
 
         const data = (await res.json()) as UserListResponse;
-        const tenantScopedUsers = data.items.filter(user => {
-          if (tenantUuid && user.tenant_uuid !== tenantUuid) {
-            return false;
-          }
-          return true;
-        });
-        const scoped = tenantScopedUsers.filter(isRegistryPatient);
+        const allPatientUsers = data.items.filter(isRegistryPatient);
+        const scoped = tenantUuid
+          ? allPatientUsers.filter(user => user.tenant_uuid === tenantUuid)
+          : allPatientUsers;
 
-        const merged = mergePatientSessions(scoped);
+        const merged = mergePatientSessions(allPatientUsers);
         let episodeSessions = await listCareEpisodeSessions(token, activeActor, tenantUuid);
-        const rosterUuids = new Set(scoped.map(user => user.uuid));
-        const coveredByTenantFilter = new Set(episodeSessions.map(session => session.patient_uuid));
-        const tenantFilterMissesRoster = tenantUuid
-          && scoped.length > 0
-          && [...rosterUuids].some(uuid => !coveredByTenantFilter.has(uuid));
-        if (tenantFilterMissesRoster) {
-          // Stale/misaligned seeded tenant IDs: load all sessions and merge by patient UUID.
-          episodeSessions = await listCareEpisodeSessions(
+        if (tenantUuid) {
+          const allEpisodeSessions = await listCareEpisodeSessions(
             token,
             activeActor,
             undefined,
             { includeTenantFilter: false },
           );
+          const registryUuids = scoped.map(user => user.uuid);
+          const filteredCoversRegistry = registryUuids.length === 0 || registryUuids.every(uuid =>
+            episodeSessions.some(session => session.patient_uuid === uuid),
+          );
+          if (
+            episodeSessions.length === 0
+            || !filteredCoversRegistry
+            || allEpisodeSessions.length > episodeSessions.length
+          ) {
+            // Demo seed tenant may differ from the clinician JWT tenant; keep full roster visible.
+            episodeSessions = allEpisodeSessions;
+          }
         }
-        const usersByUuid = new Map(tenantScopedUsers.map(user => [user.uuid, user]));
+        const usersByUuid = new Map(allPatientUsers.map(user => [user.uuid, user]));
         const mergedByUuid = new Map(merged.map(session => [session.patientUuid, session]));
 
         for (const care of episodeSessions) {
@@ -193,14 +196,12 @@ export function usePatientRegistry(
         );
 
         if (!cancelled) {
-          setRegistryUsers(scoped);
+          setRegistryUsers(allPatientUsers);
           setPatients(hydrated);
           setError(null);
         }
       } catch (err) {
         if (!cancelled) {
-          setRegistryUsers([]);
-          setPatients([]);
           setError(err instanceof Error ? err.message : 'Failed to load patient registry');
         }
       } finally {

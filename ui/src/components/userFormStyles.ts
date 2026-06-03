@@ -28,4 +28,6 @@ export const USER_SELECT_CLASS =
   'w-full rounded-md bg-slate-900 border border-slate-700 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 [color-scheme:dark]';
 
 export const USER_PRIMARY_BUTTON_CLASS =
-  'flex-1 bg-cyan-500/20 border border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/30 hover:text-cyan-200';
+  'border-cyan-500/40 bg-cyan-500/15 text-cyan-300 shadow-[0_0_20px_rgba(34,211,238,0.08)] hover:bg-cyan-500/25 hover:text-cyan-100 hover:border-cyan-400/50 hover:shadow-[0_0_24px_rgba(34,211,238,0.15)] disabled:opacity-50';
+
+export const USER_SHEET_CANCEL_BUTTON_CLASS = USER_SHEET_TOGGLE_IDLE_CLASS;

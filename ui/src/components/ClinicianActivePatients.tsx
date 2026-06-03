@@ -24,11 +24,15 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { cn } from '@/lib/utils';
 import PatientRecordsPanel from '@/components/PatientRecordsPanel';
 import PatientEnrollSheet from '@/components/PatientEnrollSheet';
+import ProcedurePicker from '@/components/ProcedurePicker';
+import SpawnDatePicker from '@/components/SpawnDatePicker';
+import { procedureById, procedureIdForSurgeryName } from '@/lib/procedureCatalog';
 import {
   USER_FIELD_LABEL_CLASS,
   USER_INPUT_CLASS,
   USER_PRIMARY_BUTTON_CLASS,
   USER_SHEET_BODY_CLASS,
+  USER_SHEET_CANCEL_BUTTON_CLASS,
   USER_SHEET_CONTENT_CLASS,
   USER_SHEET_HEADER_CLASS,
   USER_SHEET_TITLE_CLASS,
@@ -89,6 +93,7 @@ export interface EditEnrollmentInput {
   procedure_date: string;
   session_id: string;
   risk_level: string;
+  tenant_uuid: string;
 }
 
 interface UiTranscriptMessage {
@@ -182,6 +187,23 @@ function PatientListFilters({
       />
     </div>
   );
+}
+
+function patientListEmptyMessage(
+  rosterCount: number,
+  debouncedSearch: string,
+  listFilters: ClinicianListFilters,
+): string {
+  if (debouncedSearch.trim()) {
+    return 'No patients match your search.';
+  }
+  if (listFilters.risk !== 'all' || listFilters.activity !== 'all') {
+    return 'No patients match these filters. Clear risk or chat filters to see more.';
+  }
+  if (rosterCount === 0) {
+    return 'No patients on your roster yet. Select Enroll to start post-care monitoring.';
+  }
+  return 'No patients to show.';
 }
 
 function PatientList({
@@ -286,7 +308,7 @@ function PatientList({
         </div>
         {error ? (
           <p className="px-6 py-3 text-xs text-amber-400/90 border-b shrink-0" style={{ borderColor: 'rgba(34,211,238,0.08)' }}>
-            User registry unavailable — showing demo catalog. {error}
+            Could not load patients. {error}
           </p>
         ) : null}
         {loading ? (
@@ -294,15 +316,7 @@ function PatientList({
         ) : null}
         {!loading && total === 0 ? (
           <p className="px-6 py-4 text-sm text-slate-500">
-            {debouncedSearch
-              ? 'No patients match your search.'
-              : (
-                <>
-                  No patients found. Seed the registry with{' '}
-                  <code className="text-cyan-400">python scripts/seed_demo_patients.py</code>
-                  {' '}(set <code className="text-cyan-400">USER_SEED_BEARER_TOKEN</code>) and ensure your tenant matches.
-                </>
-              )}
+            {patientListEmptyMessage(patients.length, debouncedSearch, listFilters)}
           </p>
         ) : null}
         <ul className="divide-y flex-1 min-h-0 overflow-y-auto overscroll-y-contain" style={{ borderColor: 'rgba(34,211,238,0.08)' }}>
@@ -363,7 +377,7 @@ function PatientList({
                     size="icon"
                     variant="ghost"
                     className="h-8 w-8 text-cyan-300 hover:text-cyan-200 hover:bg-cyan-500/10"
-                    aria-label={`Edit enrollment for ${p.displayName}`}
+                    aria-label={`Edit patient profile for ${p.displayName}`}
                     onClick={(event) => {
                       event.stopPropagation();
                       onEdit(p);
@@ -598,7 +612,7 @@ export default function ClinicianActivePatients({
   const [editFirstName, setEditFirstName] = useState('');
   const [editLastName, setEditLastName] = useState('');
   const [editEmail, setEditEmail] = useState('');
-  const [editSurgery, setEditSurgery] = useState('');
+  const [editSelectedProcedureId, setEditSelectedProcedureId] = useState<string | null>(null);
   const [editProcedureDate, setEditProcedureDate] = useState('');
   const [editSessionId, setEditSessionId] = useState('');
   const [editSaving, setEditSaving] = useState(false);
@@ -618,7 +632,7 @@ export default function ClinicianActivePatients({
     setEditFirstName((matchedUser?.first_name ?? fallbackFirstName).trim());
     setEditLastName((matchedUser?.last_name ?? fallbackLastName).trim());
     setEditEmail((matchedUser?.email ?? '').trim());
-    setEditSurgery(patientToEdit.surgery ?? '');
+    setEditSelectedProcedureId(procedureIdForSurgeryName(patientToEdit.surgery ?? ''));
     setEditProcedureDate(patientToEdit.procedureDate ?? new Date().toISOString().slice(0, 10));
     setEditSessionId(patientToEdit.sessionId ?? '');
     setEditError(null);
@@ -628,14 +642,20 @@ export default function ClinicianActivePatients({
   const closeEditSheet = () => {
     setEditOpen(false);
     setEditingPatient(null);
+    setEditSelectedProcedureId(null);
     setEditError(null);
     setEditSaving(false);
   };
 
   const submitEdit = async () => {
     if (!editingPatient) return;
-    if (!editDisplayCode.trim() || !editFirstName.trim() || !editLastName.trim() || !editSurgery.trim() || !editSessionId.trim() || !editProcedureDate.trim()) {
-      setEditError('First name, last name, display code, procedure, procedure date, and session ID are required.');
+    const procedureEntry = editSelectedProcedureId ? procedureById(editSelectedProcedureId) : undefined;
+    if (!editDisplayCode.trim() || !editFirstName.trim() || !editLastName.trim() || !editSessionId.trim() || !editProcedureDate.trim()) {
+      setEditError('First name, last name, display code, procedure date, and session ID are required.');
+      return;
+    }
+    if (!procedureEntry) {
+      setEditError('Select a procedure from the catalog.');
       return;
     }
     if (!editEmail.trim()) {
@@ -645,6 +665,7 @@ export default function ClinicianActivePatients({
     setEditSaving(true);
     setEditError(null);
     try {
+      const matchedUser = registryUsers.find((user) => user.uuid === editingPatient.patientUuid);
       await onEditEnrollment({
         patient_uuid: editingPatient.patientUuid,
         display_code: editDisplayCode.trim(),
@@ -652,14 +673,15 @@ export default function ClinicianActivePatients({
         last_name: editLastName.trim(),
         email: editEmail.trim(),
         display_name: `${editFirstName.trim()} ${editLastName.trim()}`.trim(),
-        surgery: editSurgery.trim(),
+        surgery: procedureEntry.name,
         procedure_date: editProcedureDate.trim(),
         session_id: editSessionId.trim(),
         risk_level: editingPatient.riskLevel.toLowerCase(),
+        tenant_uuid: matchedUser?.tenant_uuid ?? '',
       });
       closeEditSheet();
     } catch (error) {
-      setEditError(error instanceof Error ? error.message : 'Failed to update enrollment');
+      setEditError(error instanceof Error ? error.message : 'Failed to save patient profile');
       setEditSaving(false);
     }
   };
@@ -694,7 +716,16 @@ export default function ClinicianActivePatients({
         <SheetContent side="right" className={USER_SHEET_CONTENT_CLASS}>
           <SheetHeader className={USER_SHEET_HEADER_CLASS}>
             <SheetTitle className={USER_SHEET_TITLE_CLASS} style={USER_SHEET_TITLE_STYLE}>
-              Edit Enrollment
+              {editingPatient
+                ? (
+                  <>
+                    Patient{' '}
+                    <span className="font-mono normal-case tracking-normal text-slate-400">
+                      ({editingPatient.patientUuid})
+                    </span>
+                  </>
+                )
+                : 'Patient'}
             </SheetTitle>
           </SheetHeader>
           <div className={USER_SHEET_BODY_CLASS}>
@@ -714,13 +745,13 @@ export default function ClinicianActivePatients({
               <label className={USER_FIELD_LABEL_CLASS}>Display code</label>
               <Input value={editDisplayCode ?? ''} onChange={(event) => setEditDisplayCode(event.target.value)} className={USER_INPUT_CLASS} />
             </div>
-            <div>
-              <label className={USER_FIELD_LABEL_CLASS}>Procedure</label>
-              <Input value={editSurgery ?? ''} onChange={(event) => setEditSurgery(event.target.value)} className={USER_INPUT_CLASS} />
-            </div>
+            <ProcedurePicker
+              selectedId={editSelectedProcedureId}
+              onChange={setEditSelectedProcedureId}
+            />
             <div>
               <label className={USER_FIELD_LABEL_CLASS}>Procedure date</label>
-              <Input type="date" value={editProcedureDate} onChange={(event) => setEditProcedureDate(event.target.value)} className={USER_INPUT_CLASS} />
+              <SpawnDatePicker value={editProcedureDate} onChange={setEditProcedureDate} />
             </div>
             <div>
               <label className={USER_FIELD_LABEL_CLASS}>Session ID</label>
@@ -728,10 +759,18 @@ export default function ClinicianActivePatients({
             </div>
             {editError ? <p className="text-sm text-red-400">{editError}</p> : null}
             <div className="flex items-center gap-3 pt-2">
-              <Button type="button" onClick={() => void submitEdit()} disabled={editSaving} className={USER_PRIMARY_BUTTON_CLASS}>
-                {editSaving ? 'Saving…' : 'Save enrollment'}
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => void submitEdit()}
+                disabled={editSaving}
+                className={USER_PRIMARY_BUTTON_CLASS}
+              >
+                {editSaving ? 'Saving…' : 'Save profile'}
               </Button>
-              <Button type="button" variant="outline" onClick={closeEditSheet}>Cancel</Button>
+              <Button type="button" variant="outline" onClick={closeEditSheet} className={USER_SHEET_CANCEL_BUTTON_CLASS}>
+                Cancel
+              </Button>
             </div>
           </div>
         </SheetContent>

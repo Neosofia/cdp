@@ -41,7 +41,7 @@ import {
 import { usePatientRegistry } from '@/lib/usePatientRegistry';
 import { upsertCareEpisodeSession } from '@/lib/careEpisodeApi';
 import { ensurePatientDemoContext } from '@/lib/ensurePatientDemoContext';
-import { upsertPatientUser } from '@/lib/userRegistryApi';
+import { updatePatientUser } from '@/lib/userRegistryApi';
 import SplashPage from '@/components/SplashPage';
 import BrandBackground from '@/components/BrandBackground';
 import StarField from '@/components/StarField';
@@ -1298,12 +1298,11 @@ export default function App() {
                   await enrollInPostCare(input);
                 }}
                 onEditEnrollment={async (input: EditEnrollmentInput) => {
-                  if (!sessionTenantUuid) {
-                    throw new Error('Missing tenant context for enrollment edit.');
+                  const tenantUuid = input.tenant_uuid || sessionTenantUuid;
+                  if (!tenantUuid) {
+                    throw new Error('Missing tenant context for patient profile update.');
                   }
-                  await upsertPatientUser(tokenInfo.raw, activeActor, {
-                    uuid: input.patient_uuid,
-                    tenant_uuid: sessionTenantUuid,
+                  await updatePatientUser(tokenInfo.raw, activeActor, input.patient_uuid, {
                     display_code: input.display_code,
                     first_name: input.first_name,
                     last_name: input.last_name,
@@ -1311,7 +1310,7 @@ export default function App() {
                   });
                   await upsertCareEpisodeSession(tokenInfo.raw, activeActor, {
                     patient_uuid: input.patient_uuid,
-                    tenant_uuid: sessionTenantUuid,
+                    tenant_uuid: tenantUuid,
                     display_code: input.display_code,
                     display_name: `${input.first_name} ${input.last_name}`.trim(),
                     surgery: input.surgery,

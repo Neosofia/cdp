@@ -1,5 +1,6 @@
-import { createCareEpisodeInvite } from '@/lib/careEpisodeApi';
+import { createCareEpisodeInvite, upsertCareEpisodeSession } from '@/lib/careEpisodeApi';
 import {
+  displayNameForUser,
   registerPostCareEnrollment,
   type DemoPatientClinical,
   type RegistryPatientUser,
@@ -14,13 +15,23 @@ export interface NewPatientFields {
   tenant_uuid?: string;
 }
 
+export interface ExistingPatientProfile {
+  display_code: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  tenant_uuid: string;
+}
+
 export interface PostCareEnrollmentInput {
   procedure: string;
   procedure_type: string;
   care_window_days: number;
+  procedure_date: string;
+  tenant_uuid?: string;
   emr_procedure_ref?: string;
   newPatient?: NewPatientFields;
   existingPatientUuid?: string;
+  existingPatientProfile?: ExistingPatientProfile;
 }
 
 export interface PostCareEnrollmentResult {
@@ -34,19 +45,36 @@ function sessionIdForPatient(displayCode: string, patientUuid: string): string {
   return `EP-${code}`;
 }
 
+function daysPostOpFromDate(procedureDate: string): number {
+  const procedureMs = Date.parse(`${procedureDate.trim()}T12:00:00`);
+  if (!Number.isFinite(procedureMs)) {
+    return 0;
+  }
+  const todayMs = Date.parse(`${new Date().toISOString().slice(0, 10)}T12:00:00`);
+  return Math.max(0, Math.floor((todayMs - procedureMs) / (24 * 60 * 60 * 1000)));
+}
+
 function clinicalFromEnrollment(
   input: PostCareEnrollmentInput,
   displayCode: string,
   patientUuid: string,
 ): DemoPatientClinical {
-  const procedureDate = new Date().toISOString().slice(0, 10);
+  const procedureDate = input.procedure_date.trim();
   return {
     surgery: input.procedure.trim(),
     procedureDate,
-    daysPostOp: 0,
+    daysPostOp: daysPostOpFromDate(procedureDate),
     sessionId: sessionIdForPatient(displayCode, patientUuid),
     riskLevel: 'Low',
   };
+}
+
+function resolveTenantUuid(input: PostCareEnrollmentInput, patient: RegistryPatientUser): string | undefined {
+  return input.tenant_uuid?.trim()
+    || patient.tenant_uuid?.trim()
+    || input.newPatient?.tenant_uuid?.trim()
+    || input.existingPatientProfile?.tenant_uuid?.trim()
+    || undefined;
 }
 
 export async function enrollPatientInPostCare(
@@ -59,12 +87,13 @@ export async function enrollPatientInPostCare(
   if (input.newPatient) {
     patient = await createPatientUser(token, activeActor, input.newPatient);
   } else if (input.existingPatientUuid) {
+    const profile = input.existingPatientProfile;
     patient = {
       uuid: input.existingPatientUuid,
-      tenant_uuid: '',
-      display_code: null,
-      first_name: null,
-      last_name: null,
+      tenant_uuid: profile?.tenant_uuid ?? input.tenant_uuid ?? '',
+      display_code: profile?.display_code ?? null,
+      first_name: profile?.first_name ?? null,
+      last_name: profile?.last_name ?? null,
       email: null,
       roles: ['patient.self'],
     };
@@ -73,6 +102,9 @@ export async function enrollPatientInPostCare(
   }
 
   const displayCode = patient.display_code?.trim() || patient.uuid.slice(0, 8).toUpperCase();
+  const displayName = displayNameForUser(patient);
+  const sessionId = sessionIdForPatient(displayCode, patient.uuid);
+  const tenantUuid = resolveTenantUuid(input, patient);
   let episodeUuid: string | null = null;
   let demoOnlyEpisode = true;
 
@@ -85,6 +117,20 @@ export async function enrollPatientInPostCare(
     });
     if (episode) {
       episodeUuid = episode.episode_uuid;
+      demoOnlyEpisode = false;
+    }
+
+    if (tenantUuid) {
+      await upsertCareEpisodeSession(token, activeActor, {
+        patient_uuid: patient.uuid,
+        tenant_uuid: tenantUuid,
+        display_code: displayCode,
+        display_name: displayName,
+        surgery: input.procedure.trim(),
+        procedure_date: input.procedure_date.trim(),
+        session_id: sessionId,
+        risk_level: 'low',
+      });
       demoOnlyEpisode = false;
     }
   } catch (err) {

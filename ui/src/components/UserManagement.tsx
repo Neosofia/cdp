@@ -24,6 +24,7 @@ import {
   USER_INPUT_CLASS,
   USER_PRIMARY_BUTTON_CLASS,
   USER_SHEET_BODY_CLASS,
+  USER_SHEET_CANCEL_BUTTON_CLASS,
   USER_SHEET_CONTENT_CLASS,
   USER_SHEET_HEADER_CLASS,
   USER_SHEET_TITLE_CLASS,
@@ -516,14 +517,14 @@ export default function UserManagement({
               <div className="flex items-center gap-3 pt-2">
                 <Button
                   type="button"
-                  variant="ghost"
+                  variant="outline"
                   className={USER_PRIMARY_BUTTON_CLASS}
                   disabled={editSaving}
                   onClick={submitEdit}
                 >
                   {editSaving ? 'Saving…' : 'Save changes'}
                 </Button>
-                <Button type="button" variant="outline" onClick={() => setEditUser(null)}>
+                <Button type="button" variant="outline" onClick={() => setEditUser(null)} className={USER_SHEET_CANCEL_BUTTON_CLASS}>
                   Cancel
                 </Button>
               </div>

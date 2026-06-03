@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import ProcedurePicker from '@/components/ProcedurePicker';
+import SpawnDatePicker from '@/components/SpawnDatePicker';
 import {
   Sheet,
   SheetContent,
@@ -13,6 +15,7 @@ import {
   USER_PRIMARY_BUTTON_CLASS,
   USER_SELECT_CLASS,
   USER_SHEET_BODY_CLASS,
+  USER_SHEET_CANCEL_BUTTON_CLASS,
   USER_SHEET_CONTENT_CLASS,
   USER_SHEET_HEADER_CLASS,
   USER_SHEET_TITLE_CLASS,
@@ -21,6 +24,7 @@ import {
   USER_SHEET_TOGGLE_SELECTED_CLASS,
 } from '@/components/userFormStyles';
 import { cn } from '@/lib/utils';
+import { procedureById } from '@/lib/procedureCatalog';
 import type { PostCareEnrollmentInput } from '@/lib/postCareEnrollment';
 import { displayNameForUser, type RegistryPatientUser } from '@/lib/demoPatients';
 
@@ -31,13 +35,6 @@ interface Props {
   tenantUuid?: string | null;
   onEnroll: (input: PostCareEnrollmentInput) => Promise<void>;
 }
-
-const PROCEDURE_TYPES = [
-  { value: 'general-surgery', label: 'General surgery' },
-  { value: 'orthopedic', label: 'Orthopedic' },
-  { value: 'cardiac', label: 'Cardiac' },
-  { value: 'other', label: 'Other' },
-];
 
 const EMPTY_NEW_PATIENT = {
   first_name: '',
@@ -56,10 +53,9 @@ export default function PatientEnrollSheet({
   const [mode, setMode] = useState<'existing' | 'new'>('existing');
   const [existingPatientUuid, setExistingPatientUuid] = useState('');
   const [newPatient, setNewPatient] = useState(EMPTY_NEW_PATIENT);
-  const [procedure, setProcedure] = useState('');
-  const [procedureType, setProcedureType] = useState(PROCEDURE_TYPES[0].value);
+  const [selectedProcedureId, setSelectedProcedureId] = useState<string | null>(null);
   const [careWindowDays, setCareWindowDays] = useState('30');
-  const [emrProcedureRef, setEmrProcedureRef] = useState('');
+  const [procedureDate, setProcedureDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -80,10 +76,9 @@ export default function PatientEnrollSheet({
     setMode(existingPatients.length > 0 ? 'existing' : 'new');
     setExistingPatientUuid(existingPatients[0]?.uuid ?? '');
     setNewPatient(EMPTY_NEW_PATIENT);
-    setProcedure('');
-    setProcedureType(PROCEDURE_TYPES[0].value);
+    setSelectedProcedureId(null);
     setCareWindowDays('30');
-    setEmrProcedureRef('');
+    setProcedureDate(new Date().toISOString().slice(0, 10));
     setError(null);
   };
 
@@ -98,6 +93,13 @@ export default function PatientEnrollSheet({
     setSaving(true);
     setError(null);
 
+    const procedureEntry = selectedProcedureId ? procedureById(selectedProcedureId) : undefined;
+    if (!procedureEntry) {
+      setError('Select a procedure from the catalog.');
+      setSaving(false);
+      return;
+    }
+
     const careDays = Number.parseInt(careWindowDays, 10);
     if (!Number.isFinite(careDays) || careDays <= 0) {
       setError('Care window must be a positive number of days.');
@@ -105,11 +107,19 @@ export default function PatientEnrollSheet({
       return;
     }
 
+    if (!procedureDate.trim()) {
+      setError('Procedure date is required.');
+      setSaving(false);
+      return;
+    }
+
     const input: PostCareEnrollmentInput = {
-      procedure: procedure.trim(),
-      procedure_type: procedureType,
+      procedure: procedureEntry.name,
+      procedure_type: procedureEntry.procedureType,
       care_window_days: careDays,
-      emr_procedure_ref: emrProcedureRef.trim() || undefined,
+      procedure_date: procedureDate.trim(),
+      emr_procedure_ref: procedureEntry.emrRef,
+      ...(tenantUuid ? { tenant_uuid: tenantUuid } : {}),
     };
 
     if (mode === 'new') {
@@ -122,7 +132,16 @@ export default function PatientEnrollSheet({
         ...(tenantUuid ? { tenant_uuid: tenantUuid } : {}),
       };
     } else {
+      const selected = existingPatients.find((patient) => patient.uuid === existingPatientUuid);
       input.existingPatientUuid = existingPatientUuid;
+      if (selected) {
+        input.existingPatientProfile = {
+          display_code: selected.display_code,
+          first_name: selected.first_name,
+          last_name: selected.last_name,
+          tenant_uuid: selected.tenant_uuid,
+        };
+      }
     }
 
     try {
@@ -135,7 +154,7 @@ export default function PatientEnrollSheet({
     }
   };
 
-  const canSubmit = procedure.trim() && (
+  const canSubmit = Boolean(selectedProcedureId) && Boolean(procedureDate.trim()) && (
     mode === 'existing'
       ? Boolean(existingPatientUuid)
       : Boolean(
@@ -157,8 +176,7 @@ export default function PatientEnrollSheet({
         <div className={USER_SHEET_BODY_CLASS}>
           <p className="text-xs text-slate-500">
             Start post-discharge monitoring for a procedure. This opens a care episode with a
-            monitoring window and invite path for the patient — one action, not separate
-            provisioning steps.
+            monitoring window and invite path for the patient.
           </p>
 
           <div>
@@ -239,35 +257,22 @@ export default function PatientEnrollSheet({
             )}
           </div>
 
+          <ProcedurePicker
+            selectedId={selectedProcedureId}
+            onChange={setSelectedProcedureId}
+          />
+
           <div>
-            <label className={USER_FIELD_LABEL_CLASS} htmlFor="enroll-procedure">
-              Procedure
+            <label className={USER_FIELD_LABEL_CLASS} htmlFor="enroll-procedure-date">
+              Procedure date
             </label>
-            <Input
-              id="enroll-procedure"
-              className={USER_INPUT_CLASS}
-              placeholder="e.g. Laparoscopic cholecystectomy"
-              value={procedure}
-              onChange={(e) => setProcedure(e.target.value)}
+            <SpawnDatePicker
+              id="enroll-procedure-date"
+              value={procedureDate}
+              onChange={setProcedureDate}
             />
           </div>
-          <div>
-            <label className={USER_FIELD_LABEL_CLASS} htmlFor="enroll-procedure-type">
-              Procedure type
-            </label>
-            <select
-              id="enroll-procedure-type"
-              className={USER_SELECT_CLASS}
-              value={procedureType}
-              onChange={(e) => setProcedureType(e.target.value)}
-            >
-              {PROCEDURE_TYPES.map(option => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
+
           <div>
             <label className={USER_FIELD_LABEL_CLASS} htmlFor="enroll-care-window">
               Care window (days)
@@ -281,24 +286,12 @@ export default function PatientEnrollSheet({
               onChange={(e) => setCareWindowDays(e.target.value)}
             />
           </div>
-          <div>
-            <label className={USER_FIELD_LABEL_CLASS} htmlFor="enroll-emr-ref">
-              EMR procedure reference (optional)
-            </label>
-            <Input
-              id="enroll-emr-ref"
-              className={USER_INPUT_CLASS}
-              placeholder="e.g. PROC-2026-0142"
-              value={emrProcedureRef}
-              onChange={(e) => setEmrProcedureRef(e.target.value)}
-            />
-          </div>
 
           {error ? <p className="text-sm text-red-400">{error}</p> : null}
           <div className="flex items-center gap-3 pt-2">
             <Button
               type="button"
-              variant="ghost"
+              variant="outline"
               className={USER_PRIMARY_BUTTON_CLASS}
               disabled={saving || !canSubmit}
               onClick={() => void submit()}
@@ -308,7 +301,7 @@ export default function PatientEnrollSheet({
             <Button
               type="button"
               variant="outline"
-              className={USER_SHEET_TOGGLE_IDLE_CLASS}
+              className={USER_SHEET_CANCEL_BUTTON_CLASS}
               onClick={() => handleClose(false)}
             >
               Cancel
