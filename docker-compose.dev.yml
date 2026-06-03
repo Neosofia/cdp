@@ -1,5 +1,5 @@
 x-auth-image: &auth_image ghcr.io/neosofia/authentication:v0.30.0
-x-user-image: &user_image ghcr.io/neosofia/user:v0.6.1
+x-user-image: &user_image ghcr.io/neosofia/cdp-user:v0.1.0
 
 services:
   authentication-migrate:
@@ -120,11 +120,15 @@ services:
 
   user:
     image: *user_image
+    build:
+      context: .
+      dockerfile: deploy/user/Dockerfile
+      args:
+        USER_IMAGE: ghcr.io/neosofia/user:v0.6.1
     container_name: cdp-user
     env_file:
       - ./.user.env
     volumes:
-      - ./policies-packed/user:/app/policies:ro
       - ./roles/user-catalog.overlay.json:/app/roles/cdp-overlay.json:ro
     ports:
       - "8018:8018"

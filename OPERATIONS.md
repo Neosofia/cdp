@@ -48,7 +48,7 @@ CDP owns the UI entitlement policy bundle in `policies/`. The capabilities servi
 2. Capabilities Dockerfile pins that tag (`COPY --from=ghcr.io/neosofia/cdp-ui-policies:vX.Y.Z`).
 3. Bump the pinned tag / redeploy capabilities when the policy bundle version changes.
 
-**One-time GHCR setup (same as `sql-template` → authentication):** after the first publish, open the [`cdp-ui-policies` package settings](https://github.com/orgs/Neosofia/packages/container/cdp-ui-policies/settings) and add the `capabilities` repository under **Manage Actions access → Add repository**.
+**One-time GHCR setup (same as `sql-template` → authentication):** after the first publish, open the [`cdp-ui-policies` package settings](https://github.com/Neosofia/packages/container/cdp-ui-policies/settings) and add the `capabilities` repository under **Manage Actions access → Add repository**.
 
 **Local development:** volume-mount `cdp/policies/` over `/app/policies` (see `docker-compose.dev.yml`). No policy image required.
 
@@ -56,22 +56,27 @@ The bundle includes `entitlements.json` and `*.cedar` files. The UI calls `GET /
 
 See [ADR 0012: UI Capabilities Control Plane](architecture/adrs/0012-ui-capabilities-control-plane.md).
 
-## User service policy pack (CDP product overrides)
+## User service runtime (CDP Cedar overrides)
 
-The User service ships a **generic** Cedar bundle in its own repository (`user/policies/`). CDP adds product-specific permits (for example clinician patient roster enroll and profile update) under `policies/service-overrides/user/` and **repacks** a runtime bundle for the User container.
+The generic User service image (`ghcr.io/neosofia/user:vX.Y.Z`) ships **platform** Cedar only. CDP product permits (clinician patient roster, profile update, etc.) live in `policies/service-overrides/user/` and are **baked into** the CDP runtime image at build time.
 
-1. Edit overrides in `policies/service-overrides/user/*.cedar` (not in the user repo).
-2. Repack (requires a sibling `user/` checkout):
+**Production (same pattern as capabilities + `cdp-ui-policies`):**
 
-   ```bash
-   ./scripts/repack_user_service_policies.sh
-   ```
+1. Edit overrides under `policies/service-overrides/user/*.cedar`.
+2. Bump `USER_IMAGE` in `deploy/user/Dockerfile` when the platform user release changes.
+3. Tag and push: `cdp-user/vMAJOR.MINOR.PATCH` → `.github/workflows/cdp-user-build-push.yml` publishes `ghcr.io/neosofia/cdp-user:vX.Y.Z`.
+4. Deploy **`ghcr.io/neosofia/cdp-user`** (not the raw `user` image) for CDP stacks — Railway, compose, or private cloud.
 
-   Output: `policies-packed/user/` (gitignored). Compose mounts this over `/app/policies` on the `user` service.
+**One-time GHCR setup:** after the first publish, grant the CDP repo workflow access to pull `ghcr.io/neosofia/user` and push `ghcr.io/neosofia/cdp-user` (package settings → Manage Actions access).
 
-3. Restart the user container after policy changes.
+**Local development:**
 
-When developing the User service alone, run the same repack script from CDP (or set `AUTHORIZATION_POLICIES_DIR` to a directory that includes both base and override `.cedar` files) before exercising clinician enrollment tests.
+- **Pinned images:** `docker compose -f docker-compose.dev.yml up -d --build user` builds `deploy/user/Dockerfile` when GHCR tags are unavailable or for policy changes.
+- **Sibling repos:** `docker compose -f docker-compose.local.yml up -d --build` builds `neosofia/user:local` from `../user`, then wraps it as `neosofia/cdp-user:local`.
+
+Optional: `./scripts/repack_user_service_policies.sh` writes `policies-packed/user/` for inspection; compose no longer mounts it — policies are inside the `cdp-user` image.
+
+**Railway (CDP user service):** set **Root Directory** to the CDP repo root and **Dockerfile path** to `deploy/user/Dockerfile`. Do not deploy the User repo Dockerfile alone for CDP; it lacks product Cedar overrides.
 
 ## Public cloud staging
 
@@ -86,6 +91,7 @@ That document explains why local JWKS (`http://authentication:8014/...` in `.cap
 | Component | Notes |
 |-----------|-------|
 | **UI policy bundle** | `cdp-ui-policies` GHCR image pinned in capabilities Dockerfile |
+| **User runtime** | Deploy `ghcr.io/neosofia/cdp-user:vX.Y.Z` (includes product Cedar); pin in compose / Railway |
 | **UI build args** | `VITE_AUTH_BASE_URL`, `VITE_AUTH_API_URL`, `VITE_CAPABILITIES_API_URL`, `VITE_USER_API_URL`, `VITE_CHAT_API_URL`, `VITE_CARE_EPISODE_API_URL` — public HTTPS URLs (no trailing slash) |
 | **Capabilities CORS** | `FRONTEND_URL` = public CDP UI origin |
 | **Authentication** | `JWT_WEB_AUDIENCE` must include `capabilities`, `user`, `chat`, and `care-episode`; explicit `PORT` for private JWKS refs |
@@ -105,7 +111,7 @@ The production image (`cdp/ui/Dockerfile`) isolates the static build into a pure
 Once you have generated all your environment variables, you can bring up the whole platform locally with this command:
 
 ```bash
-docker compose -f docker-compose.dev.yml up -d
+docker compose -f docker-compose.dev.yml up -d --build
 ```
 
 Then access the platform at localhost:5173 (UI). Default API ports (8000 + spec number): Authentication **8014**, User **8018** (spec 018), Capabilities **8019**. Python template demo **8900** (outside the spec port range). In `ui/.env`, `VITE_TEMPLATE_API_URL` must point at the template service (**8900**), not the user service (**8018**).
@@ -117,10 +123,3 @@ When working across platform services, build everything from sibling repos inste
 ```bash
 docker compose -f docker-compose.local.yml up -d --build
 ```
-
-`docker-compose.local.yml` includes `docker-compose.dev.yml` and points `authentication`, `capabilities`, `user`, and `python-template` at sibling repos. Configure the user service via `.user.env` and `.user-postgres.env` (see samples). The UI still builds from `cdp/ui`. Repos must sit next to `cdp/` in your workspace (same layout as the Neosofia multi-repo checkout).
-
-
-
-
-
