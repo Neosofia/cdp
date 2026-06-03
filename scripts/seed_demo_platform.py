@@ -243,7 +243,7 @@ def _seed_care_episode(catalog: dict, api_url: str, headers: dict[str, str], now
                 "surgery": clinical["surgery"],
                 "procedure_date": clinical["procedureDate"],
                 "session_id": clinical["sessionId"],
-                "featured": bool(clinical.get("featured", False)),
+                "risk_level": clinical["risk_level"],
             },
         )
 

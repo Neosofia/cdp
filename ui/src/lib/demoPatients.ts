@@ -1,9 +1,11 @@
+export type PatientRiskLevel = 'High' | 'Medium' | 'Low';
+
 export interface DemoPatientClinical {
   surgery: string;
   procedureDate: string;
   daysPostOp: number;
   sessionId: string;
-  featured?: boolean;
+  riskLevel: PatientRiskLevel;
 }
 
 export interface DemoPatientCatalogEntry {
@@ -36,7 +38,7 @@ export interface ActivePatientSession {
   sessionId: string;
   /** ISO timestamp of the latest chat message, from the chat service. */
   lastChatAt: string | null;
-  featured?: boolean;
+  riskLevel: PatientRiskLevel;
 }
 
 export type ClinicianRiskFilter = 'all' | 'high-risk' | 'medium-risk';
@@ -76,6 +78,7 @@ const DEFAULT_ENROLLED_CLINICAL: DemoPatientClinical = {
   procedureDate: new Date().toISOString().slice(0, 10),
   daysPostOp: 0,
   sessionId: 'NEW',
+  riskLevel: 'Low',
 };
 
 function defaultClinicalForUser(user: RegistryPatientUser): DemoPatientClinical {
@@ -118,8 +121,16 @@ export function mergePatientSession(user: RegistryPatientUser): ActivePatientSes
     daysPostOp: clinical.daysPostOp,
     sessionId: clinical.sessionId,
     lastChatAt: null,
-    featured: clinical.featured,
+    riskLevel: clinical.riskLevel ?? 'Low',
   };
+}
+
+/** Map care-episode API risk_level (lowercase) to roster display level. */
+export function riskLevelFromApi(value: string): PatientRiskLevel {
+  const level = value.trim().toLowerCase();
+  if (level === 'high') return 'High';
+  if (level === 'medium') return 'Medium';
+  return 'Low';
 }
 
 export function mergePatientSessions(users: RegistryPatientUser[]): ActivePatientSession[] {
@@ -150,13 +161,12 @@ export function activePatientByDisplayCode(
   return sessions.find(p => p.displayCode === displayCode);
 }
 
-/** Sessions with open chats — prioritize featured then recency. */
-export function featuredDashboardSessions(all: ActivePatientSession[]): ActivePatientSession[] {
+/** Top dashboard patients — highest risk first, then recent chat activity. */
+export function highlightDashboardSessions(all: ActivePatientSession[]): ActivePatientSession[] {
   return [...all]
     .sort((a, b) => {
-      if (Boolean(a.featured) !== Boolean(b.featured)) {
-        return a.featured ? -1 : 1;
-      }
+      const riskDiff = riskRank(riskForSession(a)) - riskRank(riskForSession(b));
+      if (riskDiff !== 0) return riskDiff;
       return parseActivityMs(b.lastChatAt) - parseActivityMs(a.lastChatAt);
     })
     .slice(0, 4);
@@ -201,13 +211,11 @@ export function formatRelativeActivity(value: string | null | undefined, nowMs: 
   return `${days} day${days === 1 ? '' : 's'} ago`;
 }
 
-export function riskForSession(session: ActivePatientSession): 'High' | 'Medium' | 'Low' {
-  if (session.featured || session.daysPostOp <= 2) return 'High';
-  if (session.daysPostOp <= 5) return 'Medium';
-  return 'Low';
+export function riskForSession(session: ActivePatientSession): PatientRiskLevel {
+  return session.riskLevel;
 }
 
-function riskRank(risk: ReturnType<typeof riskForSession>): number {
+function riskRank(risk: PatientRiskLevel): number {
   if (risk === 'High') return 0;
   if (risk === 'Medium') return 1;
   return 2;

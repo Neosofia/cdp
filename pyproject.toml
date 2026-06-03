@@ -1,0 +1,11 @@
+[project]
+name = "cdp-tooling"
+version = "0.0.0"
+description = "CDP repo scripts and local tooling (not part of runtime services)"
+requires-python = ">=3.12"
+
+[tool.coverage.run]
+omit = [
+    "scripts/*",
+    "architecture/scripts/*",
+]

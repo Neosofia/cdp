@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   displayNameForUser,
   mergePatientSessions,
+  riskLevelFromApi,
   sortPatientSessionsByRiskAndRecency,
   type ActivePatientSession,
   type RegistryPatientUser,
@@ -49,7 +50,7 @@ function sessionFromCareEpisode(
     daysPostOp: care.days_post_op,
     sessionId: care.session_id,
     lastChatAt: null,
-    featured: care.featured,
+    riskLevel: riskLevelFromApi(care.risk_level),
   };
 }
 
@@ -169,7 +170,7 @@ export function usePatientRegistry(
               procedureDate: care.procedure_date,
               daysPostOp: care.days_post_op,
               sessionId: care.session_id,
-              featured: care.featured,
+              riskLevel: riskLevelFromApi(care.risk_level),
             });
             continue;
           }

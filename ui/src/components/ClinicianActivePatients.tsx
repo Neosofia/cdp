@@ -88,7 +88,7 @@ export interface EditEnrollmentInput {
   surgery: string;
   procedure_date: string;
   session_id: string;
-  featured?: boolean;
+  risk_level: string;
 }
 
 interface UiTranscriptMessage {
@@ -519,7 +519,7 @@ function SessionDetail({
           if (previousId && records.some(record => record.id === previousId)) {
             return previousId;
           }
-          if (patient.featured) {
+          if (patient.riskLevel === 'High') {
             return records.find(record => record.imageKey === 'xray-scissors')?.id ?? records[0]?.id ?? null;
           }
           return records[0]?.id ?? null;
@@ -655,7 +655,7 @@ export default function ClinicianActivePatients({
         surgery: editSurgery.trim(),
         procedure_date: editProcedureDate.trim(),
         session_id: editSessionId.trim(),
-        featured: Boolean(editingPatient.featured),
+        risk_level: editingPatient.riskLevel.toLowerCase(),
       });
       closeEditSheet();
     } catch (error) {

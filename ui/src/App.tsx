@@ -1317,7 +1317,7 @@ export default function App() {
                     surgery: input.surgery,
                     procedure_date: input.procedure_date,
                     session_id: input.session_id,
-                    featured: input.featured ?? false,
+                    risk_level: input.risk_level,
                   });
                   reload();
                 }}

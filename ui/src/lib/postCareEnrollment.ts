@@ -45,6 +45,7 @@ function clinicalFromEnrollment(
     procedureDate,
     daysPostOp: 0,
     sessionId: sessionIdForPatient(displayCode, patientUuid),
+    riskLevel: 'Low',
   };
 }
 

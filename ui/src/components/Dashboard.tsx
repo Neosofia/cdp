@@ -16,7 +16,7 @@ import {
   CHAT_TODAY_WINDOW_MS,
   hasRecentChat,
   formatRelativeActivity,
-  featuredDashboardSessions,
+  highlightDashboardSessions,
   paginatePatientSessions,
   riskForSession,
   sortPatientSessionsByRiskAndRecency,
@@ -233,7 +233,7 @@ function ClinicianDashboard({
     riskColor: (riskForSession(p) === 'High' ? 'red' : riskForSession(p) === 'Medium' ? 'yellow' : 'green') as 'red' | 'yellow' | 'green',
   }));
 
-  const activeChatSessions = featuredDashboardSessions(
+  const activeChatSessions = highlightDashboardSessions(
     patients.filter((p) => hasRecentChat(p, nowMs, CHAT_ACTIVE_WINDOW_MS)),
   ).map(p => ({
     id: p.sessionId,
