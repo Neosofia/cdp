@@ -4,7 +4,7 @@
  * the clinical platform UI does not depend on the network for display names.
  */
 import type { RoleCatalogSnapshot, RoleDefinition } from '@/lib/roleCatalogApi';
-import cdpRoleCatalogOverlay from '../../../roles/user-catalog.overlay.json';
+import cdpRoleCatalogOverlay from '@/data/user-catalog.overlay.json';
 
 interface CdpRoleCatalogOverlay {
   tenant_types: Record<string, { roles: string[] }>;

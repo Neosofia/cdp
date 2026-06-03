@@ -6,7 +6,13 @@
 
 | Consumer | How it uses this file |
 |----------|------------------------|
-| **CDP UI** | Bundled at build time (`ui/src/lib/clinicalRoleCatalog.ts`). Session menu and admin pickers always show CDP labels; no runtime dependency on User for display names. |
+| **CDP UI** | Bundled at build time from `ui/src/data/user-catalog.overlay.json` (keep in sync with this file). Session menu and admin pickers always show CDP labels; no runtime dependency on User for display names. |
+
+After editing `user-catalog.overlay.json` here, sync into the UI bundle:
+
+```bash
+cp roles/user-catalog.overlay.json ui/src/data/user-catalog.overlay.json
+```
 | **User service** | Optional deploy overlay via `ROLE_CATALOG_OVERLAY` so registry APIs and Cedar assignment stay aligned with CDP (see [user OPERATIONS](https://github.com/Neosofia/user/blob/main/OPERATIONS.md)). |
 | **Other services** | Mount the same JSON when a service needs matching labels or prefixes; CDP remains the authoring repo. |
 
