@@ -1,10 +1,28 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { useEffect, useMemo, useState } from 'react';
 import {
-  ACTIVE_PATIENT_SESSIONS,
+  listCareEpisodeAppointments,
+  listCareEpisodeInboxMessages,
+  listCareEpisodeRecords,
+  type CareEpisodeAppointment,
+  type CareEpisodeInboxMessage,
+  type CareEpisodeRecord,
+} from '@/lib/careEpisodeApi';
+import type { ActivePatientSession } from '@/lib/demoPatients';
+import {
   activePatientBySessionId,
-  PATIENT_ID_BY_DISPLAY_NAME,
-} from '@/lib/clinicianDemoData';
+  CHAT_ACTIVE_WINDOW_MS,
+  CHAT_TODAY_WINDOW_MS,
+  hasRecentChat,
+  formatRelativeActivity,
+  featuredDashboardSessions,
+  paginatePatientSessions,
+  riskForSession,
+  sortPatientSessionsByRiskAndRecency,
+  DEFAULT_CLINICIAN_LIST_FILTERS,
+  type ClinicianListFilters,
+} from '@/lib/demoPatients';
 import {
   UserGroupIcon,
   ClipboardDocumentListIcon,
@@ -22,9 +40,12 @@ import {
 interface DashboardProps {
   activeActor: string;
   firstName?: string;
-  onPatientStartChat?: () => void;
-  onPatientReviewRecords?: () => void;
-  onClinicianOpenPatients?: (patientId?: string | null) => void;
+  clinicianPatients?: ActivePatientSession[];
+  clinicianError?: string | null;
+  patientToken?: string;
+  patientUuid?: string;
+  onPatientGoToProfile?: () => void;
+  onClinicianOpenPatients?: (patientUuid?: string | null, filters?: ClinicianListFilters) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -119,31 +140,36 @@ function SectionCard({
   icon: Icon,
   children,
   onTitleClick,
+  headerRight,
 }: {
   title: string;
   icon: React.ElementType;
   children: React.ReactNode;
   onTitleClick?: () => void;
+  headerRight?: React.ReactNode;
 }) {
   return (
     <Card
-      className="gap-0 py-0"
+      className="gap-0 py-0 self-start w-full"
       style={{ background: 'rgba(5,5,15,0.7)', border: '1px solid rgba(34,211,238,0.14)', boxShadow: '0 0 30px rgba(34,211,238,0.04)' }}
     >
       <CardHeader
         className="py-3 px-4"
         style={{ borderBottom: '1px solid rgba(34,211,238,0.1)', background: 'rgba(34,211,238,0.02)' }}
       >
-        <CardTitle className="text-sm font-semibold flex items-center gap-2 uppercase tracking-wider" style={{ color: 'rgba(34,211,238,0.7)' }}>
-          <Icon className="h-4 w-4" />
-          {onTitleClick ? (
-            <button type="button" onClick={onTitleClick} className="hover:text-cyan-300 transition-colors">
-              {title}
-            </button>
-          ) : (
-            title
-          )}
-        </CardTitle>
+        <div className="flex items-center justify-between gap-2">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2 uppercase tracking-wider" style={{ color: 'rgba(34,211,238,0.7)' }}>
+            <Icon className="h-4 w-4" />
+            {onTitleClick ? (
+              <button type="button" onClick={onTitleClick} className="hover:text-cyan-300 transition-colors">
+                {title}
+              </button>
+            ) : (
+              title
+            )}
+          </CardTitle>
+          {headerRight}
+        </div>
       </CardHeader>
       <CardContent className="p-0">{children}</CardContent>
     </Card>
@@ -172,74 +198,155 @@ function DemoBanner() {
 // Clinician dashboard
 // ---------------------------------------------------------------------------
 
-function ClinicianDashboard({ onOpenPatients }: { onOpenPatients?: (patientId?: string | null) => void }) {
-  const openList = () => onOpenPatients?.(null);
-  const openPatient = (name: string) => {
-    const id = PATIENT_ID_BY_DISPLAY_NAME[name];
-    if (id) onOpenPatients?.(id);
-  };
+function ClinicianDashboard({
+  patients,
+  error,
+  onOpenPatients,
+}: {
+  patients: ActivePatientSession[];
+  error?: string | null;
+  onOpenPatients?: (patientUuid?: string | null, filters?: ClinicianListFilters) => void;
+}) {
+  const [activePatientsPage, setActivePatientsPage] = useState(1);
+  const nowMs = Date.now();
+  const openList = (filters: ClinicianListFilters = DEFAULT_CLINICIAN_LIST_FILTERS) => onOpenPatients?.(null, filters);
+  const openPatient = (patient: ActivePatientSession) => onOpenPatients?.(patient.patientUuid);
 
-  const dashboardPatients = ACTIVE_PATIENT_SESSIONS.map(p => ({
-    name: p.displayName,
+  const sortedPatients = useMemo(
+    () => sortPatientSessionsByRiskAndRecency(patients),
+    [patients],
+  );
+
+  const pagedActivePatients = useMemo(
+    () => paginatePatientSessions(sortedPatients, activePatientsPage, 10),
+    [sortedPatients, activePatientsPage],
+  );
+  useEffect(() => {
+    setActivePatientsPage(1);
+  }, [sortedPatients]);
+
+  const dashboardPatients = pagedActivePatients.items.map(p => ({
+    patient: p,
     secondary: `${p.surgery} · Day ${p.daysPostOp} post-op`,
-    meta: p.lastActivity,
-    risk: p.featured ? 'High' as const : 'Medium' as const,
-    riskColor: (p.featured ? 'red' : 'yellow') as 'red' | 'yellow',
+    meta: formatRelativeActivity(p.lastChatAt, nowMs),
+    risk: riskForSession(p),
+    riskColor: (riskForSession(p) === 'High' ? 'red' : riskForSession(p) === 'Medium' ? 'yellow' : 'green') as 'red' | 'yellow' | 'green',
   }));
 
-  const sessions = [
-    { id: 'S-7291', patient: 'Alice Hartley',  started: '09:14',  status: 'Active',   sc: 'cyan'   as const },
-    { id: 'S-7288', patient: 'Marcus Delgado', started: '07:45',  status: 'Active',   sc: 'cyan'   as const },
-    { id: 'S-7285', patient: 'Priya Nair',     started: '08:02',  status: 'Active',   sc: 'cyan'   as const },
-    { id: 'S-7294', patient: 'Jordan Kim',     started: '07:10',  status: 'Active',   sc: 'cyan'   as const },
-  ];
+  const activeChatSessions = featuredDashboardSessions(
+    patients.filter((p) => hasRecentChat(p, nowMs, CHAT_ACTIVE_WINDOW_MS)),
+  ).map(p => ({
+    id: p.sessionId,
+    patient: p.displayName,
+    started: formatRelativeActivity(p.lastChatAt, nowMs),
+    status: 'Active' as const,
+    sc: 'cyan' as const,
+    patientUuid: p.patientUuid,
+  }));
+
+  const highRiskCount = patients.filter(p => riskForSession(p) === 'High').length;
+  const mediumRiskCount = patients.filter(p => riskForSession(p) === 'Medium').length;
+  const chatsTodayCount = patients.filter((p) => hasRecentChat(p, nowMs, CHAT_TODAY_WINDOW_MS)).length;
+  const activePatients30MinCount = patients.filter((p) => hasRecentChat(p, nowMs, CHAT_ACTIVE_WINDOW_MS)).length;
 
   return (
     <>
       <DemoBanner />
+      {error ? (
+        <div
+          className="rounded-xl px-4 py-2.5 mb-4 text-sm"
+          style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.22)', color: 'rgba(252,165,165,0.95)' }}
+        >
+          Clinician data failed to load: {error}
+        </div>
+      ) : null}
 
       {/* Stat row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <StatCard label="Active patients" value={12} sub="+2 this week" icon={UserGroupIcon} accent="cyan" onClick={openList} />
-        <StatCard label="Pending reviews" value={3} sub="Oldest: 6 hrs" icon={ClipboardDocumentListIcon} accent="yellow" />
-        <StatCard label="Sessions today" value={7} sub="2 still open" icon={ChatBubbleLeftRightIcon} accent="purple" onClick={openList} />
-        <StatCard label="High-risk alerts" value={1} sub="Immediate review" icon={ExclamationTriangleIcon} accent="red" onClick={() => openPatient('Alice Hartley')} />
+        <StatCard
+          label="High-risk alerts"
+          value={highRiskCount}
+          sub="Immediate review"
+          icon={ExclamationTriangleIcon}
+          accent="red"
+          onClick={() => openList({ risk: 'high-risk', activity: 'all' })}
+        />
+        <StatCard label="Medium risk" value={mediumRiskCount} sub="Medium risk patients" icon={ClipboardDocumentListIcon} accent="yellow" onClick={() => openList({ risk: 'medium-risk', activity: 'all' })} />
+        <StatCard label="Chats today" value={chatsTodayCount} sub="Last 24 hours" icon={ChatBubbleLeftRightIcon} accent="purple" onClick={() => openList({ risk: 'all', activity: 'chats-today' })} />
+        <StatCard label="Active patients" value={activePatients30MinCount} sub="Last 30 minutes" icon={UserGroupIcon} accent="cyan" onClick={() => openList({ risk: 'all', activity: 'active-30m' })} />
       </div>
 
-      <div className="grid md:grid-cols-2 gap-6">
-        <SectionCard title="Active patients" icon={UserGroupIcon} onTitleClick={openList}>
-          {dashboardPatients.map(p => (
-            <ListItem
-              key={p.name}
-              primary={p.name}
-              secondary={p.secondary}
-              badge={{ label: `${p.risk} risk`, color: p.riskColor }}
-              meta={p.meta}
-              onClick={() => openPatient(p.name)}
-            />
-          ))}
+      <div className="grid md:grid-cols-2 gap-6 items-start">
+        <SectionCard
+          title="Patients"
+          icon={UserGroupIcon}
+          onTitleClick={() => openList()}
+          headerRight={pagedActivePatients.totalPages > 1 ? (
+            <div className="flex items-center gap-1 text-[10px] text-slate-400">
+              <button
+                type="button"
+                className="h-5 w-5 rounded border border-slate-700 hover:border-cyan-500 disabled:opacity-40"
+                onClick={() => setActivePatientsPage((page) => Math.max(1, page - 1))}
+                disabled={pagedActivePatients.page <= 1}
+                aria-label="Previous page"
+              >
+                ‹
+              </button>
+              <span className="min-w-9 text-center">
+                {pagedActivePatients.page}/{pagedActivePatients.totalPages}
+              </span>
+              <button
+                type="button"
+                className="h-5 w-5 rounded border border-slate-700 hover:border-cyan-500 disabled:opacity-40"
+                onClick={() => setActivePatientsPage((page) => Math.min(pagedActivePatients.totalPages, page + 1))}
+                disabled={pagedActivePatients.page >= pagedActivePatients.totalPages}
+                aria-label="Next page"
+              >
+                ›
+              </button>
+            </div>
+          ) : null}
+        >
+          {dashboardPatients.length > 0 ? (
+            <>
+              {dashboardPatients.map(({ patient, secondary, meta, risk, riskColor }) => (
+                <ListItem
+                  key={patient.patientUuid}
+                  primary={patient.displayName}
+                  secondary={secondary}
+                  badge={{ label: `${risk} risk`, color: riskColor }}
+                  meta={meta}
+                  onClick={() => openPatient(patient)}
+                />
+              ))}
+            </>
+          ) : (
+            <div className="px-4 py-6 text-sm text-slate-400">
+              No patients loaded for this role yet. Open Patients to confirm enrollment data is available.
+            </div>
+          )}
         </SectionCard>
 
-        <SectionCard title="Recent chat sessions" icon={ChatBubbleLeftRightIcon} onTitleClick={openList}>
-          {sessions.map(s => (
-            <ListItem
-              key={s.id}
-              primary={`Session ${s.id}`}
-              secondary={s.patient}
-              badge={{ label: s.status, color: s.sc }}
-              meta={s.started}
-              onClick={() => {
-                const active = activePatientBySessionId(s.id);
-                if (active) onOpenPatients?.(active.patientId);
-                else openPatient(s.patient);
-              }}
-            />
-          ))}
-          <div className="px-4 py-3">
-            <p className="text-xs text-slate-600">
-              AI risk model: <span className="text-slate-400">AWS Bedrock — Claude 3 Haiku (demo)</span>
-            </p>
-          </div>
+        <SectionCard title="Active chat sessions" icon={ChatBubbleLeftRightIcon} onTitleClick={() => openList({ risk: 'all', activity: 'active-30m' })}>
+          {activeChatSessions.length > 0 ? (
+            activeChatSessions.map(s => (
+              <ListItem
+                key={s.id}
+                primary={`Session ${s.id}`}
+                secondary={s.patient}
+                badge={{ label: s.status, color: s.sc }}
+                meta={s.started}
+                onClick={() => {
+                  const active = activePatientBySessionId(patients, s.id);
+                  if (active) onOpenPatients?.(active.patientUuid);
+                }}
+              />
+            ))
+          ) : (
+            <div className="px-4 py-6 text-sm text-slate-400">
+              No active chats in the last 30 minutes.
+            </div>
+          )}
         </SectionCard>
       </div>
     </>
@@ -325,91 +432,234 @@ function AdminDashboard() {
 // Patient dashboard
 // ---------------------------------------------------------------------------
 
+type RecordBadgeColor = 'cyan' | 'purple' | 'green' | 'yellow' | 'red';
+
+const RECORD_TYPE_COLOR: Record<string, RecordBadgeColor> = {
+  Lab: 'cyan',
+  Visit: 'purple',
+  Rx: 'green',
+  Imaging: 'yellow',
+  Procedure: 'red',
+  Allergy: 'cyan',
+};
+
+function appointmentStatusColor(status: string): 'green' | 'yellow' | 'red' | 'cyan' {
+  const key = status.toLowerCase();
+  if (key === 'confirmed') return 'green';
+  if (key === 'pending') return 'yellow';
+  if (key === 'cancelled') return 'red';
+  return 'cyan';
+}
+
+function formatAppointmentWhen(iso: string): string {
+  const dt = new Date(iso);
+  if (Number.isNaN(dt.getTime())) return iso;
+  return dt.toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+function formatRecordDate(iso: string): string {
+  return new Date(iso + 'T12:00:00').toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
+function daysUntil(iso: string, nowMs: number): number | null {
+  const ts = Date.parse(iso);
+  if (!Number.isFinite(ts)) return null;
+  return Math.max(0, Math.ceil((ts - nowMs) / (24 * 60 * 60 * 1000)));
+}
+
+function previewText(body: string, max = 72): string {
+  const trimmed = body.trim();
+  if (trimmed.length <= max) return trimmed;
+  return `${trimmed.slice(0, max - 1)}…`;
+}
+
 function PatientDashboard({
   firstName,
-  onStartChat,
-  onReviewRecords,
+  token,
+  activeActor,
+  patientUuid,
+  onGoToProfile,
 }: {
   firstName?: string;
-  onStartChat?: () => void;
-  onReviewRecords?: () => void;
+  token?: string;
+  activeActor: string;
+  patientUuid?: string;
+  onGoToProfile?: () => void;
 }) {
-  const appointments = [
-    { with: 'Dr. Sarah Chen',       specialty: 'Primary Care',    date: 'Jun 27, 10:30 AM', status: 'Confirmed', sc: 'green'  as const },
-    { with: 'Dr. Marcus Webb',      specialty: 'Cardiology',      date: 'Jul 3, 2:00 PM',   status: 'Pending',   sc: 'yellow' as const },
-    { with: 'Dr. Priya Nair',       specialty: 'Endocrinology',   date: 'Jul 18, 9:00 AM',  status: 'Confirmed', sc: 'green'  as const },
-  ];
+  const [appointments, setAppointments] = useState<CareEpisodeAppointment[]>([]);
+  const [messages, setMessages] = useState<CareEpisodeInboxMessage[]>([]);
+  const [records, setRecords] = useState<CareEpisodeRecord[]>([]);
+  const [loading, setLoading] = useState(false);
+  const nowMs = Date.now();
 
-  const messages = [
-    { from: 'Dr. Sarah Chen',  preview: 'Your latest lab results look good. I recommend…', time: '1 hr ago',  unread: true  },
-    { from: 'Care Coordinator', preview: 'Reminder: please complete your pre-visit questionnaire', time: '3 hrs ago', unread: true  },
-    { from: 'Dr. Marcus Webb', preview: 'Referral to cardiology has been submitted.',       time: 'Yesterday', unread: false },
-  ];
+  useEffect(() => {
+    if (!token || !patientUuid) {
+      setAppointments([]);
+      setMessages([]);
+      setRecords([]);
+      return;
+    }
+    let cancelled = false;
+    const load = async () => {
+      setLoading(true);
+      const [appts, inbox, recs] = await Promise.all([
+        listCareEpisodeAppointments(token, activeActor, patientUuid),
+        listCareEpisodeInboxMessages(token, activeActor, patientUuid),
+        listCareEpisodeRecords(token, activeActor, patientUuid),
+      ]);
+      if (cancelled) return;
+      setAppointments(appts);
+      setMessages(inbox);
+      setRecords(recs);
+      setLoading(false);
+    };
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [token, activeActor, patientUuid]);
 
-  const records = [
-    { title: 'Lab Results — Complete Metabolic Panel', date: 'Jun 22, 2026', type: 'Lab',        tc: 'cyan'   as const },
-    { title: 'Visit Summary — Primary Care',           date: 'Jun 15, 2026', type: 'Visit',      tc: 'purple' as const },
-    { title: 'Prescription — Metformin 500 mg',        date: 'Jun 15, 2026', type: 'Rx',         tc: 'green'  as const },
-    { title: 'Imaging — Chest X-Ray',                  date: 'May 31, 2026', type: 'Imaging',    tc: 'yellow' as const },
-  ];
+  const upcoming = useMemo(
+    () =>
+      [...appointments]
+        .filter(a => Date.parse(a.scheduled_at) >= nowMs - 60 * 60 * 1000)
+        .sort((a, b) => Date.parse(a.scheduled_at) - Date.parse(b.scheduled_at)),
+    [appointments, nowMs],
+  );
+
+  const nextAppointment = upcoming[0] ?? null;
+  const unreadCount = messages.filter(m => !m.read_at).length;
+  const recentRecords = useMemo(
+    () =>
+      [...records]
+        .sort((a, b) => b.date.localeCompare(a.date))
+        .slice(0, 4),
+    [records],
+  );
+  const rxCount = records.filter(r => r.type === 'Rx').length;
+  const lastRecord = records.length
+    ? [...records].sort((a, b) => b.date.localeCompare(a.date))[0]
+    : null;
+
+  const welcomeDays = nextAppointment ? daysUntil(nextAppointment.scheduled_at, nowMs) : null;
 
   return (
     <>
       <DemoBanner />
 
-      {/* Welcome */}
       <div className="mb-6 rounded-xl px-5 py-4" style={{ background: 'rgba(34,211,238,0.04)', border: '1px solid rgba(34,211,238,0.12)' }}>
         <p className="text-slate-300 text-sm">
-          Welcome back{firstName ? `, ${firstName}` : ''}. Your next appointment is in <strong className="text-white">2 days</strong>.
+          {loading ? (
+            <>Loading your care overview…</>
+          ) : nextAppointment ? (
+            <>
+              Welcome back{firstName ? `, ${firstName}` : ''}. Your next appointment is in{' '}
+              <strong className="text-white">
+                {welcomeDays === 0 ? 'less than a day' : `${welcomeDays} day${welcomeDays === 1 ? '' : 's'}`}
+              </strong>
+              .
+            </>
+          ) : (
+            <>Welcome back{firstName ? `, ${firstName}` : ''}. No upcoming appointments are scheduled.</>
+          )}
         </p>
       </div>
 
-      {/* Stat row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <StatCard label="Next appointment"  value="Jun 27"  sub="Dr. Sarah Chen"  icon={CalendarDaysIcon}          accent="cyan"   />
-        <StatCard label="Unread messages" value={2} sub="2 clinicians" icon={ChatBubbleLeftRightIcon} accent="yellow" onClick={onStartChat} />
-        <StatCard label="Health records" value={14} sub="Last: Jun 22" icon={DocumentTextIcon} accent="purple" onClick={onReviewRecords} />
-        <StatCard label="Active prescriptions" value={3}    sub="Next refill: Jul 2" icon={ClipboardDocumentListIcon} accent="green" />
+        <StatCard
+          label="Next appointment"
+          value={
+            nextAppointment
+              ? new Date(nextAppointment.scheduled_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+              : '—'
+          }
+          sub={nextAppointment?.clinician_display_name ?? 'None scheduled'}
+          icon={CalendarDaysIcon}
+          accent="cyan"
+        />
+        <StatCard
+          label="Unread messages"
+          value={unreadCount}
+          sub={unreadCount === 1 ? '1 message' : `${unreadCount} messages`}
+          icon={ChatBubbleLeftRightIcon}
+          accent="yellow"
+          onClick={onGoToProfile}
+        />
+        <StatCard
+          label="Health records"
+          value={records.length || '—'}
+          sub={lastRecord ? `Last: ${formatRecordDate(lastRecord.date)}` : 'On your profile'}
+          icon={DocumentTextIcon}
+          accent="purple"
+          onClick={onGoToProfile}
+        />
+        <StatCard
+          label="Active prescriptions"
+          value={rxCount || '—'}
+          sub={rxCount ? 'From your record list' : 'None on file'}
+          icon={ClipboardDocumentListIcon}
+          accent="green"
+          onClick={onGoToProfile}
+        />
       </div>
 
       <div className="grid md:grid-cols-2 gap-6 mb-6">
-        {/* Upcoming appointments */}
         <SectionCard title="Upcoming appointments" icon={CalendarDaysIcon}>
-          {appointments.map(a => (
-            <ListItem
-              key={a.date}
-              primary={a.with}
-              secondary={`${a.specialty} · ${a.date}`}
-              badge={{ label: a.status, color: a.sc }}
-            />
-          ))}
+          {upcoming.length === 0 ? (
+            <p className="px-4 py-3 text-xs text-slate-500">No upcoming appointments.</p>
+          ) : (
+            upcoming.map(a => (
+              <ListItem
+                key={a.id}
+                primary={a.clinician_display_name}
+                secondary={`${a.specialty} · ${formatAppointmentWhen(a.scheduled_at)}`}
+                badge={{ label: a.status, color: appointmentStatusColor(a.status) }}
+              />
+            ))
+          )}
         </SectionCard>
 
-        {/* Messages */}
-        <SectionCard title="Messages" icon={BellIcon} onTitleClick={onStartChat}>
-          {messages.map((m, i) => (
-            <ListItem
-              key={i}
-              primary={m.from}
-              secondary={m.preview}
-              badge={m.unread ? { label: 'Unread', color: 'cyan' } : undefined}
-              meta={m.time}
-              onClick={onStartChat}
-            />
-          ))}
+        <SectionCard title="Messages" icon={BellIcon} onTitleClick={onGoToProfile}>
+          {messages.length === 0 ? (
+            <p className="px-4 py-3 text-xs text-slate-500">No messages from your care team.</p>
+          ) : (
+            messages.map(m => (
+              <ListItem
+                key={m.id}
+                primary={m.sender_display_name}
+                secondary={previewText(m.body)}
+                badge={!m.read_at ? { label: 'Unread', color: 'cyan' } : undefined}
+                meta={formatRelativeActivity(m.sent_at, nowMs)}
+                onClick={onGoToProfile}
+              />
+            ))
+          )}
         </SectionCard>
       </div>
 
-      <SectionCard title="Recent health records" icon={DocumentTextIcon} onTitleClick={onReviewRecords}>
-        {records.map((r, i) => (
-          <ListItem
-            key={i}
-            primary={r.title}
-            secondary={r.date}
-            badge={{ label: r.type, color: r.tc }}
-            onClick={onReviewRecords}
-          />
-        ))}
+      <SectionCard title="Recent medical records" icon={DocumentTextIcon} onTitleClick={onGoToProfile}>
+        {recentRecords.length === 0 ? (
+          <p className="px-4 py-3 text-xs text-slate-500">No records yet. View your profile for health records.</p>
+        ) : (
+          recentRecords.map(r => (
+            <ListItem
+              key={r.id}
+              primary={r.title}
+              secondary={formatRecordDate(r.date)}
+              badge={{ label: r.type, color: RECORD_TYPE_COLOR[r.type] ?? 'cyan' }}
+              onClick={onGoToProfile}
+            />
+          ))
+        )}
       </SectionCard>
     </>
   );
@@ -433,6 +683,20 @@ function NoRoleDashboard() {
   );
 }
 
+function StudyDashboard() {
+  return (
+    <div
+      className="rounded-xl p-8 text-center"
+      style={{ background: 'rgba(34,211,238,0.03)', border: '1px solid rgba(34,211,238,0.12)' }}
+    >
+      <UserGroupIcon className="h-10 w-10 mx-auto mb-3" style={{ color: 'rgba(34,211,238,0.4)' }} />
+      <p className="text-slate-400 text-sm">
+        Study operations home. Use <strong className="text-white">Users</strong> in the menu to manage people in your organization.
+      </p>
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Root export
 // ---------------------------------------------------------------------------
@@ -440,20 +704,34 @@ function NoRoleDashboard() {
 export default function Dashboard({
   activeActor,
   firstName,
-  onPatientStartChat,
-  onPatientReviewRecords,
+  patientToken,
+  patientUuid,
+  clinicianPatients = [],
+  clinicianError,
+  onPatientGoToProfile,
   onClinicianOpenPatients,
 }: DashboardProps) {
   const role = activeActor.toLowerCase();
 
-  if (role === 'clinician') return <ClinicianDashboard onOpenPatients={onClinicianOpenPatients} />;
-  if (role === 'operator')  return <AdminDashboard />;
+  if (role === 'clinician') {
+    return (
+      <ClinicianDashboard
+        patients={clinicianPatients}
+        error={clinicianError}
+        onOpenPatients={onClinicianOpenPatients}
+      />
+    );
+  }
+  if (role === 'operator') return <AdminDashboard />;
+  if (role === 'study') return <StudyDashboard />;
   if (role === 'patient') {
     return (
       <PatientDashboard
         firstName={firstName}
-        onStartChat={onPatientStartChat}
-        onReviewRecords={onPatientReviewRecords}
+        token={patientToken}
+        activeActor={activeActor}
+        patientUuid={patientUuid}
+        onGoToProfile={onPatientGoToProfile}
       />
     );
   }

@@ -42,6 +42,20 @@ x-template-local: &template_local
     target: runtime
   image: neosofia/python-template:local
 
+x-chat-local: &chat_local
+  build:
+    context: ../chat
+    dockerfile: Dockerfile
+    target: runtime
+  image: neosofia/chat:local
+
+x-care-episode-local: &care_episode_local
+  build:
+    context: ../care-episode
+    dockerfile: Dockerfile
+    target: runtime
+  image: neosofia/care-episode:local
+
 services:
   authentication-migrate:
     <<: *auth_local
@@ -99,6 +113,58 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+  chat-postgres:
+    image: postgres:18
+    container_name: cdp-chat-postgres
+    env_file:
+      - ./.chat-postgres.env
+    ports:
+      - "5001:5432"
+    volumes:
+      - chat_postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chat_template -d cdp_chat"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  care-episode-postgres:
+    image: postgres:18
+    container_name: cdp-care-episode-postgres
+    env_file:
+      - ./.care-episode-postgres.env
+    ports:
+      - "5015:5432"
+    volumes:
+      - care_episode_postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U care_episode_template -d cdp_care_episode"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  chat-migrate:
+    <<: *chat_local
+    container_name: cdp-chat-migrate
+    env_file:
+      - ./.chat.env
+    volumes:
+      - ../templates/sql/audit:/app/audit-templates:ro
+    command: ["python", "-m", "alembic", "upgrade", "head"]
+    depends_on:
+      chat-postgres:
+        condition: service_healthy
+    restart: "no"
+  care-episode-migrate:
+    <<: *care_episode_local
+    container_name: cdp-care-episode-migrate
+    env_file:
+      - ./.care-episode.env
+    volumes:
+      - ../templates/sql/audit:/app/audit-templates:ro
+    command: ["python", "-m", "alembic", "upgrade", "head"]
+    depends_on:
+      care-episode-postgres:
+        condition: service_healthy
+    restart: "no"
   python-template:
     <<: *template_local
     env_file:
@@ -110,6 +176,41 @@ services:
       MIGRATION_DATABASE_URL: postgresql+psycopg://template:local-dev-only@127.0.0.1:5432/python_template
     volumes:
       - ../templates/python/service/policies:/app/policies:ro
+  chat:
+    <<: *chat_local
+    container_name: cdp-chat
+    env_file:
+      - ./.chat.env
+    volumes:
+      - ../chat/policies:/app/policies:ro
+    ports:
+      - "8001:8001"
+    depends_on:
+      chat-postgres:
+        condition: service_healthy
+      chat-migrate:
+        condition: service_completed_successfully
+      authentication:
+        condition: service_healthy
+  care-episode:
+    <<: *care_episode_local
+    container_name: cdp-care-episode
+    env_file:
+      - ./.care-episode.env
+    volumes:
+      - ../care-episode/policies:/app/policies:ro
+      - ../care-episode/src/data:/app/src/data:ro
+    ports:
+      - "8015:8015"
+    depends_on:
+      care-episode-postgres:
+        condition: service_healthy
+      care-episode-migrate:
+        condition: service_completed_successfully
+      authentication:
+        condition: service_healthy
 
 volumes:
   user_postgres_data:
+  chat_postgres_data:
+  care_episode_postgres_data:

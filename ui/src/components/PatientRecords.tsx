@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import {
   Sheet,
@@ -8,7 +8,10 @@ import {
 } from '@/components/ui/sheet';
 import PatientRecordsPanel from '@/components/PatientRecordsPanel';
 import XrayScissorsDemo from '@/components/XrayScissorsDemo';
-import { recordsForSelf, type MedicalRecord, type RecordType } from '@/lib/patientRecordsData';
+import { listCareEpisodeRecords, type CareEpisodeRecord } from '@/lib/careEpisodeApi';
+import type { MedicalRecord } from '@/lib/patientRecordsData';
+
+type RecordType = 'Lab' | 'Visit' | 'Rx' | 'Imaging' | 'Procedure' | 'Allergy';
 
 const TYPE_BADGE: Record<RecordType, React.CSSProperties> = {
   Lab:       { borderColor: 'rgba(34,211,238,0.4)', color: '#22d3ee', background: 'rgba(34,211,238,0.08)' },
@@ -27,13 +30,56 @@ function formatDate(iso: string): string {
   });
 }
 
-export default function PatientRecords() {
-  const records = recordsForSelf();
+interface Props {
+  token: string;
+  activeActor: string;
+  patientUuid?: string;
+}
+
+export default function PatientRecords({ token, activeActor, patientUuid }: Props) {
+  const [records, setRecords] = useState<MedicalRecord[]>([]);
   const [sheetRecord, setSheetRecord] = useState<MedicalRecord | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!patientUuid) {
+      setRecords([]);
+      setSheetRecord(null);
+      return;
+    }
+    let cancelled = false;
+    const load = async () => {
+      setLoading(true);
+      const remote = await listCareEpisodeRecords(token, activeActor, patientUuid);
+      if (cancelled) return;
+      setRecords((remote as CareEpisodeRecord[]).map(r => ({
+        id: r.id,
+        title: r.title,
+        date: r.date,
+        type: (r.type as RecordType),
+        provider: r.provider,
+        summary: r.summary,
+        imageKey: r.imageKey as MedicalRecord['imageKey'],
+      })));
+      setLoading(false);
+    };
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [token, activeActor, patientUuid]);
+
+  const helperText = useMemo(() => {
+    if (!patientUuid) return 'No patient context available.';
+    if (loading) return 'Loading records from care-episode service...';
+    if (records.length === 0) return 'No records returned by care-episode service.';
+    return null;
+  }, [loading, patientUuid, records.length]);
 
   return (
     <>
       <div className="h-full min-h-0 flex flex-col overflow-hidden">
+        {helperText && <p className="px-2 pb-2 text-xs text-slate-500">{helperText}</p>}
         <PatientRecordsPanel
           records={records}
           onSelectRecord={record => setSheetRecord(record)}

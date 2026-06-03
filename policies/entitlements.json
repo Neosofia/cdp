@@ -23,6 +23,11 @@
           "action": "View"
         },
         {
+          "key": "ui:menu:users",
+          "resource": "ui::Menu::\"users\"",
+          "action": "View"
+        },
+        {
           "key": "ui:tenant:user:list",
           "resource": "ui::Feature::\"tenant-user:list\"",
           "action": "View"

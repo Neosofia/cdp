@@ -18,6 +18,7 @@ import {
   type UserAuditItem,
 } from '@/components/AuditHistorySheet';
 import PlatformRolePicker from '@/components/PlatformRolePicker';
+import type { RoleCatalogSnapshot } from '@/lib/roleCatalogApi';
 import {
   USER_FIELD_LABEL_CLASS,
   USER_INPUT_CLASS,
@@ -74,8 +75,14 @@ interface AuditResponse {
 interface Props {
   token: string;
   activeActor: string;
+  /** Selected tier-2 org role (e.g. cro.clinical-ops) for study-scoped API calls. */
+  activeOrgRole?: string;
   /** All Tier-1 JWT roles (operator, clinician, patient) for role assignment. */
   sessionActors: string[];
+  roleCatalog?: RoleCatalogSnapshot | null;
+  profileUuid?: string;
+  /** Refetch session profile + role catalog after the signed-in user updates their own roles. */
+  onSelfRolesUpdated?: () => void;
   sessionTenantUuid?: string | null;
 }
 
@@ -84,7 +91,16 @@ function displayName(user: UserRecord): string {
   return name || user.email || user.idp_id;
 }
 
-export default function UserManagement({ token, activeActor, sessionActors, sessionTenantUuid }: Props) {
+export default function UserManagement({
+  token,
+  activeActor,
+  activeOrgRole = '',
+  sessionActors,
+  roleCatalog: roleCatalogSnapshot,
+  profileUuid,
+  onSelfRolesUpdated,
+  sessionTenantUuid,
+}: Props) {
   const [items, setItems] = useState<UserRecord[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -92,7 +108,12 @@ export default function UserManagement({ token, activeActor, sessionActors, sess
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [loading, setLoading] = useState(false);
   const [listError, setListError] = useState<string | null>(null);
-  const [roleCatalog, setRoleCatalog] = useState<string[]>([]);
+  const [assignableRoles, setAssignableRoles] = useState<string[]>(
+    roleCatalogSnapshot?.roles ?? [],
+  );
+  const [roleDefinitions, setRoleDefinitions] = useState(
+    roleCatalogSnapshot?.role_definitions ?? [],
+  );
   const [tenantNames, setTenantNames] = useState<Record<string, string>>({});
 
   const [editUser, setEditUser] = useState<UserRecord | null>(null);
@@ -115,19 +136,33 @@ export default function UserManagement({ token, activeActor, sessionActors, sess
   }, [search]);
 
   const authHeaders = useCallback(
-    () => ({
-      Authorization: `Bearer ${token}`,
-      'X-Active-Actor': activeActor,
-      'Content-Type': 'application/json',
-    }),
-    [token, activeActor],
+    () => {
+      const headers: Record<string, string> = {
+        Authorization: `Bearer ${token}`,
+        'X-Active-Actor': activeActor,
+        'Content-Type': 'application/json',
+      };
+      if (activeOrgRole) {
+        headers['X-Active-Org-Role'] = activeOrgRole;
+      }
+      return headers;
+    },
+    [token, activeActor, activeOrgRole],
   );
+
+  useEffect(() => {
+    if (roleCatalogSnapshot) {
+      setAssignableRoles(roleCatalogSnapshot.roles ?? []);
+      setRoleDefinitions(roleCatalogSnapshot.role_definitions ?? []);
+    }
+  }, [roleCatalogSnapshot]);
 
   const fetchRoles = useCallback(async () => {
     const res = await fetch(`${USER_API}/api/v1/roles`, { headers: authHeaders() });
     if (!res.ok) return;
-    const data = await res.json();
-    setRoleCatalog(data.roles ?? []);
+    const data = (await res.json()) as RoleCatalogSnapshot;
+    setAssignableRoles(data.roles ?? []);
+    setRoleDefinitions(data.role_definitions ?? []);
   }, [authHeaders]);
 
   const resolveTenantName = useCallback(
@@ -211,8 +246,12 @@ export default function UserManagement({ token, activeActor, sessionActors, sess
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.message ?? `HTTP ${res.status}`);
+      const savedUuid = editUser.uuid;
       setEditUser(null);
       fetchUsers();
+      if (profileUuid && savedUuid === profileUuid) {
+        onSelfRolesUpdated?.();
+      }
     } catch (e) {
       setEditError(e instanceof Error ? e.message : 'Update failed');
     } finally {
@@ -464,7 +503,8 @@ export default function UserManagement({ token, activeActor, sessionActors, sess
                   {sessionActors.length > 0 ? sessionActors.join(', ') : 'none on JWT'})
                 </p>
                 <PlatformRolePicker
-                  roleCatalog={roleCatalog}
+                  roleCatalog={assignableRoles}
+                  roleDefinitions={roleDefinitions}
                   selected={editUser.roles}
                   onChange={(roles) =>
                     setEditUser((u) => (u ? { ...u, roles } : u))

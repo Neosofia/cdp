@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { MagnifyingGlassIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { Input } from '@/components/ui/input';
+import type { RoleDefinition } from '@/lib/roleCatalogApi';
 import { cn } from '@/lib/utils';
 
 export function formatRoleLabel(role: string): string {
@@ -21,6 +22,7 @@ function toggleRole(roles: string[], role: string): string[] {
 
 interface PlatformRolePickerProps {
   roleCatalog: string[];
+  roleDefinitions?: RoleDefinition[];
   selected: string[];
   onChange: (roles: string[]) => void;
   /** All actor classes on the assigner's JWT (not only the UI active actor). */
@@ -29,16 +31,24 @@ interface PlatformRolePickerProps {
 
 export default function PlatformRolePicker({
   roleCatalog,
+  roleDefinitions,
   selected,
   onChange,
   assignerActors,
 }: PlatformRolePickerProps) {
   const [filter, setFilter] = useState('');
 
+  const labelFor = useMemo(() => {
+    const byId = new Map((roleDefinitions ?? []).map((def) => [def.id, def.label]));
+    return (role: string) => byId.get(role) ?? formatRoleLabel(role);
+  }, [roleDefinitions]);
+
   const grouped = useMemo(() => {
     const q = filter.trim().toLowerCase();
     const matches = (role: string) =>
-      !q || role.toLowerCase().includes(q) || formatRoleLabel(role).toLowerCase().includes(q);
+      !q ||
+      role.toLowerCase().includes(q) ||
+      labelFor(role).toLowerCase().includes(q);
 
     const byBranch = new Map<string, string[]>();
     for (const role of roleCatalog.filter(matches)) {
@@ -53,7 +63,7 @@ export default function PlatformRolePicker({
         label: formatGroupLabel(branch),
         roles: roles.sort((a, b) => a.localeCompare(b)),
       }));
-  }, [roleCatalog, filter]);
+  }, [roleCatalog, filter, labelFor]);
 
   if (roleCatalog.length === 0) {
     return (
@@ -72,7 +82,7 @@ export default function PlatformRolePicker({
               key={role}
               className="inline-flex items-center gap-1 rounded-md border border-cyan-500/40 bg-cyan-950/60 px-2 py-0.5 text-xs text-cyan-200"
             >
-              {formatRoleLabel(role)}
+              {labelFor(role)}
               <button
                 type="button"
                 aria-label={`Remove ${role}`}
@@ -125,7 +135,7 @@ export default function PlatformRolePicker({
                           onChange={() => onChange(toggleRole(selected, role))}
                         />
                         <span className="min-w-0 flex-1">
-                          <span className="block text-sm text-slate-100">{formatRoleLabel(role)}</span>
+                          <span className="block text-sm text-slate-100">{labelFor(role)}</span>
                           <span className="block text-[11px] font-mono text-slate-500 truncate">{role}</span>
                         </span>
                       </label>

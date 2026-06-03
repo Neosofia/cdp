@@ -1,26 +1,29 @@
 #!/usr/bin/env python3
-import os
+"""Register platform service credentials in the authentication database.
+
+Uses MIGRATION_DATABASE_URL (same as authentication migrations), from the
+environment or cdp/.authentication.env:
+
+  set -a && source .authentication.env && set +a
+  python scripts/seed_services.py
+"""
+from __future__ import annotations
+
 import secrets
 import sys
 import uuid
+
 import bcrypt
 import psycopg
 from psycopg.rows import dict_row
 
-# Configuration for local development
-DB_USER = os.getenv("DB_USER", "cdp")
-DB_PASSWORD = os.getenv("DB_PASSWORD", "dev_only")
-DB_HOST = os.getenv("DB_HOST", "localhost")
-DB_PORT = os.getenv("DB_PORT", "5014")
-DB_NAME = os.getenv("DB_NAME", "cdp_authentication")
-
-DATABASE_URL = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+from seed_migration_url import migration_database_url
 
 SERVICES_TO_SEED = [
     {
         "name": "Capabilities Service",
         "slug": "capabilities",
-        "base_url": "http://capabilities:8019"
+        "base_url": "http://capabilities:8019",
     },
     {
         "name": "User Service",
@@ -34,13 +37,18 @@ SERVICES_TO_SEED = [
     },
 ]
 
-def main():
-    print(f"Connecting to {DATABASE_URL}...")
+
+def main() -> None:
+    database_url = migration_database_url("authentication")
+    print("Connecting to authentication database (MIGRATION_DATABASE_URL)...")
     try:
-        conn = psycopg.connect(DATABASE_URL, row_factory=dict_row)
-    except psycopg.OperationalError as e:
-        print(f"Error connecting to database: {e}")
-        print("Ensure the cdp-authentication-postgres container is running (docker compose up -d authentication-postgres)")
+        conn = psycopg.connect(database_url, row_factory=dict_row)
+    except psycopg.OperationalError as exc:
+        print(f"Error connecting to database: {exc}")
+        print(
+            "Ensure authentication-postgres is running and MIGRATION_DATABASE_URL is set "
+            "(set -a && source .authentication.env && set +a).",
+        )
         sys.exit(1)
 
     print("\n--- Generating Service Credentials ---\n")
@@ -54,26 +62,30 @@ def main():
             plain_secret = secrets.token_urlsafe(32)
             hashed_secret = bcrypt.hashpw(plain_secret.encode(), bcrypt.gensalt()).decode()
 
-            # Insert or update service
-            cur.execute("""
+            cur.execute(
+                """
                 INSERT INTO services (name, slug, base_url, changed_by_uuid, changed_by_type)
                 VALUES (%s, %s, %s, %s, %s)
-                ON CONFLICT (name) DO UPDATE 
+                ON CONFLICT (name) DO UPDATE
                 SET slug = EXCLUDED.slug, base_url = EXCLUDED.base_url
                 RETURNING uuid;
-            """, (svc["name"], svc["slug"], svc["base_url"], sys_uuid, 2))
+                """,
+                (svc["name"], svc["slug"], svc["base_url"], sys_uuid, 2),
+            )
 
             service_uuid = cur.fetchone()["uuid"]
 
-            # Insert credential only if none exists for this service
-            cur.execute("""
+            cur.execute(
+                """
                 INSERT INTO service_credentials (service_uuid, hashed_secret, changed_by_uuid, changed_by_type)
                 SELECT %s, %s, %s, %s
                 WHERE NOT EXISTS (
                     SELECT 1 FROM service_credentials WHERE service_uuid = %s
                 );
-            """, (service_uuid, hashed_secret, sys_uuid, 2, service_uuid))
-            
+                """,
+                (service_uuid, hashed_secret, sys_uuid, 2, service_uuid),
+            )
+
             env_var_prefix = svc["slug"].replace("-", "_").upper()
             env_output.append(f"# {svc['name']}")
             env_output.append(f"{env_var_prefix}_CLIENT_ID={svc['slug']}")
@@ -82,11 +94,12 @@ def main():
             print(f"✅ Registered: {svc['name']} (slug: {svc['slug']})")
 
         conn.commit()
-    
+
     conn.close()
 
     print("\n--- Add these to your .env files ---\n")
     print("\n".join(env_output))
+
 
 if __name__ == "__main__":
     main()

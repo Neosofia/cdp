@@ -11,12 +11,37 @@ import { jwtDecode } from 'jwt-decode';
 import { ShieldCheckIcon as Shield, ChartBarIcon as Activity, ArrowRightOnRectangleIcon as LogOut, BuildingOfficeIcon as Building } from '@heroicons/react/24/outline';
 import ServiceManagement from '@/components/ServiceManagement';
 import UserManagement from '@/components/UserManagement';
-import { formatRoleLabel } from '@/components/PlatformRolePicker';
+import { fetchRoleCatalog, type RoleCatalogSnapshot } from '@/lib/roleCatalogApi';
+import {
+  buildSessionRoleChoices,
+  findSessionRoleChoice,
+  resolveStoredSessionRoleChoice,
+  type SessionRoleChoice,
+} from '@/lib/sessionRoles';
 import Dashboard from '@/components/Dashboard';
 import PatientChat from '@/components/PatientChat';
 import PatientRecords from '@/components/PatientRecords';
-import ClinicianActivePatients from '@/components/ClinicianActivePatients';
-import { ACTIVE_PATIENT_SESSIONS } from '@/lib/clinicianDemoData';
+import PatientProfile from '@/components/PatientProfile';
+import ClinicianActivePatients, { type EditEnrollmentInput } from '@/components/ClinicianActivePatients';
+import {
+  activePatientByUuid,
+  DEFAULT_CLINICIAN_LIST_FILTERS,
+  type ClinicianListFilters,
+} from '@/lib/demoPatients';
+import {
+  DEFAULT_APP_ROUTE,
+  pathForAppRoute,
+  pushAppRoute,
+  readAppRoute,
+  replaceAppRoute,
+  type AppRoute,
+  type AppSection,
+  type PatientAction,
+} from '@/lib/appNavigation';
+import { usePatientRegistry } from '@/lib/usePatientRegistry';
+import { upsertCareEpisodeSession } from '@/lib/careEpisodeApi';
+import { ensurePatientDemoContext } from '@/lib/ensurePatientDemoContext';
+import { upsertPatientUser } from '@/lib/userRegistryApi';
 import SplashPage from '@/components/SplashPage';
 import BrandBackground from '@/components/BrandBackground';
 import StarField from '@/components/StarField';
@@ -68,6 +93,7 @@ interface UserProfile {
   first_name: string;
   last_name: string;
   email: string;
+  display_code: string | null;
   tenant_uuid: string;
   tenant_name: string;
   tenant_display_code?: string | null;
@@ -119,14 +145,19 @@ function prefetchEntitlementsInBackground(
   }
 }
 
-const TIER1_ACTOR_CLASSES = new Set(['operator', 'clinician', 'patient']);
-
-function jwtTier1Roles(profile: UserProfile | null, decoded: JwtTokenData): string[] {
+function jwtTier1Roles(
+  profile: UserProfile | null,
+  decoded: JwtTokenData,
+  catalogActorClasses?: Set<string>,
+): string[] {
   const raw = profile?.actors?.length ? profile.actors : decoded['neosofia:actors'] ?? [];
+  const allowed =
+    catalogActorClasses ??
+    new Set(['operator', 'study', 'clinician', 'patient']);
   const seen = new Set<string>();
   const tier1: string[] = [];
   for (const role of raw) {
-    if (TIER1_ACTOR_CLASSES.has(role) && !seen.has(role)) {
+    if (allowed.has(role) && !seen.has(role)) {
       seen.add(role);
       tier1.push(role);
     }
@@ -180,88 +211,192 @@ export default function App() {
   const [entitlementsByRole, setEntitlementsByRole] = useState<EntitlementsByRole>({});
   const [activeActor, setActiveActor] = useState<string>('');
   const [activeOrgRole, setActiveOrgRole] = useState<string>('');
-  const [selectedSection, setSelectedSection] = useState<string>('');
-  const [selectedAction, setSelectedAction] = useState<string | null>(null);
-  const [clinicianPatientId, setClinicianPatientId] = useState<string | null>(null);
+  const [roleCatalog, setRoleCatalog] = useState<RoleCatalogSnapshot | null>(null);
+  const initialRoute = readAppRoute();
+  const [selectedSection, setSelectedSection] = useState<AppSection>(initialRoute.section);
+  const [selectedAction, setSelectedAction] = useState<string | null>(initialRoute.action);
+  const [clinicianPatientUuid, setClinicianPatientUuid] = useState<string | null>(initialRoute.clinicianPatientUuid);
+  const [clinicianListFilters, setClinicianListFilters] = useState<ClinicianListFilters>(initialRoute.clinicianListFilters);
+  const [patientContextLoading, setPatientContextLoading] = useState(false);
+  const [patientContextReadyMs, setPatientContextReadyMs] = useState<number | null>(null);
+  const patientContextSyncRef = useRef<string | null>(null);
+
+  const catalogActorClasses = useMemo(
+    () => new Set(Object.keys(roleCatalog?.assigner_actor_prefixes ?? {})),
+    [roleCatalog],
+  );
 
   const sessionActors = useMemo(
-    () => (tokenInfo ? jwtTier1Roles(profile, tokenInfo.decoded) : []),
-    [profile, tokenInfo],
+    () =>
+      tokenInfo
+        ? jwtTier1Roles(
+            profile,
+            tokenInfo.decoded,
+            catalogActorClasses.size > 0 ? catalogActorClasses : undefined,
+          )
+        : [],
+    [profile, tokenInfo, catalogActorClasses],
+  );
+
+  const sessionRoleChoices = useMemo(
+    () => buildSessionRoleChoices(sessionActors, profile?.roles ?? [], roleCatalog),
+    [sessionActors, profile?.roles, roleCatalog],
+  );
+
+  const activeSessionRole = useMemo(
+    () => findSessionRoleChoice(sessionRoleChoices, activeActor, activeOrgRole),
+    [sessionRoleChoices, activeActor, activeOrgRole],
+  );
+
+  useEffect(() => {
+    if (!tokenInfo || sessionRoleChoices.length === 0) {
+      return;
+    }
+    if (activeActor && findSessionRoleChoice(sessionRoleChoices, activeActor, activeOrgRole)) {
+      return;
+    }
+    const choice = resolveStoredSessionRoleChoice(sessionRoleChoices, LOCAL_AUTH_KEY);
+    if (!choice) {
+      return;
+    }
+    setActiveActor(choice.actor);
+    setActiveOrgRole(choice.orgRole);
+    persistSessionSelection({
+      activeActor: choice.actor,
+      activeOrgRole: choice.orgRole,
+      activePersonaId: choice.id,
+    });
+  }, [tokenInfo, activeActor, activeOrgRole, sessionRoleChoices]);
+
+  const sessionTenantUuid =
+    profile?.tenant_uuid ??
+    (typeof tokenInfo?.decoded?.['neosofia:tenant_uuid'] === 'string'
+      ? tokenInfo.decoded['neosofia:tenant_uuid']
+      : null);
+
+  const {
+    patients: registryPatients,
+    registryUsers,
+    loading: patientsLoading,
+    error: patientsError,
+    reload,
+    enrollInPostCare,
+  } = usePatientRegistry(
+    tokenInfo?.raw,
+    activeActor,
+    sessionTenantUuid,
   );
 
   const showPatientMenu = entitlements['ui:menu:patient'];
   const showClinicianMenu = entitlements['ui:menu:clinician'];
+  const showStudyUsersMenu = entitlements['ui:menu:users'];
+  const isDashboard = !selectedSection && !selectedAction;
 
   const placeholderTitle = 'Dashboard';
-  const clinicianPatient = clinicianPatientId
-    ? ACTIVE_PATIENT_SESSIONS.find(p => p.patientId === clinicianPatientId)
+  const clinicianPatient = clinicianPatientUuid
+    ? activePatientByUuid(registryPatients, clinicianPatientUuid)
     : null;
+  const isClinicianPatientList =
+    selectedSection === 'Clinician' && selectedAction === 'Patients' && !clinicianPatientUuid;
   const pageTitle =
     clinicianPatient && selectedSection === 'Clinician'
-      ? `Patients — ${clinicianPatient.displayName}`
+      ? clinicianPatient.displayName
       : (selectedAction ?? (selectedSection || placeholderTitle));
   const pageSubtitle =
     clinicianPatient && selectedSection === 'Clinician'
-      ? `${clinicianPatient.patientId} · ${clinicianPatient.surgery} · Day ${clinicianPatient.daysPostOp} post-op · Session ${clinicianPatient.sessionId}`
+      ? `${clinicianPatient.displayCode} · ${clinicianPatient.surgery} · Day ${clinicianPatient.daysPostOp} post-op · Session ${clinicianPatient.sessionId}`
       : null;
+  const showPageHeading = !isClinicianPatientList;
+
+  const applyRoute = useCallback((route: AppRoute, mode: 'push' | 'replace' = 'push') => {
+    setSelectedSection(route.section);
+    setSelectedAction(route.action);
+    setClinicianPatientUuid(route.clinicianPatientUuid);
+    setClinicianListFilters(route.clinicianListFilters);
+    if (mode === 'replace') {
+      replaceAppRoute(route);
+    } else {
+      pushAppRoute(route);
+    }
+  }, []);
+
+  const syncRouteFromBrowser = useCallback(() => {
+    const route = readAppRoute();
+    setSelectedSection(route.section);
+    setSelectedAction(route.action);
+    setClinicianPatientUuid(route.clinicianPatientUuid);
+    setClinicianListFilters(route.clinicianListFilters);
+  }, []);
+
+  useEffect(() => {
+    const onPopState = () => {
+      syncRouteFromBrowser();
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, [syncRouteFromBrowser]);
+
+  useEffect(() => {
+    replaceAppRoute(readAppRoute());
+  }, []);
 
   const goHome = () => {
-    setSelectedSection('');
-    setSelectedAction(null);
-    setClinicianPatientId(null);
     setTestResult(null);
+    applyRoute(DEFAULT_APP_ROUTE);
   };
 
-  /** Section crumb → role dashboard (home). */
-  const navigateSectionDashboard = () => {
-    goHome();
+  const formatActionLabel = (action: string) => {
+    if (action === 'Chat') return 'Chat';
+    if (action === 'Profile') return 'Profile';
+    return action;
   };
 
-  /** Action crumb → list/main view for that section (e.g. patient list, services). */
-  const navigateActionHome = () => {
-    if (selectedSection === 'Clinician' && selectedAction === 'Patients') {
-      navigateClinicianPatients(null);
-      return;
-    }
-    if (selectedSection === 'Admin' && selectedAction === 'Services') {
-      setSelectedSection('Admin');
-      setSelectedAction('Services');
-      setClinicianPatientId(null);
-      setTestResult(null);
-      return;
-    }
-    if (selectedSection === 'Debug') {
-      openDebugTestPage();
-      return;
-    }
-    goHome();
-  };
+  const adminSectionCrumbIsLink = Boolean(selectedAction);
 
-  const sectionCrumbIsLink = Boolean(selectedAction || clinicianPatientId);
-  const actionCrumbIsLink = Boolean(clinicianPatientId && selectedSection === 'Clinician');
-
-  const navigateClinicianPatients = (patientId: string | null = null) => {
-    setSelectedSection('Clinician');
-    setSelectedAction('Patients');
-    setClinicianPatientId(patientId);
+  const navigateClinicianPatients = (
+    patientUuid: string | null = null,
+    filters: ClinicianListFilters = clinicianListFilters,
+  ) => {
     setTestResult(null);
+    applyRoute({
+      section: 'Clinician',
+      action: 'Patients',
+      clinicianPatientUuid: patientUuid,
+      clinicianListFilters: filters,
+    });
   };
 
-  const navigatePatient = (action: 'Start chat' | 'Review records') => {
-    setSelectedSection('Patient');
-    setSelectedAction(action);
-    setClinicianPatientId(null);
+  const navigatePatient = (action: PatientAction) => {
     setTestResult(null);
+    applyRoute({
+      section: 'Patient',
+      action,
+      clinicianPatientUuid: null,
+      clinicianListFilters: DEFAULT_CLINICIAN_LIST_FILTERS,
+    });
   };
 
-  const handleMenuAction = (section: string, action: string, callback: () => void) => {
-    setSelectedSection(section);
-    setSelectedAction(action);
-    if (section !== 'Clinician') setClinicianPatientId(null);
-    callback();
+  const mainNavLinkClass = (active: boolean) =>
+    cn(
+      'rounded-lg px-3 py-2 text-sm font-semibold tracking-wide uppercase transition-colors',
+      active ? 'text-cyan-300 bg-cyan-500/10' : 'text-slate-400 hover:text-cyan-300 hover:bg-cyan-500/5',
+    );
+
+  const handleMenuAction = (section: AppSection, action: string, routeOverrides?: Partial<AppRoute>) => {
+    setTestResult(null);
+    applyRoute({
+      section,
+      action,
+      clinicianPatientUuid: routeOverrides?.clinicianPatientUuid ?? null,
+      clinicianListFilters: routeOverrides?.clinicianListFilters ?? DEFAULT_CLINICIAN_LIST_FILTERS,
+    });
   };
 
-  const persistSessionSelection = (patch: { activeActor?: string; activeOrgRole?: string }) => {
+  const persistSessionSelection = (patch: {
+    activeActor?: string;
+    activeOrgRole?: string;
+    activePersonaId?: string;
+  }) => {
     const stored = localStorage.getItem(LOCAL_AUTH_KEY);
     if (!stored) return;
 
@@ -270,6 +405,7 @@ export default function App() {
         profile?: UserProfile | null;
         activeActor?: string;
         activeOrgRole?: string;
+        activePersonaId?: string;
       };
       localStorage.setItem(LOCAL_AUTH_KEY, JSON.stringify({ ...parsed, ...patch }));
     } catch {
@@ -277,16 +413,74 @@ export default function App() {
     }
   };
 
-  const handleActiveActorChange = (actor: string) => {
-    setActiveActor(actor);
-    setEntitlements(entitlementsByRole[actor] ?? {});
-    persistSessionSelection({ activeActor: actor });
-    goHome();
-  };
+  const ensurePatientContext = useCallback(
+    async (token: string, actor: string) => {
+      if (actor !== 'patient') {
+        return;
+      }
+      const patientUuid = profile?.uuid || String(tokenInfo?.decoded?.sub ?? '');
+      const tenantUuid =
+        profile?.tenant_uuid ||
+        (typeof tokenInfo?.decoded?.['neosofia:tenant_uuid'] === 'string'
+          ? tokenInfo.decoded['neosofia:tenant_uuid']
+          : '');
+      if (!patientUuid || !tenantUuid) {
+        return;
+      }
 
-  const handleActiveOrgRoleChange = (role: string) => {
-    setActiveOrgRole(role);
-    persistSessionSelection({ activeOrgRole: role });
+      const syncKey = `${patientUuid}:${tenantUuid}:${actor}`;
+      if (patientContextSyncRef.current === syncKey) {
+        return;
+      }
+
+      const displayName =
+        `${profile?.first_name ?? ''} ${profile?.last_name ?? ''}`.trim() ||
+        profile?.email ||
+        'Demo Patient';
+      const displayCode = profile?.display_code?.trim() || `PAT-${patientUuid.slice(-6).toUpperCase()}`;
+
+      const actorCandidates = ['operator', 'clinician', actor].filter(
+        (candidate, index, all) =>
+          sessionActors.includes(candidate) && all.indexOf(candidate) === index,
+      );
+      if (actorCandidates.length === 0) {
+        return;
+      }
+
+      setPatientContextLoading(true);
+      setPatientContextReadyMs(null);
+      const startedAt = performance.now();
+
+      const ok = await ensurePatientDemoContext(token, sessionActors, {
+        patientUuid,
+        tenantUuid,
+        displayName,
+        displayCode,
+      });
+
+      if (ok) {
+        patientContextSyncRef.current = syncKey;
+        setPatientContextReadyMs(Math.round(performance.now() - startedAt));
+      }
+      setPatientContextLoading(false);
+    },
+    [profile, sessionActors, tokenInfo],
+  );
+
+  const handleSessionRoleChange = (choice: SessionRoleChoice) => {
+    setActiveActor(choice.actor);
+    setActiveOrgRole(choice.orgRole);
+    setEntitlements(entitlementsByRole[choice.actor] ?? {});
+    persistSessionSelection({
+      activeActor: choice.actor,
+      activeOrgRole: choice.orgRole,
+      activePersonaId: choice.id,
+    });
+    setTestResult(null);
+    applyRoute(DEFAULT_APP_ROUTE, 'replace');
+    if (tokenInfo?.raw) {
+      void ensurePatientContext(tokenInfo.raw, choice.actor);
+    }
   };
 
   const fetchSessionData = useCallback(async (retries = 2): Promise<string | null> => {
@@ -390,6 +584,7 @@ export default function App() {
               first_name: registry.first_name ?? '',
               last_name: registry.last_name ?? '',
               email: registry.email ?? '',
+              display_code: registry.display_code,
               tenant_uuid: registry.tenant_uuid,
               tenant_name: tenantName,
               roles: orgRoles,
@@ -397,10 +592,25 @@ export default function App() {
             }
           : null;
 
-        const finalActor = resolveActiveActor(sessionActors.length ? sessionActors : jwtActors);
-        const finalOrgRole = resolveActiveOrgRole(orgRoles);
+        const catalog = await fetchRoleCatalog(tokenData.access_token, resolvedActor);
+        setRoleCatalog(catalog);
 
-        startPrefetch(sessionActors.length ? sessionActors : jwtActors);
+        const roleChoices = buildSessionRoleChoices(sessionActors, orgRoles, catalog);
+        const storedChoice = resolveStoredSessionRoleChoice(roleChoices, LOCAL_AUTH_KEY);
+        const finalActor =
+          storedChoice?.actor ??
+          resolveActiveActor(sessionActors.length ? sessionActors : jwtActors);
+        const finalOrgRole =
+          storedChoice?.orgRole ?? resolveActiveOrgRole(orgRoles);
+        const finalPersonaId = storedChoice?.id;
+
+        const actorsToPrefetch = [
+          ...new Set([
+            ...(sessionActors.length ? sessionActors : jwtActors),
+            ...roleChoices.map((choice) => choice.actor),
+          ]),
+        ];
+        startPrefetch(actorsToPrefetch);
         setProfile(newProfile);
         if (finalActor !== resolvedActor) {
           setEntitlements({});
@@ -413,6 +623,7 @@ export default function App() {
             profile: newProfile,
             activeActor: finalActor,
             activeOrgRole: finalOrgRole,
+            activePersonaId: finalPersonaId,
           }),
         );
 
@@ -433,6 +644,7 @@ export default function App() {
     setProfile(null);
     setActiveActor('');
     setActiveOrgRole('');
+    setRoleCatalog(null);
     setEntitlements({});
     setEntitlementsByRole({});
     localStorage.removeItem(LOCAL_AUTH_KEY);
@@ -462,14 +674,22 @@ export default function App() {
 
 
   const openDebugTestPage = () => {
-    setSelectedSection('Debug');
-    setSelectedAction('Test API endpoints');
     setTestResult(null);
+    applyRoute({
+      section: 'Debug',
+      action: 'Test API endpoints',
+      clinicianPatientUuid: null,
+      clinicianListFilters: DEFAULT_CLINICIAN_LIST_FILTERS,
+    });
   };
 
   const runDebugTest = async (label: string, url: string) => {
-    setSelectedSection('Debug');
-    setSelectedAction('Test API endpoints');
+    applyRoute({
+      section: 'Debug',
+      action: 'Test API endpoints',
+      clinicianPatientUuid: null,
+      clinicianListFilters: DEFAULT_CLINICIAN_LIST_FILTERS,
+    });
     const token = tokenInfo?.raw ?? (await fetchSessionData());
     if (!token) return;
     pingApi(url, label, token);
@@ -521,15 +741,21 @@ export default function App() {
 
   useEffect(() => {
     if (!showPatientMenu && selectedSection === 'Patient') {
-      setSelectedSection('');
-      setSelectedAction(null);
-      setClinicianPatientId(null);
+      setTestResult(null);
+      applyRoute(DEFAULT_APP_ROUTE, 'replace');
     }
     if (!showClinicianMenu && selectedSection === 'Clinician') {
-      setSelectedSection('');
-      setSelectedAction(null);
+      setTestResult(null);
+      applyRoute(DEFAULT_APP_ROUTE, 'replace');
     }
-  }, [showPatientMenu, showClinicianMenu, selectedSection]);
+  }, [showPatientMenu, showClinicianMenu, selectedSection, applyRoute]);
+
+  useEffect(() => {
+    if (!tokenInfo?.raw || activeActor !== 'patient') {
+      return;
+    }
+    void ensurePatientContext(tokenInfo.raw, activeActor);
+  }, [activeActor, ensurePatientContext, tokenInfo]);
 
   const handleLogout = async () => {
     // Clear the UI state immediately, then redirect browser to auth-service logout.
@@ -538,11 +764,12 @@ export default function App() {
     setProfile(null);
     setActiveActor('');
     setActiveOrgRole('');
+    setRoleCatalog(null);
     setEntitlements({});
     setEntitlementsByRole({});
     setSelectedSection('');
     setSelectedAction(null);
-    setClinicianPatientId(null);
+    setClinicianPatientUuid(null);
     setTestResult(null);
     localStorage.removeItem(LOCAL_AUTH_KEY);
     localStorage.setItem(LOGOUT_FLAG, '1');
@@ -596,7 +823,7 @@ export default function App() {
 
   const fillViewport =
     (selectedSection === 'Patient' &&
-      (selectedAction === 'Start chat' || selectedAction === 'Review records')) ||
+      (selectedAction === 'Chat' || selectedAction === 'Review records')) ||
     (selectedSection === 'Clinician' && selectedAction === 'Patients');
 
   return (
@@ -647,42 +874,82 @@ export default function App() {
                     </div>
                   </NavigationMenuContent>
                 </NavigationMenuItem>)}
+                {showStudyUsersMenu && (
+                  <NavigationMenuItem>
+                    <Button
+                      onClick={() => handleMenuAction('Admin', 'Users')}
+                      variant="ghost"
+                      className={mainNavLinkClass(
+                        selectedSection === 'Admin' && selectedAction === 'Users',
+                      )}
+                    >
+                      Users
+                    </Button>
+                  </NavigationMenuItem>
+                )}
                 {entitlements['ui:menu:operator'] && (<NavigationMenuItem>
                   <NavigationMenuTrigger className="bg-transparent text-slate-400 hover:text-cyan-300 data-open:text-cyan-300 text-sm font-semibold tracking-wide uppercase">
                     Admin
                   </NavigationMenuTrigger>
                   <NavigationMenuContent className="min-w-48 rounded-2xl p-2 shadow-2xl" style={{ background: '#05050f', border: '1px solid rgba(34,211,238,0.18)', boxShadow: '0 0 40px rgba(34,211,238,0.08)' }}>
                     <div className="space-y-1">
-                      <Button onClick={() => handleMenuAction('Admin', 'Services', () => {})} variant="ghost" className="w-full justify-start rounded-xl px-3 py-2 text-sm text-slate-400 hover:bg-cyan-500/10 hover:text-cyan-300">Services</Button>
-                      <Button onClick={() => handleMenuAction('Admin', 'Users', () => {})} variant="ghost" className="w-full justify-start rounded-xl px-3 py-2 text-sm text-slate-400 hover:bg-cyan-500/10 hover:text-cyan-300">Users</Button>
+                      <Button onClick={() => handleMenuAction('Admin', 'Services')} variant="ghost" className="w-full justify-start rounded-xl px-3 py-2 text-sm text-slate-400 hover:bg-cyan-500/10 hover:text-cyan-300">Services</Button>
+                      <Button onClick={() => handleMenuAction('Admin', 'Users')} variant="ghost" className="w-full justify-start rounded-xl px-3 py-2 text-sm text-slate-400 hover:bg-cyan-500/10 hover:text-cyan-300">Users</Button>
                     </div>
                   </NavigationMenuContent>
                 </NavigationMenuItem>)}
                 {showPatientMenu && (
-                <NavigationMenuItem>
-                  <NavigationMenuTrigger className="bg-transparent text-slate-400 hover:text-cyan-300 data-open:text-cyan-300 text-sm font-semibold tracking-wide uppercase">
-                    Patient
-                  </NavigationMenuTrigger>
-                  <NavigationMenuContent className="min-w-65 rounded-2xl p-2 shadow-2xl" style={{ background: '#05050f', border: '1px solid rgba(34,211,238,0.18)', boxShadow: '0 0 40px rgba(34,211,238,0.08)' }}>
-                    <div className="space-y-1">
-                      <p className="text-xs font-semibold uppercase tracking-widest px-3 py-2" style={{ color: 'rgba(34,211,238,0.5)' }}>Patient actions</p>
-                      <Button onClick={() => handleMenuAction('Patient', 'Start chat', () => setTestResult(null))} variant="ghost" className="w-full justify-start rounded-xl px-3 py-2 text-sm text-slate-400 hover:bg-cyan-500/10 hover:text-cyan-300">Start chat</Button>
-                      <Button onClick={() => handleMenuAction('Patient', 'Review records', () => setTestResult(null))} variant="ghost" className="w-full justify-start rounded-xl px-3 py-2 text-sm text-slate-400 hover:bg-cyan-500/10 hover:text-cyan-300">Review records</Button>
-                    </div>
-                  </NavigationMenuContent>
-                </NavigationMenuItem>
+                  <>
+                    <NavigationMenuItem>
+                      <Button
+                        onClick={goHome}
+                        variant="ghost"
+                        className={mainNavLinkClass(isDashboard)}
+                      >
+                        Dashboard
+                      </Button>
+                    </NavigationMenuItem>
+                    <NavigationMenuItem>
+                      <Button
+                        onClick={() => navigatePatient('Chat')}
+                        variant="ghost"
+                        className={mainNavLinkClass(selectedSection === 'Patient' && selectedAction === 'Chat')}
+                      >
+                        Chat
+                      </Button>
+                    </NavigationMenuItem>
+                    <NavigationMenuItem>
+                      <Button
+                        onClick={() => navigatePatient('Profile')}
+                        variant="ghost"
+                        className={mainNavLinkClass(selectedSection === 'Patient' && selectedAction === 'Profile')}
+                      >
+                        Profile
+                      </Button>
+                    </NavigationMenuItem>
+                  </>
                 )}
                 {showClinicianMenu && (
-                <NavigationMenuItem>
-                  <NavigationMenuTrigger className="bg-transparent text-slate-400 hover:text-cyan-300 data-open:text-cyan-300 text-sm font-semibold tracking-wide uppercase">
-                    Clinician
-                  </NavigationMenuTrigger>
-                  <NavigationMenuContent className="min-w-65 rounded-2xl p-2 shadow-2xl" style={{ background: '#05050f', border: '1px solid rgba(34,211,238,0.18)', boxShadow: '0 0 40px rgba(34,211,238,0.08)' }}>
-                    <div className="space-y-1">
-                      <Button onClick={() => handleMenuAction('Clinician', 'Patients', () => { setTestResult(null); setClinicianPatientId(null); })} variant="ghost" className="w-full justify-start rounded-xl px-3 py-2 text-sm text-slate-400 hover:bg-cyan-500/10 hover:text-cyan-300">Patients</Button>
-                    </div>
-                  </NavigationMenuContent>
-                </NavigationMenuItem>
+                  <>
+                    <NavigationMenuItem>
+                      <Button
+                        onClick={goHome}
+                        variant="ghost"
+                        className={mainNavLinkClass(isDashboard)}
+                      >
+                        Dashboard
+                      </Button>
+                    </NavigationMenuItem>
+                    <NavigationMenuItem>
+                      <Button
+                        onClick={() => handleMenuAction('Clinician', 'Patients', { clinicianPatientUuid: null, clinicianListFilters: DEFAULT_CLINICIAN_LIST_FILTERS })}
+                        variant="ghost"
+                        className={mainNavLinkClass(selectedSection === 'Clinician' && selectedAction === 'Patients')}
+                      >
+                        Patients
+                      </Button>
+                    </NavigationMenuItem>
+                  </>
                 )}
               </NavigationMenuList>
             </NavigationMenu>
@@ -704,7 +971,10 @@ export default function App() {
                         {profile.first_name} {profile.last_name}
                       </span>
                       <span className="text-[11px] leading-none" style={{ color: 'rgba(34,211,238,0.6)' }}>
-                        {profile.tenant_name}
+                        {activeSessionRole?.label ??
+                          (activeActor
+                            ? activeActor.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+                            : '')}
                       </span>
                     </div>
                 </DropdownMenuTrigger>
@@ -714,16 +984,13 @@ export default function App() {
                     <DropdownMenuLabel className="font-normal flex flex-col space-y-1 p-2">
                       <span className="text-sm font-semibold leading-none text-white">{profile.first_name} {profile.last_name}</span>
                       <span className="text-xs text-slate-400 leading-none mt-0.5">{profile.email}</span>
-                      <span className="text-xs text-slate-400 leading-none mt-1">
-                        Active actor:{' '}
-                        <span className="text-white capitalize">
-                          {activeActor ? activeActor.replace(/-/g, ' ') : 'None'}
-                        </span>
-                      </span>
-                      {activeOrgRole ? (
+                      {(activeSessionRole ?? activeActor) ? (
                         <span className="text-xs text-slate-400 leading-none mt-1">
-                          Active role:{' '}
-                          <span className="text-white">{formatRoleLabel(activeOrgRole)}</span>
+                          Role:{' '}
+                          <span className="text-white">
+                            {activeSessionRole?.label ??
+                              activeActor.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
+                          </span>
                         </span>
                       ) : null}
                     </DropdownMenuLabel>
@@ -742,27 +1009,27 @@ export default function App() {
 
                   <DropdownMenuSeparator style={{ background: 'rgba(34,211,238,0.12)' }} />
 
-                  {sessionActors.length > 1 ? (
+                  {sessionRoleChoices.length > 0 ? (
                     <>
                       <DropdownMenuGroup>
                         <DropdownMenuLabel
                           className="text-xs font-semibold uppercase tracking-widest"
                           style={{ color: 'rgba(34,211,238,0.45)' }}
                         >
-                          Choose active actor
+                          Choose your role
                         </DropdownMenuLabel>
                         <div className="space-y-1 px-1.5 pb-1">
-                          {sessionActors.map((actor) => {
-                            const selected = actor === activeActor;
+                          {sessionRoleChoices.map((choice) => {
+                            const selected = choice.id === activeSessionRole?.id;
                             return (
                               <DropdownMenuItem
-                                key={actor}
-                                onClick={() => handleActiveActorChange(actor)}
+                                key={choice.id}
+                                onClick={() => handleSessionRoleChange(choice)}
                                 className={`flex items-center justify-between cursor-pointer rounded-lg px-2 py-2 text-sm hover:bg-cyan-500/10 hover:text-cyan-300 ${selected ? 'text-cyan-300' : 'text-slate-400'}`}
                               >
                                 <span className="flex items-center gap-2">
                                   <Shield className="h-4 w-4" style={{ color: selected ? '#22d3ee' : undefined }} />
-                                  <span className="capitalize">{actor.replace(/-/g, ' ')}</span>
+                                  <span>{choice.label}</span>
                                 </span>
                                 {selected ? (
                                   <Badge
@@ -781,47 +1048,6 @@ export default function App() {
                       <DropdownMenuSeparator style={{ background: 'rgba(34,211,238,0.12)' }} />
                     </>
                   ) : null}
-
-                  <DropdownMenuGroup>
-                    <DropdownMenuLabel
-                      className="text-xs font-semibold uppercase tracking-widest"
-                      style={{ color: 'rgba(34,211,238,0.45)' }}
-                    >
-                      Organization roles
-                    </DropdownMenuLabel>
-                    <div className="space-y-1 px-1.5 pb-1">
-                      {profile.roles.length === 0 ? (
-                        <p className="px-2 py-2 text-xs text-slate-500">No roles assigned in the user registry.</p>
-                      ) : (
-                        profile.roles.map((role) => {
-                          const selected = role === activeOrgRole;
-                          return (
-                            <DropdownMenuItem
-                              key={role}
-                              onClick={() => handleActiveOrgRoleChange(role)}
-                              className={`flex items-center justify-between cursor-pointer rounded-lg px-2 py-2 text-sm hover:bg-cyan-500/10 hover:text-cyan-300 ${selected ? 'text-cyan-300' : 'text-slate-400'}`}
-                            >
-                              <span className="flex items-center gap-2">
-                                <Shield className="h-4 w-4" style={{ color: selected ? '#22d3ee' : undefined }} />
-                                <span>{formatRoleLabel(role)}</span>
-                              </span>
-                              {selected ? (
-                                <Badge
-                                  variant="outline"
-                                  className="text-[10px]"
-                                  style={{ borderColor: 'rgba(34,211,238,0.4)', color: '#22d3ee' }}
-                                >
-                                  Active
-                                </Badge>
-                              ) : null}
-                            </DropdownMenuItem>
-                          );
-                        })
-                      )}
-                    </div>
-                  </DropdownMenuGroup>
-
-                  <DropdownMenuSeparator style={{ background: 'rgba(34,211,238,0.12)' }} />
                   <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-red-400 hover:text-red-300 hover:bg-red-950/30 rounded-lg">
                     <LogOut className="mr-2 h-4 w-4" />
                     <span>Log out</span>
@@ -855,79 +1081,154 @@ export default function App() {
         )}
       >
         <div className={cn('shrink-0', fillViewport ? 'mb-4' : 'mb-6')}>
-          {Boolean(selectedSection || selectedAction) && (
-            <Breadcrumb className="pt-1 pb-2 mb-2">
-              <BreadcrumbList>
+          <Breadcrumb className="pt-1 pb-2 mb-2">
+            <BreadcrumbList>
+              {isDashboard ? (
                 <BreadcrumbItem>
-                  <BreadcrumbLink href="/" onClick={e => { e.preventDefault(); goHome(); }} className="text-slate-500 hover:text-cyan-400">Home</BreadcrumbLink>
+                  <BreadcrumbPage>Dashboard</BreadcrumbPage>
                 </BreadcrumbItem>
-                {selectedSection && (
-                  <>
-                    <BreadcrumbSeparator />
-                    <BreadcrumbItem>
-                      {sectionCrumbIsLink ? (
-                        <BreadcrumbLink
-                          href="/"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            navigateSectionDashboard();
-                          }}
-                          className="text-slate-500 hover:text-cyan-400"
-                        >
-                          {selectedSection}
-                        </BreadcrumbLink>
-                      ) : (
-                        <BreadcrumbPage>{selectedSection}</BreadcrumbPage>
-                      )}
-                    </BreadcrumbItem>
-                  </>
-                )}
-                {selectedAction && (
-                  <>
-                    <BreadcrumbSeparator />
-                    <BreadcrumbItem>
-                      {actionCrumbIsLink ? (
-                        <BreadcrumbLink
-                          href="/"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            navigateActionHome();
-                          }}
-                          className="text-slate-500 hover:text-cyan-400"
-                        >
-                          {selectedAction}
-                        </BreadcrumbLink>
-                      ) : (
+              ) : (
+                <>
+                  <BreadcrumbItem>
+                    <BreadcrumbLink
+                      href={pathForAppRoute(DEFAULT_APP_ROUTE)}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        goHome();
+                      }}
+                      className="text-slate-500 hover:text-cyan-400"
+                    >
+                      Dashboard
+                    </BreadcrumbLink>
+                  </BreadcrumbItem>
+                  {selectedSection === 'Patient' && selectedAction && (
+                    <>
+                      <BreadcrumbSeparator />
+                      <BreadcrumbItem>
+                        <BreadcrumbPage>{formatActionLabel(selectedAction)}</BreadcrumbPage>
+                      </BreadcrumbItem>
+                    </>
+                  )}
+                  {selectedSection === 'Clinician' && selectedAction === 'Patients' && (
+                    <>
+                      <BreadcrumbSeparator />
+                      <BreadcrumbItem>
+                        {clinicianPatientUuid ? (
+                          <BreadcrumbLink
+                            href={pathForAppRoute({
+                              section: 'Clinician',
+                              action: 'Patients',
+                              clinicianPatientUuid: null,
+                              clinicianListFilters,
+                            })}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              navigateClinicianPatients(null, clinicianListFilters);
+                            }}
+                            className="text-slate-500 hover:text-cyan-400"
+                          >
+                            Patients
+                          </BreadcrumbLink>
+                        ) : (
+                          <BreadcrumbPage>Patients</BreadcrumbPage>
+                        )}
+                      </BreadcrumbItem>
+                    </>
+                  )}
+                  {clinicianPatient && selectedSection === 'Clinician' && (
+                    <>
+                      <BreadcrumbSeparator />
+                      <BreadcrumbItem>
+                        <BreadcrumbPage className="font-mono">{clinicianPatient.displayCode}</BreadcrumbPage>
+                      </BreadcrumbItem>
+                    </>
+                  )}
+                  {selectedSection === 'Admin' && selectedAction && (
+                    <>
+                      <BreadcrumbSeparator />
+                      <BreadcrumbItem>
+                        {adminSectionCrumbIsLink ? (
+                          <BreadcrumbLink
+                            href="/"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              goHome();
+                            }}
+                            className="text-slate-500 hover:text-cyan-400"
+                          >
+                            Admin
+                          </BreadcrumbLink>
+                        ) : (
+                          <BreadcrumbPage>Admin</BreadcrumbPage>
+                        )}
+                      </BreadcrumbItem>
+                      <BreadcrumbSeparator />
+                      <BreadcrumbItem>
                         <BreadcrumbPage>{selectedAction}</BreadcrumbPage>
+                      </BreadcrumbItem>
+                    </>
+                  )}
+                  {selectedSection === 'Debug' && (
+                    <>
+                      <BreadcrumbSeparator />
+                      <BreadcrumbItem>
+                        {selectedAction ? (
+                          <BreadcrumbLink
+                            href="/"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              openDebugTestPage();
+                            }}
+                            className="text-slate-500 hover:text-cyan-400"
+                          >
+                            Debug
+                          </BreadcrumbLink>
+                        ) : (
+                          <BreadcrumbPage>Debug</BreadcrumbPage>
+                        )}
+                      </BreadcrumbItem>
+                      {selectedAction && (
+                        <>
+                          <BreadcrumbSeparator />
+                          <BreadcrumbItem>
+                            <BreadcrumbPage>{selectedAction}</BreadcrumbPage>
+                          </BreadcrumbItem>
+                        </>
                       )}
-                    </BreadcrumbItem>
-                  </>
-                )}
-                {clinicianPatientId && selectedSection === 'Clinician' && (
-                  <>
-                    <BreadcrumbSeparator />
-                    <BreadcrumbItem>
-                      <BreadcrumbPage className="font-mono">{clinicianPatientId}</BreadcrumbPage>
-                    </BreadcrumbItem>
-                  </>
-                )}
-              </BreadcrumbList>
-            </Breadcrumb>
-          )}
+                    </>
+                  )}
+                </>
+              )}
+            </BreadcrumbList>
+          </Breadcrumb>
 
-          <h1
-            className="text-3xl font-black uppercase tracking-wide mb-2"
-            style={{
-              fontFamily: "'Orbitron', monospace",
-              background: 'linear-gradient(135deg, #22d3ee 10%, #818cf8 55%, #a855f7 100%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text',
-              filter: 'drop-shadow(0 0 20px rgba(34,211,238,0.3))',
-            }}
-          >{pageTitle}</h1>
-          {pageSubtitle && (
+          {showPageHeading ? (
+            <h1
+              className="text-3xl font-black uppercase tracking-wide mb-2"
+              style={{
+                fontFamily: "'Orbitron', monospace",
+                background: 'linear-gradient(135deg, #22d3ee 10%, #818cf8 55%, #a855f7 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+                filter: 'drop-shadow(0 0 20px rgba(34,211,238,0.3))',
+              }}
+            >
+              {pageTitle}
+            </h1>
+          ) : null}
+          {showPageHeading && pageSubtitle ? (
             <p className="text-sm text-slate-400 mt-1 font-mono">{pageSubtitle}</p>
+          ) : null}
+          {patientContextLoading && (
+            <p className="text-xs text-cyan-300 mt-2">
+              Setting up patient context...
+            </p>
+          )}
+          {!patientContextLoading && patientContextReadyMs !== null && activeActor === 'patient' && (
+            <p className="text-xs text-slate-500 mt-2">
+              Patient context ready in {patientContextReadyMs} ms
+            </p>
           )}
         </div>
 
@@ -948,7 +1249,13 @@ export default function App() {
                 <UserManagement
                   token={tokenInfo.raw}
                   activeActor={activeActor}
+                  activeOrgRole={activeOrgRole}
                   sessionActors={sessionActors}
+                  roleCatalog={roleCatalog}
+                  profileUuid={profile?.uuid}
+                  onSelfRolesUpdated={() => {
+                    void fetchSessionData();
+                  }}
                   sessionTenantUuid={
                     profile?.tenant_uuid ??
                     (typeof tokenInfo.decoded['neosofia:tenant_uuid'] === 'string'
@@ -957,18 +1264,71 @@ export default function App() {
                   }
                 />
               </div>
-            ) : selectedSection === 'Patient' && selectedAction === 'Start chat' ? (
+            ) : selectedSection === 'Patient' && selectedAction === 'Chat' ? (
               <PatientChat
                 token={tokenInfo.raw}
                 activeActor={activeActor}
                 patientName={profile ? `${profile.first_name} ${profile.last_name}` : undefined}
+                patientUuid={profile?.uuid}
+                careEpisodeUuid={profile?.uuid}
               />
+            ) : selectedSection === 'Patient' && selectedAction === 'Profile' && profile ? (
+              <div className="col-span-2">
+                <PatientProfile
+                  firstName={profile.first_name}
+                  lastName={profile.last_name}
+                  email={profile.email}
+                  tenantName={profile.tenant_name}
+                  displayCode={profile.display_code}
+                  token={tokenInfo.raw}
+                  activeActor={activeActor}
+                  patientUuid={profile.uuid}
+                  onViewAllRecords={() => navigatePatient('Review records')}
+                />
+              </div>
             ) : selectedSection === 'Patient' && selectedAction === 'Review records' ? (
-              <PatientRecords />
+              <PatientRecords token={tokenInfo.raw} activeActor={activeActor} patientUuid={profile?.uuid} />
             ) : selectedSection === 'Clinician' && selectedAction === 'Patients' ? (
               <ClinicianActivePatients
-                selectedPatientId={clinicianPatientId}
-                onSelectPatient={setClinicianPatientId}
+                patients={registryPatients}
+                registryUsers={registryUsers}
+                token={tokenInfo.raw}
+                activeActor={activeActor}
+                selfUuid={profile?.uuid}
+                loading={patientsLoading}
+                error={patientsError}
+                selectedPatientUuid={clinicianPatientUuid}
+                listFilters={clinicianListFilters}
+                onListFiltersChange={(filters) => navigateClinicianPatients(null, filters)}
+                onSelectPatient={(patientUuid) => navigateClinicianPatients(patientUuid, clinicianListFilters)}
+                tenantUuid={sessionTenantUuid}
+                onEnrollInPostCare={async (input) => {
+                  await enrollInPostCare(input);
+                }}
+                onEditEnrollment={async (input: EditEnrollmentInput) => {
+                  if (!sessionTenantUuid) {
+                    throw new Error('Missing tenant context for enrollment edit.');
+                  }
+                  await upsertPatientUser(tokenInfo.raw, activeActor, {
+                    uuid: input.patient_uuid,
+                    tenant_uuid: sessionTenantUuid,
+                    display_code: input.display_code,
+                    first_name: input.first_name,
+                    last_name: input.last_name,
+                    email: input.email,
+                  });
+                  await upsertCareEpisodeSession(tokenInfo.raw, activeActor, {
+                    patient_uuid: input.patient_uuid,
+                    tenant_uuid: sessionTenantUuid,
+                    display_code: input.display_code,
+                    display_name: `${input.first_name} ${input.last_name}`.trim(),
+                    surgery: input.surgery,
+                    procedure_date: input.procedure_date,
+                    session_id: input.session_id,
+                    featured: input.featured ?? false,
+                  });
+                  reload();
+                }}
               />
             ) : selectedSection === 'Debug' ? (
               <div className="col-span-2">
@@ -1018,8 +1378,11 @@ export default function App() {
                 <Dashboard
                   activeActor={activeActor}
                   firstName={profile?.first_name}
-                  onPatientStartChat={() => navigatePatient('Start chat')}
-                  onPatientReviewRecords={() => navigatePatient('Review records')}
+                  patientToken={tokenInfo.raw}
+                  patientUuid={profile?.uuid}
+                  clinicianPatients={registryPatients}
+                  clinicianError={patientsError}
+                  onPatientGoToProfile={() => navigatePatient('Profile')}
                   onClinicianOpenPatients={navigateClinicianPatients}
                 />
               </div>

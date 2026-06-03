@@ -23,6 +23,8 @@ interface Props {
   token: string;
   activeActor: string;
   patientName?: string;
+  patientUuid?: string;
+  careEpisodeUuid?: string;
 }
 
 const WELCOME: ChatMessage = {
@@ -50,7 +52,7 @@ function stubReply(userText: string, patientName?: string): string {
     return 'Your next confirmed appointment is Jun 27 at 10:30 AM with Dr. Sarah Chen (Primary Care). You also have a pending cardiology visit on Jul 3.';
   }
   if (/\b(lab|result|record)\b/.test(q)) {
-    return 'Your most recent record is a Complete Metabolic Panel from Jun 22, 2026. Open **Review records** from the Patient menu for the full searchable list.';
+    return 'Your most recent record is a Complete Metabolic Panel from Jun 22, 2026. Open **Health records** on your dashboard for the full searchable list.';
   }
   return `Thanks for your message. I've noted: "${userText.slice(0, 120)}${userText.length > 120 ? '…' : ''}". In production this will route to the platform AI agent with your care-episode context.`;
 }
@@ -66,7 +68,7 @@ async function fetchAssistantReply(
     return stubReply(lastUser?.content ?? '', undefined);
   }
 
-  const res = await fetch(`${CHAT_API}/api/v1/chat/completions`, {
+  const res = await fetch(`${CHAT_API}/api/v1/messages/completions`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -86,7 +88,7 @@ async function fetchAssistantReply(
   return data.content ?? data.message ?? 'No response from assistant.';
 }
 
-export default function PatientChat({ token, activeActor, patientName }: Props) {
+export default function PatientChat({ token, activeActor, patientName, patientUuid, careEpisodeUuid }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([WELCOME]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
@@ -111,6 +113,23 @@ export default function PatientChat({ token, activeActor, patientName }: Props) 
     setMessages(prev => [...prev, userMsg]);
 
     try {
+      if (CHAT_API && patientUuid && careEpisodeUuid) {
+        await fetch(`${CHAT_API}/api/v1/messages`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+            'X-Active-Actor': activeActor,
+          },
+          body: JSON.stringify({
+            patient_uuid: patientUuid,
+            care_episode_uuid: careEpisodeUuid,
+            sender_type: 'patient',
+            sender_uuid: patientUuid,
+            content: text,
+          }),
+        });
+      }
       let reply: string;
       if (CHAT_API) {
         reply = await fetchAssistantReply([...messages, userMsg], token, activeActor);
@@ -128,6 +147,22 @@ export default function PatientChat({ token, activeActor, patientName }: Props) 
           createdAt: new Date(),
         },
       ]);
+      if (CHAT_API && patientUuid && careEpisodeUuid) {
+        await fetch(`${CHAT_API}/api/v1/messages`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+            'X-Active-Actor': activeActor,
+          },
+          body: JSON.stringify({
+            patient_uuid: patientUuid,
+            care_episode_uuid: careEpisodeUuid,
+            sender_type: 'ai_agent',
+            content: reply,
+          }),
+        });
+      }
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Failed to get a response';
       setError(msg);

@@ -1,0 +1,190 @@
+import {
+  DEFAULT_CLINICIAN_LIST_FILTERS,
+  type ClinicianActivityFilter,
+  type ClinicianListFilters,
+  type ClinicianRiskFilter,
+} from '@/lib/demoPatients';
+
+export type AppSection = '' | 'Patient' | 'Clinician' | 'Admin' | 'Debug';
+
+export type PatientAction = 'Chat' | 'Profile' | 'Review records';
+
+export interface AppRoute {
+  section: AppSection;
+  action: string | null;
+  clinicianPatientUuid: string | null;
+  clinicianListFilters: ClinicianListFilters;
+}
+
+const PATIENT_ACTION_SLUG: Record<PatientAction, string> = {
+  Chat: 'chat',
+  Profile: 'profile',
+  'Review records': 'records',
+};
+
+const PATIENT_SLUG_ACTION: Record<string, PatientAction> = {
+  chat: 'Chat',
+  profile: 'Profile',
+  records: 'Review records',
+};
+
+const RISK_FILTERS = new Set<ClinicianRiskFilter>(['all', 'high-risk', 'medium-risk']);
+const ACTIVITY_FILTERS = new Set<ClinicianActivityFilter>(['all', 'active-30m', 'chats-today', 'this-week']);
+
+/** Legacy single `filter` query values from dashboard deep links. */
+const LEGACY_FILTER_MAP: Record<string, ClinicianListFilters> = {
+  'high-risk': { risk: 'high-risk', activity: 'all' },
+  'pending-reviews': { risk: 'medium-risk', activity: 'all' },
+  'active-sessions': { risk: 'all', activity: 'chats-today' },
+  'active-patients': { risk: 'all', activity: 'active-30m' },
+};
+
+export const DEFAULT_APP_ROUTE: AppRoute = {
+  section: '',
+  action: null,
+  clinicianPatientUuid: null,
+  clinicianListFilters: DEFAULT_CLINICIAN_LIST_FILTERS,
+};
+
+function currentPath(): string {
+  return `${window.location.pathname}${window.location.search}`;
+}
+
+function parseClinicianListFilters(search: URLSearchParams): ClinicianListFilters {
+  const riskParam = search.get('risk');
+  const activityParam = search.get('activity');
+  const legacyParam = search.get('filter');
+
+  if (legacyParam && LEGACY_FILTER_MAP[legacyParam] && !riskParam && !activityParam) {
+    return LEGACY_FILTER_MAP[legacyParam];
+  }
+
+  return {
+    risk: RISK_FILTERS.has(riskParam as ClinicianRiskFilter)
+      ? (riskParam as ClinicianRiskFilter)
+      : 'all',
+    activity: ACTIVITY_FILTERS.has(activityParam as ClinicianActivityFilter)
+      ? (activityParam as ClinicianActivityFilter)
+      : 'all',
+  };
+}
+
+function clinicianFilterQuery(filters: ClinicianListFilters): string {
+  const params = new URLSearchParams();
+  if (filters.risk !== 'all') {
+    params.set('risk', filters.risk);
+  }
+  if (filters.activity !== 'all') {
+    params.set('activity', filters.activity);
+  }
+  return params.toString();
+}
+
+export function pathForAppRoute(route: AppRoute): string {
+  if (!route.section) {
+    return '/';
+  }
+
+  if (route.section === 'Patient' && route.action) {
+    const slug = PATIENT_ACTION_SLUG[route.action as PatientAction];
+    if (slug) {
+      return `/patient/${slug}`;
+    }
+  }
+
+  if (route.section === 'Clinician' && route.action === 'Patients') {
+    const query = clinicianFilterQuery(route.clinicianListFilters);
+    const suffix = query ? `?${query}` : '';
+    if (route.clinicianPatientUuid) {
+      return `/clinician/patients/${route.clinicianPatientUuid}${suffix}`;
+    }
+    return `/clinician/patients${suffix}`;
+  }
+
+  if (route.section === 'Admin' && route.action === 'Services') {
+    return '/admin/services';
+  }
+  if (route.section === 'Admin' && route.action === 'Users') {
+    return '/admin/users';
+  }
+
+  if (route.section === 'Debug' && route.action === 'Test API endpoints') {
+    return '/debug/api';
+  }
+
+  return '/';
+}
+
+export function readAppRoute(location: Location = window.location): AppRoute {
+  const segments = location.pathname.split('/').filter(Boolean);
+  const search = new URLSearchParams(location.search);
+  const clinicianListFilters = parseClinicianListFilters(search);
+
+  if (segments.length === 0) {
+    return { ...DEFAULT_APP_ROUTE };
+  }
+
+  if (segments[0] === 'patient' && segments[1]) {
+    const action = PATIENT_SLUG_ACTION[segments[1]];
+    if (action) {
+      return {
+        section: 'Patient',
+        action,
+        clinicianPatientUuid: null,
+        clinicianListFilters: DEFAULT_CLINICIAN_LIST_FILTERS,
+      };
+    }
+  }
+
+  if (segments[0] === 'clinician' && segments[1] === 'patients') {
+    const patientUuid = segments[2] ?? null;
+    return {
+      section: 'Clinician',
+      action: 'Patients',
+      clinicianPatientUuid: patientUuid,
+      clinicianListFilters,
+    };
+  }
+
+  if (segments[0] === 'admin' && segments[1] === 'services') {
+    return {
+      section: 'Admin',
+      action: 'Services',
+      clinicianPatientUuid: null,
+      clinicianListFilters: DEFAULT_CLINICIAN_LIST_FILTERS,
+    };
+  }
+  if (segments[0] === 'admin' && segments[1] === 'users') {
+    return {
+      section: 'Admin',
+      action: 'Users',
+      clinicianPatientUuid: null,
+      clinicianListFilters: DEFAULT_CLINICIAN_LIST_FILTERS,
+    };
+  }
+
+  if (segments[0] === 'debug' && segments[1] === 'api') {
+    return {
+      section: 'Debug',
+      action: 'Test API endpoints',
+      clinicianPatientUuid: null,
+      clinicianListFilters: DEFAULT_CLINICIAN_LIST_FILTERS,
+    };
+  }
+
+  return { ...DEFAULT_APP_ROUTE };
+}
+
+export function pushAppRoute(route: AppRoute): void {
+  const nextPath = pathForAppRoute(route);
+  if (nextPath !== currentPath()) {
+    window.history.pushState(null, '', nextPath);
+  }
+}
+
+export function replaceAppRoute(route: AppRoute): void {
+  const nextPath = pathForAppRoute(route);
+  if (nextPath !== currentPath()) {
+    window.history.replaceState(null, '', nextPath);
+  }
+}

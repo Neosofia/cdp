@@ -69,9 +69,10 @@ That document explains why local JWKS (`http://authentication:8014/...` in `.cap
 | Component | Notes |
 |-----------|-------|
 | **UI policy bundle** | `cdp-ui-policies` GHCR image pinned in capabilities Dockerfile |
-| **UI build args** | `VITE_CAPABILITIES_API_URL`, `VITE_AUTH_API_URL`, `VITE_USER_API_URL` — public HTTPS URLs |
+| **UI build args** | `VITE_AUTH_BASE_URL`, `VITE_AUTH_API_URL`, `VITE_CAPABILITIES_API_URL`, `VITE_USER_API_URL`, `VITE_CHAT_API_URL`, `VITE_CARE_EPISODE_API_URL` — public HTTPS URLs (no trailing slash) |
 | **Capabilities CORS** | `FRONTEND_URL` = public CDP UI origin |
-| **Authentication** | `JWT_WEB_AUDIENCE` must include `capabilities` and `user`; explicit `PORT` for private JWKS refs |
+| **Authentication** | `JWT_WEB_AUDIENCE` must include `capabilities`, `user`, `chat`, and `care-episode`; explicit `PORT` for private JWKS refs |
+| **Chat / care-episode CORS** | Each service `FRONTEND_URL` = same public CDP UI origin |
 
 See the Railway worked example in the infrastructure guide for `${{cdp.RAILWAY_PUBLIC_DOMAIN}}` and `${{authentication.RAILWAY_PRIVATE_DOMAIN}}` patterns.
 
