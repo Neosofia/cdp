@@ -126,8 +126,8 @@ export function mergePatientSession(user: RegistryPatientUser): ActivePatientSes
 }
 
 /** Map care-episode API risk_level (lowercase) to roster display level. */
-export function riskLevelFromApi(value: string): PatientRiskLevel {
-  const level = value.trim().toLowerCase();
+export function riskLevelFromApi(value: string | null | undefined): PatientRiskLevel {
+  const level = (value ?? 'low').trim().toLowerCase();
   if (level === 'high') return 'High';
   if (level === 'medium') return 'Medium';
   return 'Low';

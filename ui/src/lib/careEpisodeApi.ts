@@ -20,7 +20,7 @@ export interface CareEpisodeSession {
   procedure_date: string;
   days_post_op: number;
   session_id: string;
-  risk_level: string;
+  risk_level: string | null;
 }
 
 export interface UpsertCareEpisodeSessionInput {

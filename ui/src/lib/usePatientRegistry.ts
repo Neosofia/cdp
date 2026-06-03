@@ -149,8 +149,13 @@ export function usePatientRegistry(
 
         const merged = mergePatientSessions(scoped);
         let episodeSessions = await listCareEpisodeSessions(token, activeActor, tenantUuid);
-        if (tenantUuid && episodeSessions.length === 0) {
-          // Fallback for stale/misaligned seeded tenant IDs so clinicians don't see an empty dashboard.
+        const rosterUuids = new Set(scoped.map(user => user.uuid));
+        const coveredByTenantFilter = new Set(episodeSessions.map(session => session.patient_uuid));
+        const tenantFilterMissesRoster = tenantUuid
+          && scoped.length > 0
+          && [...rosterUuids].some(uuid => !coveredByTenantFilter.has(uuid));
+        if (tenantFilterMissesRoster) {
+          // Stale/misaligned seeded tenant IDs: load all sessions and merge by patient UUID.
           episodeSessions = await listCareEpisodeSessions(
             token,
             activeActor,
