@@ -89,6 +89,7 @@ services:
     env_file:
       - ./.user.env
     volumes:
+      - ./policies-packed/user:/app/policies:ro
       - ./roles/user-catalog.overlay.json:/app/roles/cdp-overlay.json:ro
     ports:
       - "8018:8018"

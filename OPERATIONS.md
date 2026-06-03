@@ -56,6 +56,23 @@ The bundle includes `entitlements.json` and `*.cedar` files. The UI calls `GET /
 
 See [ADR 0012: UI Capabilities Control Plane](architecture/adrs/0012-ui-capabilities-control-plane.md).
 
+## User service policy pack (CDP product overrides)
+
+The User service ships a **generic** Cedar bundle in its own repository (`user/policies/`). CDP adds product-specific permits (for example clinician patient roster enroll and profile update) under `policies/service-overrides/user/` and **repacks** a runtime bundle for the User container.
+
+1. Edit overrides in `policies/service-overrides/user/*.cedar` (not in the user repo).
+2. Repack (requires a sibling `user/` checkout):
+
+   ```bash
+   ./scripts/repack_user_service_policies.sh
+   ```
+
+   Output: `policies-packed/user/` (gitignored). Compose mounts this over `/app/policies` on the `user` service.
+
+3. Restart the user container after policy changes.
+
+When developing the User service alone, run the same repack script from CDP (or set `AUTHORIZATION_POLICIES_DIR` to a directory that includes both base and override `.cedar` files) before exercising clinician enrollment tests.
+
 ## Public cloud staging
 
 For cloud deployments, see the shared platform guide:

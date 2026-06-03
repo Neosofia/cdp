@@ -1,5 +1,5 @@
 x-auth-image: &auth_image ghcr.io/neosofia/authentication:v0.30.0
-x-user-image: &user_image ghcr.io/neosofia/user:v0.2.1
+x-user-image: &user_image ghcr.io/neosofia/user:v0.6.1
 
 services:
   authentication-migrate:
@@ -124,6 +124,7 @@ services:
     env_file:
       - ./.user.env
     volumes:
+      - ./policies-packed/user:/app/policies:ro
       - ./roles/user-catalog.overlay.json:/app/roles/cdp-overlay.json:ro
     ports:
       - "8018:8018"
@@ -158,6 +159,8 @@ services:
       - /app/node_modules
     ports:
       - "5173:5173"
+    environment:
+      CI: "true"
     env_file:
       - ./ui/.env
 

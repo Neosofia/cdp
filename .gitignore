@@ -24,6 +24,9 @@ env/
 # uv
 .uv/
 
+# Repacked service policy bundles (generated; see scripts/repack_user_service_policies.sh)
+policies-packed/
+
 # pytest / coverage
 .pytest_cache/
 .coverage
