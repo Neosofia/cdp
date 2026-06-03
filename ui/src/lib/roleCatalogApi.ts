@@ -38,3 +38,5 @@ export function roleLabelMap(catalog: RoleCatalogSnapshot | null): Map<string, s
   }
   return new Map(catalog.role_definitions.map((def) => [def.id, def.label]));
 }
+
+export { cdpClinicalRoleCatalog, roleCatalogForUi } from '@/lib/clinicalRoleCatalog';

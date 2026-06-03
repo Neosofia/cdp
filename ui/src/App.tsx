@@ -11,7 +11,7 @@ import { jwtDecode } from 'jwt-decode';
 import { ShieldCheckIcon as Shield, ChartBarIcon as Activity, ArrowRightOnRectangleIcon as LogOut, BuildingOfficeIcon as Building } from '@heroicons/react/24/outline';
 import ServiceManagement from '@/components/ServiceManagement';
 import UserManagement from '@/components/UserManagement';
-import { fetchRoleCatalog, type RoleCatalogSnapshot } from '@/lib/roleCatalogApi';
+import { fetchRoleCatalog, roleCatalogForUi, type RoleCatalogSnapshot } from '@/lib/roleCatalogApi';
 import {
   buildSessionRoleChoices,
   findSessionRoleChoice,
@@ -217,8 +217,6 @@ export default function App() {
   const [selectedAction, setSelectedAction] = useState<string | null>(initialRoute.action);
   const [clinicianPatientUuid, setClinicianPatientUuid] = useState<string | null>(initialRoute.clinicianPatientUuid);
   const [clinicianListFilters, setClinicianListFilters] = useState<ClinicianListFilters>(initialRoute.clinicianListFilters);
-  const [patientContextLoading, setPatientContextLoading] = useState(false);
-  const [patientContextReadyMs, setPatientContextReadyMs] = useState<number | null>(null);
   const patientContextSyncRef = useRef<string | null>(null);
 
   const catalogActorClasses = useMemo(
@@ -447,10 +445,6 @@ export default function App() {
         return;
       }
 
-      setPatientContextLoading(true);
-      setPatientContextReadyMs(null);
-      const startedAt = performance.now();
-
       const ok = await ensurePatientDemoContext(token, sessionActors, {
         patientUuid,
         tenantUuid,
@@ -460,9 +454,7 @@ export default function App() {
 
       if (ok) {
         patientContextSyncRef.current = syncKey;
-        setPatientContextReadyMs(Math.round(performance.now() - startedAt));
       }
-      setPatientContextLoading(false);
     },
     [profile, sessionActors, tokenInfo],
   );
@@ -487,6 +479,8 @@ export default function App() {
     if (hasLoggedOutLocally()) {
       return null;
     }
+
+    let accessToken: string | null = null;
 
     for (let attempt = 0; attempt <= retries; attempt += 1) {
       try {
@@ -513,6 +507,7 @@ export default function App() {
         const tokenData: LocalOauthToken = await tokenRes.json();
         if (!tokenData.access_token) throw new Error('No access token in response');
 
+        accessToken = tokenData.access_token;
         const decoded = jwtDecode<JwtTokenData>(tokenData.access_token);
         const newTokenInfo = { raw: tokenData.access_token, decoded };
         const jwtActors = decoded?.['neosofia:actors'] || [];
@@ -555,24 +550,28 @@ export default function App() {
         let tenantName = 'Unknown organization';
 
         if (profileId) {
-          const userRes = await fetch(`${USER_API}/api/v1/users/${profileId}`, { headers: authHeaders });
-          if (userRes.ok) {
-            registry = (await userRes.json()) as UserRegistryRecord;
-            if (registry.tenant_uuid) {
-              const tenantRes = await fetch(
-                `${AUTH_API}/api/v1/tenants/${registry.tenant_uuid}`,
-                { headers: authHeaders },
-              );
-              if (tenantRes.ok) {
-                const tenant = (await tenantRes.json()) as {
-                  name?: string;
-                  display_code?: string | null;
-                };
-                if (tenant.name) {
-                  tenantName = formatTenantLabel(tenant.name, tenant.display_code);
+          try {
+            const userRes = await fetch(`${USER_API}/api/v1/users/${profileId}`, { headers: authHeaders });
+            if (userRes.ok) {
+              registry = (await userRes.json()) as UserRegistryRecord;
+              if (registry.tenant_uuid) {
+                const tenantRes = await fetch(
+                  `${AUTH_API}/api/v1/tenants/${registry.tenant_uuid}`,
+                  { headers: authHeaders },
+                );
+                if (tenantRes.ok) {
+                  const tenant = (await tenantRes.json()) as {
+                    name?: string;
+                    display_code?: string | null;
+                  };
+                  if (tenant.name) {
+                    tenantName = formatTenantLabel(tenant.name, tenant.display_code);
+                  }
                 }
               }
             }
+          } catch (profileErr) {
+            console.error('User profile fetch failed; keeping authenticated session', profileErr);
           }
         }
 
@@ -592,7 +591,8 @@ export default function App() {
             }
           : null;
 
-        const catalog = await fetchRoleCatalog(tokenData.access_token, resolvedActor);
+        const remoteCatalog = await fetchRoleCatalog(tokenData.access_token, resolvedActor);
+        const catalog = roleCatalogForUi(remoteCatalog);
         setRoleCatalog(catalog);
 
         const roleChoices = buildSessionRoleChoices(sessionActors, orgRoles, catalog);
@@ -639,16 +639,18 @@ export default function App() {
       }
     }
 
-    // All retries failed — session is gone; show login button
-    setTokenInfo(null);
-    setProfile(null);
-    setActiveActor('');
-    setActiveOrgRole('');
-    setRoleCatalog(null);
-    setEntitlements({});
-    setEntitlementsByRole({});
-    localStorage.removeItem(LOCAL_AUTH_KEY);
-    return null;
+    // Only clear session when token exchange failed — not when profile/registry calls fail.
+    if (!accessToken) {
+      setTokenInfo(null);
+      setProfile(null);
+      setActiveActor('');
+      setActiveOrgRole('');
+      setRoleCatalog(null);
+      setEntitlements({});
+      setEntitlementsByRole({});
+      localStorage.removeItem(LOCAL_AUTH_KEY);
+    }
+    return accessToken;
   }, []);
 
   const pingApi = async (url: string, label?: string, bearerToken?: string) => {
@@ -1220,16 +1222,6 @@ export default function App() {
           {showPageHeading && pageSubtitle ? (
             <p className="text-sm text-slate-400 mt-1 font-mono">{pageSubtitle}</p>
           ) : null}
-          {patientContextLoading && (
-            <p className="text-xs text-cyan-300 mt-2">
-              Setting up patient context...
-            </p>
-          )}
-          {!patientContextLoading && patientContextReadyMs !== null && activeActor === 'patient' && (
-            <p className="text-xs text-slate-500 mt-2">
-              Patient context ready in {patientContextReadyMs} ms
-            </p>
-          )}
         </div>
 
         {tokenInfo && (

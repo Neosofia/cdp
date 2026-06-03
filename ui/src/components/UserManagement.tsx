@@ -18,7 +18,7 @@ import {
   type UserAuditItem,
 } from '@/components/AuditHistorySheet';
 import PlatformRolePicker from '@/components/PlatformRolePicker';
-import type { RoleCatalogSnapshot } from '@/lib/roleCatalogApi';
+import { roleCatalogForUi, type RoleCatalogSnapshot } from '@/lib/roleCatalogApi';
 import {
   USER_FIELD_LABEL_CLASS,
   USER_INPUT_CLASS,
@@ -160,7 +160,7 @@ export default function UserManagement({
   const fetchRoles = useCallback(async () => {
     const res = await fetch(`${USER_API}/api/v1/roles`, { headers: authHeaders() });
     if (!res.ok) return;
-    const data = (await res.json()) as RoleCatalogSnapshot;
+    const data = roleCatalogForUi((await res.json()) as RoleCatalogSnapshot);
     setAssignableRoles(data.roles ?? []);
     setRoleDefinitions(data.role_definitions ?? []);
   }, [authHeaders]);
