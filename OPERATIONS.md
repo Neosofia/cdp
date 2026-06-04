@@ -67,7 +67,7 @@ The generic User service image (`ghcr.io/neosofia/user:vX.Y.Z`) ships **platform
 3. Tag and push: `cdp-user/vMAJOR.MINOR.PATCH` → `.github/workflows/cdp-user-build-push.yml` publishes `ghcr.io/neosofia/cdp-user:vX.Y.Z`.
 4. Deploy **`ghcr.io/neosofia/cdp-user`** (not the raw `user` image) for CDP stacks — Railway, compose, or private cloud.
 
-**One-time GHCR setup:** after the first publish, grant the CDP repo workflow access to pull `ghcr.io/neosofia/user` and push `ghcr.io/neosofia/cdp-user` (package settings → Manage Actions access).
+**One-time GHCR setup (required for `cdp-user` CI):** after `user/v*` is published, open [user package → Settings → Manage Actions access](https://github.com/orgs/Neosofia/packages/container/user/settings) and add the **`cdp`** repository. Without this, `cdp-user-build-push` cannot pull `ghcr.io/neosofia/user` (403 Forbidden). Also grant **`cdp`** on [`cdp-user` package](https://github.com/orgs/Neosofia/packages/container/cdp-user/settings) if other repos will pull the runtime image.
 
 **Local development:**
 
