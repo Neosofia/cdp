@@ -30,19 +30,24 @@ import {
 } from '@/lib/demoPatients';
 import {
   DEFAULT_APP_ROUTE,
+  dashboardTitleForActor,
   pathForAppRoute,
-  pushAppRoute,
   readAppRoute,
   replaceAppRoute,
   type AppRoute,
   type AppSection,
   type PatientAction,
 } from '@/lib/appNavigation';
+import { useAppRoute } from '@/lib/useAppRoute';
 import { usePatientRegistry } from '@/lib/usePatientRegistry';
 import { upsertCareEpisodeSession } from '@/lib/careEpisodeApi';
 import { ensurePatientDemoContext } from '@/lib/ensurePatientDemoContext';
-import { updatePatientUser } from '@/lib/userRegistryApi';
+import { acceptTermsOfService, updatePatientUser } from '@/lib/userRegistryApi';
+import AppFooter from '@/components/AppFooter';
 import SplashPage from '@/components/SplashPage';
+import SpawnBrandHeader from '@/components/SpawnBrandHeader';
+import TermsOfServiceGate from '@/components/TermsOfServiceGate';
+import { isTosPreviewPath } from '@/lib/tosPreview';
 import BrandBackground from '@/components/BrandBackground';
 import StarField from '@/components/StarField';
 import { cn } from '@/lib/utils';
@@ -63,8 +68,11 @@ const IS_PROD = import.meta.env.PROD;
 
 const LOCAL_AUTH_KEY = 'cdp-ui-auth';
 
-// Setup OpenTelemetry right away
-setupTracing();
+try {
+  setupTracing();
+} catch (error) {
+  console.warn('OpenTelemetry setup skipped', error);
+}
 
 interface LocalOauthToken {
   access_token: string;
@@ -81,6 +89,7 @@ interface UserRegistryRecord {
   last_name: string | null;
   email: string | null;
   roles: string[];
+  tos_accepted?: boolean;
 }
 
 function formatTenantLabel(name: string, displayCode?: string | null): string {
@@ -101,6 +110,7 @@ interface UserProfile {
   roles: string[];
   /** Tier-1 actor classes from the platform JWT. */
   actors: string[];
+  tos_accepted: boolean;
 }
 
 interface JwtTokenData {
@@ -212,12 +222,19 @@ export default function App() {
   const [activeActor, setActiveActor] = useState<string>('');
   const [activeOrgRole, setActiveOrgRole] = useState<string>('');
   const [roleCatalog, setRoleCatalog] = useState<RoleCatalogSnapshot | null>(null);
-  const initialRoute = readAppRoute();
-  const [selectedSection, setSelectedSection] = useState<AppSection>(initialRoute.section);
-  const [selectedAction, setSelectedAction] = useState<string | null>(initialRoute.action);
-  const [clinicianPatientUuid, setClinicianPatientUuid] = useState<string | null>(initialRoute.clinicianPatientUuid);
-  const [clinicianListFilters, setClinicianListFilters] = useState<ClinicianListFilters>(initialRoute.clinicianListFilters);
+  const [tosAccepting, setTosAccepting] = useState(false);
+  const [tosError, setTosError] = useState<string | null>(null);
+  const { route, navigate } = useAppRoute();
+  const {
+    section: selectedSection,
+    action: selectedAction,
+    clinicianPatientUuid,
+    clinicianListFilters,
+  } = route;
   const patientContextSyncRef = useRef<string | null>(null);
+  // True only when the active role's capability map is loaded (skip route guards until then).
+  const entitlementsReady =
+    Boolean(tokenInfo && activeActor && Object.hasOwn(entitlementsByRole, activeActor));
 
   const catalogActorClasses = useMemo(
     () => new Set(Object.keys(roleCatalog?.assigner_actor_prefixes ?? {})),
@@ -285,12 +302,13 @@ export default function App() {
     sessionTenantUuid,
   );
 
-  const showPatientMenu = entitlements['ui:menu:patient'];
-  const showClinicianMenu = entitlements['ui:menu:clinician'];
-  const showStudyUsersMenu = entitlements['ui:menu:users'];
+  // Prefer the active role's cached map (entitlements state can lag one render behind).
+  const activeRoleEntitlements = entitlementsByRole[activeActor] ?? entitlements;
+  const showPatientMenu = activeRoleEntitlements['ui:menu:patient'];
+  const showClinicianMenu = activeRoleEntitlements['ui:menu:clinician'];
+  const showStudyUsersMenu = activeRoleEntitlements['ui:menu:users'];
   const isDashboard = !selectedSection && !selectedAction;
 
-  const placeholderTitle = 'Dashboard';
   const clinicianPatient = clinicianPatientUuid
     ? activePatientByUuid(registryPatients, clinicianPatientUuid)
     : null;
@@ -299,43 +317,32 @@ export default function App() {
   const pageTitle =
     clinicianPatient && selectedSection === 'Clinician'
       ? clinicianPatient.displayName
-      : (selectedAction ?? (selectedSection || placeholderTitle));
+      : (selectedAction ??
+        (selectedSection || (isDashboard ? dashboardTitleForActor(activeActor) : 'Dashboard')));
   const pageSubtitle =
     clinicianPatient && selectedSection === 'Clinician'
       ? `${clinicianPatient.displayCode} · ${clinicianPatient.surgery} · Day ${clinicianPatient.daysPostOp} post-op · Session ${clinicianPatient.sessionId}`
       : null;
   const showPageHeading = !isClinicianPatientList;
 
-  const applyRoute = useCallback((route: AppRoute, mode: 'push' | 'replace' = 'push') => {
-    setSelectedSection(route.section);
-    setSelectedAction(route.action);
-    setClinicianPatientUuid(route.clinicianPatientUuid);
-    setClinicianListFilters(route.clinicianListFilters);
-    if (mode === 'replace') {
-      replaceAppRoute(route);
-    } else {
-      pushAppRoute(route);
+  const applyRoute = useCallback(
+    (next: AppRoute, mode: 'push' | 'replace' = 'push') => {
+      setTestResult(null);
+      navigate(next, mode);
+    },
+    [navigate],
+  );
+
+  useEffect(() => {
+    if (isTosPreviewPath()) {
+      return;
     }
-  }, []);
-
-  const syncRouteFromBrowser = useCallback(() => {
-    const route = readAppRoute();
-    setSelectedSection(route.section);
-    setSelectedAction(route.action);
-    setClinicianPatientUuid(route.clinicianPatientUuid);
-    setClinicianListFilters(route.clinicianListFilters);
-  }, []);
-
-  useEffect(() => {
-    const onPopState = () => {
-      syncRouteFromBrowser();
-    };
-    window.addEventListener('popstate', onPopState);
-    return () => window.removeEventListener('popstate', onPopState);
-  }, [syncRouteFromBrowser]);
-
-  useEffect(() => {
-    replaceAppRoute(readAppRoute());
+    const parsed = readAppRoute();
+    const canonical = pathForAppRoute(parsed);
+    const current = `${window.location.pathname}${window.location.search}`;
+    if (canonical !== current) {
+      replaceAppRoute(parsed);
+    }
   }, []);
 
   const goHome = () => {
@@ -394,6 +401,7 @@ export default function App() {
     activeActor?: string;
     activeOrgRole?: string;
     activePersonaId?: string;
+    profile?: UserProfile | null;
   }) => {
     const stored = localStorage.getItem(LOCAL_AUTH_KEY);
     if (!stored) return;
@@ -588,6 +596,7 @@ export default function App() {
               tenant_name: tenantName,
               roles: orgRoles,
               actors: sessionActors,
+              tos_accepted: registry.tos_accepted === true,
             }
           : null;
 
@@ -742,15 +751,29 @@ export default function App() {
   }, [tokenInfo, activeActor, entitlementsByRole]);
 
   useEffect(() => {
-    if (!showPatientMenu && selectedSection === 'Patient') {
+    if (!entitlementsReady || initializing) {
+      return;
+    }
+    const roleEntitlements = entitlementsByRole[activeActor];
+    if (!roleEntitlements) {
+      return;
+    }
+    if (!roleEntitlements['ui:menu:patient'] && selectedSection === 'Patient') {
       setTestResult(null);
       applyRoute(DEFAULT_APP_ROUTE, 'replace');
     }
-    if (!showClinicianMenu && selectedSection === 'Clinician') {
+    if (!roleEntitlements['ui:menu:clinician'] && selectedSection === 'Clinician') {
       setTestResult(null);
       applyRoute(DEFAULT_APP_ROUTE, 'replace');
     }
-  }, [showPatientMenu, showClinicianMenu, selectedSection, applyRoute]);
+  }, [
+    entitlementsReady,
+    initializing,
+    entitlementsByRole,
+    activeActor,
+    selectedSection,
+    applyRoute,
+  ]);
 
   useEffect(() => {
     if (!tokenInfo?.raw || activeActor !== 'patient') {
@@ -759,8 +782,7 @@ export default function App() {
     void ensurePatientContext(tokenInfo.raw, activeActor);
   }, [activeActor, ensurePatientContext, tokenInfo]);
 
-  const handleLogout = async () => {
-    // Clear the UI state immediately, then redirect browser to auth-service logout.
+  const clearLocalSession = useCallback(() => {
     if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
     setTokenInfo(null);
     setProfile(null);
@@ -769,15 +791,79 @@ export default function App() {
     setRoleCatalog(null);
     setEntitlements({});
     setEntitlementsByRole({});
-    setSelectedSection('');
-    setSelectedAction(null);
-    setClinicianPatientUuid(null);
+    setTosAccepting(false);
+    setTosError(null);
+    replaceAppRoute(DEFAULT_APP_ROUTE);
     setTestResult(null);
     localStorage.removeItem(LOCAL_AUTH_KEY);
-    localStorage.setItem(LOGOUT_FLAG, '1');
     sessionStorage.clear();
+  }, []);
+
+  const handleLogout = async () => {
+    clearLocalSession();
+    localStorage.setItem(LOGOUT_FLAG, '1');
     window.location.href = `${AUTH_BASE}/logout`;
   };
+
+  const handleDeclineTos = () => {
+    clearLocalSession();
+    localStorage.setItem(LOGOUT_FLAG, '1');
+  };
+
+  const handleAcceptTos = async () => {
+    const userId = profile?.uuid || String(tokenInfo?.decoded?.sub ?? '');
+    const jwtActors = tokenInfo?.decoded?.['neosofia:actors'] ?? [];
+    const actorForPatch =
+      activeActor || profile?.actors?.[0] || (jwtActors.length ? jwtActors[0] : '');
+
+    if (!tokenInfo?.raw || !userId || !actorForPatch) {
+      setTosError('Session is not ready. Try signing in again.');
+      return;
+    }
+    setTosAccepting(true);
+    setTosError(null);
+    try {
+      const updated = await acceptTermsOfService(
+        tokenInfo.raw,
+        actorForPatch,
+        userId,
+        activeOrgRole || undefined,
+      );
+      const nextProfile: UserProfile = {
+        ...(profile ?? {
+          uuid: userId,
+          first_name: '',
+          last_name: '',
+          email: '',
+          display_code: null,
+          tenant_uuid: '',
+          tenant_name: '',
+          roles: [],
+          actors: jwtActors,
+          tos_accepted: false,
+        }),
+        tos_accepted: updated.tos_accepted === true,
+      };
+      setProfile(nextProfile);
+      persistSessionSelection({ profile: nextProfile });
+      replaceAppRoute(DEFAULT_APP_ROUTE);
+    } catch (err) {
+      setTosError(err instanceof Error ? err.message : 'Could not record acceptance');
+    } finally {
+      setTosAccepting(false);
+    }
+  };
+
+  const needsTosAcceptance = Boolean(profile && !profile.tos_accepted);
+
+  useEffect(() => {
+    if (!needsTosAcceptance) {
+      return;
+    }
+    if (selectedSection || selectedAction) {
+      replaceAppRoute(DEFAULT_APP_ROUTE);
+    }
+  }, [needsTosAcceptance, selectedSection, selectedAction]);
 
   useEffect(() => {
     let cancelled = false;
@@ -816,11 +902,39 @@ export default function App() {
 
   const initials = `${profile?.first_name?.charAt(0) || ''}${profile?.last_name?.charAt(0) || ''}`.toUpperCase();
 
+  if (isTosPreviewPath()) {
+    return (
+      <div
+        className="h-dvh flex flex-col overflow-hidden font-sans"
+        style={{ background: '#05050f' }}
+      >
+        <SpawnBrandHeader />
+        <TermsOfServiceGate preview displayName="Preview" className="flex-1 min-h-0" />
+      </div>
+    );
+  }
+
   if (!tokenInfo) {
     if (initializing) {
       return <BrandBackground />;
     }
     return <SplashPage />;
+  }
+
+  if (needsTosAcceptance) {
+    const displayName =
+      [profile?.first_name, profile?.last_name].filter(Boolean).join(' ') ||
+      profile?.email ||
+      'there';
+    return (
+      <TermsOfServiceGate
+        displayName={displayName}
+        accepting={tosAccepting}
+        errorMessage={tosError}
+        onAccept={() => void handleAcceptTos()}
+        onDecline={handleDeclineTos}
+      />
+    );
   }
 
   const fillViewport =
@@ -1151,7 +1265,7 @@ export default function App() {
                       <BreadcrumbItem>
                         {adminSectionCrumbIsLink ? (
                           <BreadcrumbLink
-                            href="/"
+                            href={pathForAppRoute(DEFAULT_APP_ROUTE)}
                             onClick={(e) => {
                               e.preventDefault();
                               goHome();
@@ -1176,7 +1290,12 @@ export default function App() {
                       <BreadcrumbItem>
                         {selectedAction ? (
                           <BreadcrumbLink
-                            href="/"
+                            href={pathForAppRoute({
+                              section: 'Debug',
+                              action: 'Test API endpoints',
+                              clinicianPatientUuid: null,
+                              clinicianListFilters: DEFAULT_CLINICIAN_LIST_FILTERS,
+                            })}
                             onClick={(e) => {
                               e.preventDefault();
                               openDebugTestPage();
@@ -1381,10 +1500,14 @@ export default function App() {
                   firstName={profile?.first_name}
                   patientToken={tokenInfo.raw}
                   patientUuid={profile?.uuid}
+                  operatorToken={tokenInfo.raw}
+                  activeOrgRole={activeOrgRole}
                   clinicianPatients={registryPatients}
                   clinicianError={patientsError}
                   onPatientGoToProfile={() => navigatePatient('Profile')}
                   onClinicianOpenPatients={navigateClinicianPatients}
+                  onOperatorOpenUsers={() => handleMenuAction('Admin', 'Users')}
+                  onOperatorOpenServices={() => handleMenuAction('Admin', 'Services')}
                 />
               </div>
             )}
@@ -1392,6 +1515,7 @@ export default function App() {
           </div>
         )}
       </main>
+      <AppFooter className="relative z-10 shrink-0 border-t border-cyan-500/10" />
     </div>
   );
 }

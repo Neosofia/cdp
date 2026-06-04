@@ -1,3 +1,5 @@
+import { notifyAppLocationChanged } from '@/lib/appNavigation';
+
 export const AUTH_BASE = import.meta.env.VITE_AUTH_BASE_URL ?? 'http://localhost:8014';
 export const LOGOUT_FLAG = 'cdp-ui-just-logged-out';
 
@@ -23,4 +25,5 @@ export function clearAuthCallbackQuery(): void {
   url.searchParams.delete('auth');
   const next = `${url.pathname}${url.search}${url.hash}`;
   window.history.replaceState({}, '', next);
+  notifyAppLocationChanged();
 }

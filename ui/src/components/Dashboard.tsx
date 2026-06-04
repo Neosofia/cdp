@@ -33,9 +33,18 @@ import {
   CalendarDaysIcon,
   DocumentTextIcon,
   BellIcon,
-  ArrowTrendingUpIcon,
+  ArrowPathIcon,
   CpuChipIcon,
 } from '@heroicons/react/24/outline';
+import { usePlatformServiceHealth } from '@/lib/usePlatformServiceHealth';
+import { useUserRegistryStats } from '@/lib/useUserRegistryStats';
+import { useAdminServiceOps } from '@/lib/useAdminServiceOps';
+import { CREDENTIAL_ROTATION_WARNING_DAYS } from '@/lib/platformAuditFeed';
+import {
+  badgeForReachability,
+  formatServiceHealthPrimary,
+  formatServiceHealthSecondary,
+} from '@/lib/serviceHealth';
 
 interface DashboardProps {
   activeActor: string;
@@ -44,8 +53,12 @@ interface DashboardProps {
   clinicianError?: string | null;
   patientToken?: string;
   patientUuid?: string;
+  operatorToken?: string;
+  activeOrgRole?: string;
   onPatientGoToProfile?: () => void;
   onClinicianOpenPatients?: (patientUuid?: string | null, filters?: ClinicianListFilters) => void;
+  onOperatorOpenUsers?: () => void;
+  onOperatorOpenServices?: () => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -357,71 +370,227 @@ function ClinicianDashboard({
 // Admin dashboard
 // ---------------------------------------------------------------------------
 
-const SERVICE_HEALTH = [
-  { name: 'authentication',  slug: 'authentication',  status: 'Healthy', uptime: '99.98%', version: 'v2.4.1', sc: 'green'  as const },
-  { name: 'authorization',   slug: 'authorization',   status: 'Healthy', uptime: '99.95%', version: 'v1.2.0', sc: 'green'  as const },
-  { name: 'capabilities',    slug: 'capabilities',    status: 'Healthy', uptime: '100%',   version: 'v1.1.3', sc: 'green'  as const },
-  { name: 'notification',    slug: 'notification',    status: 'Degraded',uptime: '98.12%', version: 'v1.0.9', sc: 'yellow' as const },
-  { name: 'template',        slug: 'template',        status: 'Healthy', uptime: '99.99%', version: 'v1.3.2', sc: 'green'  as const },
-  { name: 'patient-chat',    slug: 'patient-chat',    status: 'Planned', uptime: '—',      version: 'TBD',    sc: 'cyan'   as const },
-];
-
-const AUDIT_EVENTS = [
-  { actor: 'ben@neosofia.tech',     action: 'Rotated service credential',  target: 'template',     time: '5 min ago',  level: 'info'    as const },
-  { actor: 'alice@healthsystem.io', action: 'Logged in',                   target: 'authentication', time: '12 min ago', level: 'info'   as const },
-  { actor: 'system',                action: 'Token refresh',               target: 'authorization', time: '18 min ago', level: 'info'    as const },
-  { actor: 'ben@neosofia.tech',     action: 'Added service',               target: 'capabilities',  time: '2 hrs ago',  level: 'info'    as const },
-  { actor: 'unknown',               action: 'Failed login attempt (×3)',   target: 'authentication', time: '4 hrs ago',  level: 'warning' as const },
-];
-
 const LEVEL_COLOR = {
   info:    'green'  as const,
   warning: 'yellow' as const,
   error:   'red'    as const,
 };
 
-function AdminDashboard() {
+function AdminDashboard({
+  operatorToken,
+  activeActor,
+  activeOrgRole,
+  onOpenUsers,
+  onOpenServices,
+}: {
+  operatorToken?: string;
+  activeActor: string;
+  activeOrgRole?: string;
+  onOpenUsers?: () => void;
+  onOpenServices?: () => void;
+}) {
+  const { rows, loading, error, summary, refresh } = usePlatformServiceHealth();
+  const {
+    total: userTotal,
+    loading: usersLoading,
+    error: usersError,
+  } = useUserRegistryStats(operatorToken, activeActor, activeOrgRole);
+  const {
+    rotationDueCount,
+    auditEvents,
+    failedSignIns24h,
+    loading: opsLoading,
+    error: opsError,
+    refresh: refreshOps,
+  } = useAdminServiceOps(operatorToken, activeActor);
+  const nowMs = Date.now();
+
+  const registeredUsersValue = usersLoading ? '…' : userTotal ?? '—';
+  const registeredUsersSub = (() => {
+    if (usersLoading) return 'Loading registry…';
+    if (usersError) return usersError;
+    if (userTotal === null) return 'User registry';
+    return userTotal === 1 ? '1 person in registry' : `${userTotal} in user registry`;
+  })();
+
+  const activeServicesLabel =
+    summary.configured > 0
+      ? `${summary.healthy + summary.degraded} / ${summary.configured}`
+      : '—';
+
+  const activeServicesSub = (() => {
+    if (summary.configured === 0) return 'No API URLs configured';
+    const parts: string[] = [];
+    if (summary.healthy > 0) parts.push(`${summary.healthy} healthy`);
+    if (summary.degraded > 0) parts.push(`${summary.degraded} degraded`);
+    if (summary.unhealthy + summary.unreachable > 0) {
+      parts.push(`${summary.unhealthy + summary.unreachable} down`);
+    }
+    if (summary.notConfigured > 0) parts.push(`${summary.notConfigured} not configured`);
+    return parts.join(' · ');
+  })();
+
+  const healthAccent =
+    summary.unhealthy + summary.unreachable > 0
+      ? 'red'
+      : summary.degraded > 0
+        ? 'yellow'
+        : summary.configured > 0 && summary.healthy === summary.configured
+          ? 'green'
+          : 'cyan';
+
+  const rotationDueValue = opsLoading ? '…' : rotationDueCount ?? '—';
+  const rotationDueSub = (() => {
+    if (opsLoading) return 'Loading service registry…';
+    if (opsError) return opsError;
+    if (rotationDueCount === null) return 'Authentication services';
+    if (rotationDueCount === 0) return 'No credentials past rotation threshold';
+    return `${rotationDueCount} credential${rotationDueCount === 1 ? '' : 's'} ≥ ${CREDENTIAL_ROTATION_WARNING_DAYS}d`;
+  })();
+  const rotationAccent =
+    opsError ? 'red' : rotationDueCount && rotationDueCount > 0 ? 'yellow' : 'green';
+
+  const failedSignInsValue = opsLoading ? '…' : failedSignIns24h ?? '—';
+  const failedSignInsSub = (() => {
+    if (opsLoading) return 'Loading sign-in events…';
+    if (opsError) return opsError;
+    if (failedSignIns24h === null) return 'Last 24 hours';
+    if (failedSignIns24h === 0) return 'No failed sign-ins in the last 24 hours';
+    return failedSignIns24h === 1
+      ? '1 failed sign-in in the last 24 hours'
+      : `${failedSignIns24h} failed sign-ins in the last 24 hours`;
+  })();
+  const failedSignInsAccent =
+    opsError ? 'red' : failedSignIns24h && failedSignIns24h > 0 ? 'yellow' : 'green';
+
   return (
     <>
-      <DemoBanner />
-
       {/* Stat row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <StatCard label="Registered users"   value={247}     sub="+12 this month"  icon={UserGroupIcon}      accent="cyan"   />
-        <StatCard label="Active services"     value="5 / 6"  sub="1 degraded"      icon={ServerIcon}         accent="yellow" />
-        <StatCard label="Platform uptime"     value="99.9%"  sub="Last 30 days"    icon={ArrowTrendingUpIcon} accent="green" />
-        <StatCard label="Pending audits"      value={2}      sub="Requires review" icon={ShieldCheckIcon}    accent="purple" />
+        <StatCard
+          label="Registered users"
+          value={registeredUsersValue}
+          sub={registeredUsersSub}
+          icon={UserGroupIcon}
+          accent={usersError ? 'red' : 'cyan'}
+          onClick={onOpenUsers}
+        />
+        <StatCard
+          label="Services responding"
+          value={loading ? '…' : activeServicesLabel}
+          sub={loading ? 'Checking /health…' : activeServicesSub}
+          icon={ServerIcon}
+          accent={healthAccent}
+        />
+        <StatCard
+          label="Failed sign-ins (24h)"
+          value={failedSignInsValue}
+          sub={failedSignInsSub}
+          icon={ExclamationTriangleIcon}
+          accent={failedSignInsAccent}
+        />
+        <StatCard
+          label="Rotation due"
+          value={rotationDueValue}
+          sub={rotationDueSub}
+          icon={ShieldCheckIcon}
+          accent={rotationAccent}
+          onClick={onOpenServices}
+        />
       </div>
+
+      {error ? (
+        <div
+          className="rounded-xl px-4 py-2.5 mb-4 text-sm"
+          style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.22)', color: 'rgba(252,165,165,0.95)' }}
+        >
+          Service health refresh failed: {error}
+        </div>
+      ) : null}
+
+      {opsError ? (
+        <div
+          className="rounded-xl px-4 py-2.5 mb-4 text-sm"
+          style={{ background: 'rgba(234,179,8,0.08)', border: '1px solid rgba(234,179,8,0.22)', color: 'rgba(253,224,71,0.95)' }}
+        >
+          Service registry / audit refresh failed: {opsError}
+        </div>
+      ) : null}
 
       <div className="grid md:grid-cols-2 gap-6">
         {/* Service health */}
-        <SectionCard title="Service health" icon={CpuChipIcon}>
-          {SERVICE_HEALTH.map(s => (
-            <ListItem
-              key={s.slug}
-              primary={s.name}
-              secondary={`Uptime ${s.uptime} · ${s.version}`}
-              badge={{ label: s.status, color: s.sc }}
-            />
-          ))}
+        <SectionCard
+          title="Service health"
+          icon={CpuChipIcon}
+          headerRight={
+            <button
+              type="button"
+              onClick={() => void refresh()}
+              disabled={loading}
+              className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider text-slate-400 hover:text-cyan-300 disabled:opacity-50"
+              aria-label="Refresh service health"
+            >
+              <ArrowPathIcon className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
+          }
+        >
+          {rows.map((row) => {
+            const badge = badgeForReachability(row.reachability);
+            return (
+              <ListItem
+                key={row.id}
+                primary={formatServiceHealthPrimary(row)}
+                secondary={formatServiceHealthSecondary(row)}
+                badge={{ label: badge.label, color: badge.color }}
+              />
+            );
+          })}
+          {!loading && summary.notConfigured > 0 ? (
+            <div className="px-4 py-3 border-t border-cyan-500/10">
+              <p className="text-xs text-slate-500">
+                Services marked <span className="text-slate-400">Not configured</span> need a{' '}
+                <code className="text-slate-400">VITE_*_API_URL</code> at UI build time (see{' '}
+                <code className="text-slate-400">ui/.env.sample</code>).
+              </p>
+            </div>
+          ) : null}
         </SectionCard>
 
         {/* Audit events */}
-        <SectionCard title="Recent audit events" icon={ClipboardDocumentListIcon}>
-          {AUDIT_EVENTS.map((e, i) => (
-            <ListItem
-              key={i}
-              primary={e.action}
-              secondary={`${e.actor} → ${e.target}`}
-              badge={{ label: e.level, color: LEVEL_COLOR[e.level] }}
-              meta={e.time}
-            />
-          ))}
-          <div className="px-4 py-3">
-            <p className="text-xs text-slate-600">
-              Full audit history available in <span className="text-slate-400">Admin → Services</span>
-            </p>
-          </div>
+        <SectionCard
+          title="Recent audit events"
+          icon={ClipboardDocumentListIcon}
+          headerRight={
+            <button
+              type="button"
+              onClick={() => void refreshOps()}
+              disabled={opsLoading}
+              className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider text-slate-400 hover:text-cyan-300 disabled:opacity-50"
+              aria-label="Refresh audit feed"
+            >
+              <ArrowPathIcon className={`h-3.5 w-3.5 ${opsLoading ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
+          }
+          onTitleClick={onOpenServices}
+        >
+          {opsLoading && auditEvents.length === 0 ? (
+            <p className="px-4 py-3 text-xs text-slate-500">Loading audit history…</p>
+          ) : auditEvents.length === 0 ? (
+            <p className="px-4 py-3 text-xs text-slate-500">No audit or sign-in events in the current window.</p>
+          ) : (
+            auditEvents.map((e) => (
+              <ListItem
+                key={e.id}
+                primary={e.action}
+                secondary={`${e.actor} → ${e.target}`}
+                badge={{ label: e.level, color: LEVEL_COLOR[e.level] }}
+                meta={formatRelativeActivity(e.changedAt, nowMs)}
+                onClick={onOpenServices}
+              />
+            ))
+          )}
         </SectionCard>
       </div>
     </>
@@ -706,10 +875,14 @@ export default function Dashboard({
   firstName,
   patientToken,
   patientUuid,
+  operatorToken,
+  activeOrgRole,
   clinicianPatients = [],
   clinicianError,
   onPatientGoToProfile,
   onClinicianOpenPatients,
+  onOperatorOpenUsers,
+  onOperatorOpenServices,
 }: DashboardProps) {
   const role = activeActor.toLowerCase();
 
@@ -722,7 +895,17 @@ export default function Dashboard({
       />
     );
   }
-  if (role === 'operator') return <AdminDashboard />;
+  if (role === 'operator') {
+    return (
+      <AdminDashboard
+        operatorToken={operatorToken}
+        activeActor={activeActor}
+        activeOrgRole={activeOrgRole}
+        onOpenUsers={onOperatorOpenUsers}
+        onOpenServices={onOperatorOpenServices}
+      />
+    );
+  }
   if (role === 'study') return <StudyDashboard />;
   if (role === 'patient') {
     return (

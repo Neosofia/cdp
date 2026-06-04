@@ -1,5 +1,5 @@
-x-auth-image: &auth_image ghcr.io/neosofia/authentication:v0.30.0
-x-user-image: &user_image ghcr.io/neosofia/user:v0.6.3
+x-auth-image: &auth_image ghcr.io/neosofia/authentication:v0.32.2
+x-user-image: &user_image ghcr.io/neosofia/user:v0.6.5
 
 services:
   authentication-migrate:
@@ -69,6 +69,9 @@ services:
       - ./policies:/app/policies:ro
     ports:
       - "8019:8019"
+    depends_on:
+      authentication:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "/app/.venv/bin/python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:8019/health', timeout=3)\""]
       interval: 10s
@@ -83,6 +86,9 @@ services:
       - ./.template.env
     ports:
       - "8900:8900"
+    depends_on:
+      authentication:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "/app/.venv/bin/python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:8900/health', timeout=3)\""]
       interval: 10s
@@ -158,8 +164,6 @@ services:
       - /app/node_modules
     ports:
       - "5173:5173"
-    environment:
-      CI: "true"
     env_file:
       - ./ui/.env
 

@@ -499,52 +499,58 @@ function SessionDetail({
   activeActor,
   onBack,
   onEdit,
+  saveNotice,
 }: {
   patient: ActivePatientSession;
   token: string;
   activeActor: string;
   onBack: () => void;
   onEdit: (patient: ActivePatientSession) => void;
+  saveNotice?: string | null;
 }) {
   const [transcript, setTranscript] = useState<UiTranscriptMessage[]>([]);
   const [patientRecords, setPatientRecords] = useState<MedicalRecord[]>([]);
   const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
-
-  useEffect(() => {
-    setTranscript([]);
-    setPatientRecords([]);
-    setSelectedRecordId(null);
-  }, [patient]);
+  const [recordsLoading, setRecordsLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
-    const load = async () => {
-      const [transcriptLines, remoteRecords] = await Promise.all([
-        loadPatientTranscript(token, activeActor, patient.patientUuid),
-        listCareEpisodeRecords(token, activeActor, patient.patientUuid),
-      ]);
-      if (cancelled) return;
-      setTranscript(transcriptLines);
-      if (remoteRecords.length > 0) {
-        const records = remoteRecords as MedicalRecord[];
-        setPatientRecords(records);
+    setRecordsLoading(true);
+    setTranscript([]);
+    setPatientRecords([]);
+    setSelectedRecordId(null);
 
-        setSelectedRecordId(previousId => {
-          if (previousId && records.some(record => record.id === previousId)) {
-            return previousId;
-          }
-          if (patient.riskLevel === 'High') {
-            return records.find(record => record.imageKey === 'xray-scissors')?.id ?? records[0]?.id ?? null;
-          }
-          return records[0]?.id ?? null;
-        });
+    const load = async () => {
+      try {
+        const [transcriptLines, remoteRecords] = await Promise.all([
+          loadPatientTranscript(token, activeActor, patient.patientUuid),
+          listCareEpisodeRecords(token, activeActor, patient.patientUuid),
+        ]);
+        if (cancelled) return;
+        setTranscript(transcriptLines);
+        if (remoteRecords.length > 0) {
+          const records = remoteRecords as MedicalRecord[];
+          setPatientRecords(records);
+
+          setSelectedRecordId(previousId => {
+            if (previousId && records.some(record => record.id === previousId)) {
+              return previousId;
+            }
+            if (patient.riskLevel === 'High') {
+              return records.find(record => record.imageKey === 'xray-scissors')?.id ?? records[0]?.id ?? null;
+            }
+            return records[0]?.id ?? null;
+          });
+        }
+      } finally {
+        if (!cancelled) setRecordsLoading(false);
       }
     };
     void load();
     return () => {
       cancelled = true;
     };
-  }, [token, activeActor, patient.patientUuid]);
+  }, [token, activeActor, patient.patientUuid, patient.riskLevel]);
 
   const handleSelectRecord = (record: MedicalRecord | null) => {
     setSelectedRecordId(record?.id ?? null);
@@ -552,6 +558,15 @@ function SessionDetail({
 
   return (
     <div className="h-full min-h-0 flex flex-col overflow-hidden gap-3">
+      {saveNotice ? (
+        <p
+          role="status"
+          className="shrink-0 rounded-md border px-3 py-2 text-sm text-emerald-200"
+          style={{ borderColor: 'rgba(34,197,94,0.35)', background: 'rgba(34,197,94,0.1)' }}
+        >
+          {saveNotice}
+        </p>
+      ) : null}
       <div className="shrink-0 flex items-center justify-between">
         <Button
           type="button"
@@ -582,6 +597,7 @@ function SessionDetail({
             embedded
             selectedId={selectedRecordId}
             onSelectRecord={handleSelectRecord}
+            loading={recordsLoading}
           />
         </div>
       </div>
@@ -617,6 +633,13 @@ export default function ClinicianActivePatients({
   const [editSessionId, setEditSessionId] = useState('');
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
+  const [saveNotice, setSaveNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!saveNotice) return;
+    const timer = window.setTimeout(() => setSaveNotice(null), 6000);
+    return () => window.clearTimeout(timer);
+  }, [saveNotice]);
 
   const enrollableRegistryUsers = useMemo(
     () => registryUsersNotYetEnrolled(registryUsers, patients),
@@ -679,6 +702,7 @@ export default function ClinicianActivePatients({
         risk_level: editingPatient.riskLevel.toLowerCase(),
         tenant_uuid: matchedUser?.tenant_uuid ?? '',
       });
+      setSaveNotice('Patient profile saved.');
       closeEditSheet();
     } catch (error) {
       setEditError(error instanceof Error ? error.message : 'Failed to save patient profile');
@@ -698,6 +722,7 @@ export default function ClinicianActivePatients({
           activeActor={activeActor}
           onBack={() => onSelectPatient(null)}
           onEdit={openEditSheet}
+          saveNotice={saveNotice}
         />
       ) : (
         <PatientList

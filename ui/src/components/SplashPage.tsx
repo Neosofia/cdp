@@ -1,3 +1,5 @@
+import AppFooter from '@/components/AppFooter';
+import SpawnBrandHeader from '@/components/SpawnBrandHeader';
 import StarField from '@/components/StarField';
 import { beginLogin } from '@/lib/auth';
 
@@ -49,46 +51,24 @@ export default function SplashPage() {
         />
       </div>
 
-      {/* ── Header ── */}
-      <header className="relative z-10 flex items-center justify-between px-6 md:px-10 py-4 border-b border-white/6">
-        <div className="flex items-center gap-3">
-          <img src="/favicon.svg?v=2" alt="" className="w-7 h-7" aria-hidden="true" />
-          <span
-            className="text-xl font-black tracking-wider uppercase"
+      <SpawnBrandHeader
+        trailing={
+          <a
+            href="#"
+            onClick={(e) => {
+              e.preventDefault();
+              beginLogin();
+            }}
+            className="relative group inline-flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-bold uppercase tracking-wider text-white transition-all duration-200 hover:scale-105"
             style={{
-              fontFamily: "'Orbitron', monospace",
               background: 'linear-gradient(135deg, #22d3ee 0%, #a855f7 100%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text',
+              boxShadow: '0 0 20px rgba(168,85,247,0.4)',
             }}
           >
-            SPAWN
-          </span>
-          <span className="text-sm font-semibold text-slate-400 tracking-widest uppercase border border-slate-600 rounded px-1.5 py-0.5">
-            v2
-          </span>
-
-          <span className="hidden sm:block text-xs text-slate-600 tracking-widest uppercase ml-1">
-            Clinical Data Platform
-          </span>
-        </div>
-
-        <a
-          href="#"
-          onClick={(e) => {
-            e.preventDefault();
-            beginLogin();
-          }}
-          className="relative group inline-flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-bold uppercase tracking-wider text-white transition-all duration-200 hover:scale-105"
-          style={{
-            background: 'linear-gradient(135deg, #22d3ee 0%, #a855f7 100%)',
-            boxShadow: '0 0 20px rgba(168,85,247,0.4)',
-          }}
-        >
-          <span>⚡</span> Login
-        </a>
-      </header>
+            <span>⚡</span> Login
+          </a>
+        }
+      />
 
       {/* ── Hero ── */}
       <main className="relative z-10 flex-1 flex flex-col items-center justify-center text-center px-6 py-8 md:py-12">
@@ -200,12 +180,10 @@ export default function SplashPage() {
       </div>
 
       {/* ── Footer ── */}
-      <footer
-        className="relative z-10 text-center py-4 text-xs tracking-widest uppercase"
-        style={{ color: '#334155' }}
-      >
-        © 2026 SPAWN 2 Clinical Data Platform &nbsp;·&nbsp; All protocols confirmed
-      </footer>
+      <AppFooter
+        className="relative z-10"
+        tagline="All protocols confirmed"
+      />
 
       {/* Ticker keyframe */}
       <style>{`

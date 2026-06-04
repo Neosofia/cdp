@@ -320,3 +320,266 @@ body[data-floating-ui-scroll-lock] {
   padding-right: 0 !important;
   overflow: auto !important;
 }
+
+/* Star Wars–style TOS opening crawl (TermsOfServiceCrawl) */
+@layer components {
+  .tos-crawl-viewport {
+    --tos-crawl-width: min(58vw, 40rem);
+    --tos-crawl-tilt: 24deg;
+    --tos-crawl-perspective: 1050px;
+    position: relative;
+    width: 100%;
+    overflow: hidden;
+    /* Do not use mask-image here — it flattens 3D perspective in WebKit/Blink */
+  }
+
+  .tos-crawl-viewport::before,
+  .tos-crawl-viewport::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    z-index: 1;
+    pointer-events: none;
+  }
+
+  .tos-crawl-viewport::before {
+    top: 0;
+    height: 32%;
+    background: linear-gradient(to bottom, #05050f 0%, transparent 100%);
+  }
+
+  .tos-crawl-viewport::after {
+    bottom: 0;
+    height: 22%;
+    background: linear-gradient(to top, #05050f 0%, transparent 100%);
+  }
+
+  .tos-crawl-hint {
+    position: absolute;
+    top: 0.35rem;
+    left: 50%;
+    z-index: 2;
+    transform: translateX(-50%);
+    font-size: 0.65rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgb(100 116 139);
+    pointer-events: none;
+    white-space: nowrap;
+  }
+
+  /* Flat intro card (not on the tilted plane) — matches the film’s blue intro line */
+  .tos-crawl-logline-beat {
+    position: absolute;
+    left: 50%;
+    top: 42%;
+    z-index: 3;
+    width: min(40rem, 92vw);
+    margin: 0;
+    transform: translateX(-50%);
+    text-align: center;
+    font-size: clamp(1.2rem, 3vw, 1.85rem);
+    font-weight: 500;
+    font-style: italic;
+    line-height: 1.45;
+    color: #cbd5e1;
+    pointer-events: none;
+    animation: tos-logline-beat var(--tos-logline-beat, 5s) ease-in-out forwards;
+  }
+
+  @keyframes tos-logline-beat {
+    0% {
+      opacity: 0;
+      transform: translateX(-50%) translateY(2.25rem);
+    }
+    14% {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+    72% {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+    100% {
+      opacity: 0;
+      transform: translateX(-50%) translateY(-1.25rem);
+    }
+  }
+
+  /* Vanishing point at bottom center — classic opening-crawl parallax */
+  .tos-crawl-stage {
+    position: relative;
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+    perspective: var(--tos-crawl-perspective);
+    perspective-origin: 50% 100%;
+  }
+
+  .tos-crawl-plane {
+    position: absolute;
+    left: 50%;
+    width: var(--tos-crawl-width);
+    margin-left: calc(var(--tos-crawl-width) / -2);
+    top: 0;
+    box-sizing: border-box;
+    opacity: 0;
+    transform-origin: 50% 0%;
+    transform-style: preserve-3d;
+    backface-visibility: hidden;
+    transform: rotateX(var(--tos-crawl-tilt))
+      translate3d(0, var(--tos-crawl-start, 78vh), 80px);
+    will-change: transform, opacity;
+    /* 3D plane must not steal clicks from the accept panel below the viewport. */
+    pointer-events: none;
+  }
+
+  .tos-crawl-plane--active {
+    animation: tos-crawl-up var(--tos-crawl-duration, 180s) linear var(--tos-crawl-delay, 5s)
+      forwards;
+    animation-fill-mode: backwards;
+  }
+
+  /* Document order = playback order: logline → title → episode → §1…§14 */
+  .tos-crawl-content {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: 100%;
+    margin-inline: auto;
+    text-align: justify;
+    hyphens: auto;
+    color: #67e8f9;
+    font-size: clamp(0.85rem, 1.1vw, 1.05rem);
+    line-height: 1.55;
+    font-weight: 600;
+  }
+
+  .tos-crawl-spacer {
+    flex-shrink: 0;
+    height: 8vh;
+    pointer-events: none;
+  }
+
+  .tos-crawl-plane--paused {
+    animation-play-state: paused !important;
+  }
+
+  /*
+   * Plane starts below the frame (positive Y); rises so logline enters first, then body.
+   */
+  @keyframes tos-crawl-up {
+    0% {
+      opacity: 0;
+      transform: rotateX(var(--tos-crawl-tilt))
+        translate3d(0, var(--tos-crawl-start, 78vh), 80px);
+    }
+    0.2% {
+      opacity: 1;
+      transform: rotateX(var(--tos-crawl-tilt))
+        translate3d(0, var(--tos-crawl-start, 78vh), 80px);
+    }
+    100% {
+      opacity: 1;
+      transform: rotateX(var(--tos-crawl-tilt))
+        translate3d(0, var(--tos-crawl-end, -5000px), -560px);
+    }
+  }
+
+  .tos-crawl-episode {
+    margin: 0 0 0.35rem;
+    text-align: center;
+    font-size: 0.95em;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: #a5f3fc;
+  }
+
+  .tos-crawl-title {
+    margin: 0 0 0.5rem;
+    text-align: center;
+    font-family: 'Orbitron', monospace;
+    font-size: clamp(1.2rem, 2.6vmin, 1.75rem);
+    font-weight: 900;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    line-height: 1.2;
+    color: #fde047;
+    text-shadow: 0 0 24px rgba(253, 224, 71, 0.35);
+  }
+
+  .tos-crawl-section {
+    margin-bottom: 1.75rem;
+  }
+
+  .tos-crawl-section h3 {
+    margin: 0 0 0.65rem;
+    text-align: center;
+    font-size: 1.05em;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #22d3ee;
+  }
+
+  .tos-crawl-section p {
+    margin: 0 0 0.85rem;
+  }
+
+  .tos-crawl-static-fallback {
+    display: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .tos-crawl-hint {
+      display: none;
+    }
+
+    .tos-crawl-stage {
+      overflow-y: auto;
+      perspective: none;
+    }
+
+    .tos-crawl-plane,
+    .tos-crawl-plane--active {
+      animation: none;
+      transform: none;
+      position: relative;
+      left: auto;
+      margin: 0 auto;
+      width: var(--tos-crawl-width);
+      max-width: none;
+      padding: 1rem;
+    }
+
+    .tos-crawl-content {
+      flex-direction: column;
+    }
+
+    .tos-crawl-spacer {
+      display: none;
+    }
+
+    .tos-crawl-logline-beat {
+      position: relative;
+      top: auto;
+      left: auto;
+      transform: none;
+      width: auto;
+      margin: 0 0 1.5rem;
+      animation: none;
+      opacity: 1;
+    }
+
+    .tos-crawl-title,
+    .tos-crawl-episode {
+      opacity: 1;
+      transform: none;
+    }
+
+    .tos-crawl-title {
+      font-size: 1.4rem;
+    }
+  }
+}

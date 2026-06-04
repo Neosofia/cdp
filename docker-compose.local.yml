@@ -1,17 +1,33 @@
-# Full CDP stack built from sibling service repos (not GHCR pins).
+# =============================================================================
+# LOCAL COMPOSE — ALL PLATFORM SERVICES MUST BE LOCAL BUILDS
+# =============================================================================
+#
+# Do NOT pin GHCR release images here (ghcr.io/neosofia/*:v*).
+# Do NOT `include: docker-compose.dev.yml` — dev compose is for pinned releases only.
+# Every runnable application service must use a `build:` + `image: neosofia/*:local` anchor
+# (authentication, capabilities, user, chat, care-episode, python-template, ui).
+#
+# The only exceptions are infrastructure images (postgres:18) and build-only helpers
+# (cdp-user-policies:local — scratch bundle consumed at user image build time).
+#
+# If you need GHCR pins, change docker-compose.dev.yml — not this file.
+#
+# Full CDP stack built from sibling service repos.
 #
 # Layout (repos as siblings of cdp/):
 #   ../authentication
 #   ../capabilities
-#   ../templates/python/service   (python-template image)
-#   ./ui                          (already in this repo)
+#   ../user
+#   ../chat
+#   ../care-episode
+#   ../templates/python/service
+#   ./ui
+#   ./policies/service-overrides/user  (cdp-user-policies image for user build)
 #
+#   docker compose -f docker-compose.local.yml build cdp-user-policies
 #   docker compose -f docker-compose.local.yml up -d --build
 #
-# For pinned release images, use docker-compose.dev.yml instead.
-
-include:
-  - docker-compose.dev.yml
+# For pinned release images, use docker-compose.dev.yml instead (never mix into this file).
 
 x-auth-local: &auth_local
   build:
@@ -34,7 +50,7 @@ x-user-local: &user_local
     dockerfile: Dockerfile
     target: runtime
     args:
-      CDP_USER_POLICIES_IMAGE: neosofia/cdp-user-policies:local
+      CDP_USER_POLICIES_IMAGE: cdp-user-policies:local
   image: neosofia/user:local
 
 x-template-local: &template_local
@@ -58,29 +74,134 @@ x-care-episode-local: &care_episode_local
     target: runtime
   image: neosofia/care-episode:local
 
-# Build CDP user policy bundle before the user service image (required once per policy change):
-#   docker compose -f docker-compose.local.yml build cdp-user-policies
-#   docker compose -f docker-compose.local.yml up -d --build
 services:
+  # Policy-only image (FROM scratch). Build before user: `docker compose -f docker-compose.local.yml build cdp-user-policies`
   cdp-user-policies:
     build:
       context: ./policies/service-overrides/user
       dockerfile: Dockerfile
-    image: neosofia/cdp-user-policies:local
+    image: cdp-user-policies:local
+    profiles:
+      - build
+
+  authentication-postgres:
+    image: postgres:18
+    container_name: cdp-authentication-postgres
+    env_file:
+      - ./.authentication-postgres.env
+    ports:
+      - "5014:5432"
+    volumes:
+      - authentication_postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cdp -d cdp_authentication"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   authentication-migrate:
     <<: *auth_local
+    container_name: cdp-authentication-migrate
+    env_file:
+      - ./.authentication.env
     volumes:
       - ../authentication/policies:/app/policies:ro
       - ../templates/sql/audit:/app/audit-templates:ro
+    command: ["python", "-m", "alembic", "upgrade", "head"]
+    depends_on:
+      authentication-postgres:
+        condition: service_healthy
+    restart: "no"
+
   authentication:
     <<: *auth_local
+    container_name: cdp-authentication
+    env_file:
+      - ./.authentication.env
+    ports:
+      - "8014:8014"
+    depends_on:
+      authentication-postgres:
+        condition: service_healthy
+      authentication-migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "/app/.venv/bin/python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:8014/health', timeout=3)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
   authentication-bootstrap:
     <<: *auth_local
+    container_name: cdp-authentication-bootstrap
+    profiles:
+      - manual
+    working_dir: /app
+    command:
+      - /app/.venv/bin/python
+      - scripts/setup-env.py
+      - --env-file
+      - /tmp/.env
+      - --stdout
+
   capabilities:
     <<: *capabilities_local
+    container_name: cdp-capabilities
+    env_file:
+      - ./.capabilities.env
     volumes:
       - ./policies:/app/policies:ro
+    ports:
+      - "8019:8019"
+    depends_on:
+      authentication:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "/app/.venv/bin/python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:8019/health', timeout=3)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  python-template:
+    <<: *template_local
+    container_name: cdp-python-template
+    env_file:
+      - ./.template.env
+    environment:
+      PORT: "8900"
+      APP_DATABASE_URL: postgresql+psycopg://app:local-dev-only@127.0.0.1:5432/python_template
+      MIGRATION_DATABASE_URL: postgresql+psycopg://template:local-dev-only@127.0.0.1:5432/python_template
+    volumes:
+      - ../templates/python/service/policies:/app/policies:ro
+    ports:
+      - "8900:8900"
+    depends_on:
+      authentication:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "/app/.venv/bin/python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:8900/health', timeout=3)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  user-postgres:
+    image: postgres:18
+    container_name: cdp-user-postgres
+    env_file:
+      - ./.user-postgres.env
+    ports:
+      - "5018:5432"
+    volumes:
+      - user_postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user_template -d cdp_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   user-migrate:
     <<: *user_local
     container_name: cdp-user-migrate
@@ -94,6 +215,7 @@ services:
       user-postgres:
         condition: service_healthy
     restart: "no"
+
   user:
     <<: *user_local
     container_name: cdp-user
@@ -110,20 +232,13 @@ services:
         condition: service_completed_successfully
       authentication:
         condition: service_healthy
-  user-postgres:
-    image: postgres:18
-    container_name: cdp-user-postgres
-    env_file:
-      - ./.user-postgres.env
-    ports:
-      - "5018:5432"
-    volumes:
-      - user_postgres_data:/var/lib/postgresql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U user_template -d cdp_user"]
+      test: ["CMD-SHELL", "/app/.venv/bin/python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:8018/health', timeout=3)\""]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 15s
+
   chat-postgres:
     image: postgres:18
     container_name: cdp-chat-postgres
@@ -138,20 +253,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-  care-episode-postgres:
-    image: postgres:18
-    container_name: cdp-care-episode-postgres
-    env_file:
-      - ./.care-episode-postgres.env
-    ports:
-      - "5015:5432"
-    volumes:
-      - care_episode_postgres_data:/var/lib/postgresql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U care_episode_template -d cdp_care_episode"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+
   chat-migrate:
     <<: *chat_local
     container_name: cdp-chat-migrate
@@ -164,29 +266,7 @@ services:
       chat-postgres:
         condition: service_healthy
     restart: "no"
-  care-episode-migrate:
-    <<: *care_episode_local
-    container_name: cdp-care-episode-migrate
-    env_file:
-      - ./.care-episode.env
-    volumes:
-      - ../templates/sql/audit:/app/audit-templates:ro
-    command: ["python", "-m", "alembic", "upgrade", "head"]
-    depends_on:
-      care-episode-postgres:
-        condition: service_healthy
-    restart: "no"
-  python-template:
-    <<: *template_local
-    env_file:
-      - ./.template.env
-    environment:
-      PORT: "8900"
-      # Document routes use in-memory data; URLs only satisfy Settings validation.
-      APP_DATABASE_URL: postgresql+psycopg://app:local-dev-only@127.0.0.1:5432/python_template
-      MIGRATION_DATABASE_URL: postgresql+psycopg://template:local-dev-only@127.0.0.1:5432/python_template
-    volumes:
-      - ../templates/python/service/policies:/app/policies:ro
+
   chat:
     <<: *chat_local
     container_name: cdp-chat
@@ -203,6 +283,41 @@ services:
         condition: service_completed_successfully
       authentication:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "/app/.venv/bin/python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:8001/health', timeout=3)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  care-episode-postgres:
+    image: postgres:18
+    container_name: cdp-care-episode-postgres
+    env_file:
+      - ./.care-episode-postgres.env
+    ports:
+      - "5015:5432"
+    volumes:
+      - care_episode_postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U care_episode_template -d cdp_care_episode"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  care-episode-migrate:
+    <<: *care_episode_local
+    container_name: cdp-care-episode-migrate
+    env_file:
+      - ./.care-episode.env
+    volumes:
+      - ../templates/sql/audit:/app/audit-templates:ro
+    command: ["python", "-m", "alembic", "upgrade", "head"]
+    depends_on:
+      care-episode-postgres:
+        condition: service_healthy
+    restart: "no"
+
   care-episode:
     <<: *care_episode_local
     container_name: cdp-care-episode
@@ -220,8 +335,38 @@ services:
         condition: service_completed_successfully
       authentication:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "/app/.venv/bin/python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:8015/health', timeout=3)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  ui:
+    build:
+      context: ./ui
+      dockerfile: Dockerfile.dev
+    image: cdp-ui:local
+    container_name: cdp-ui
+    environment:
+      CI: "true"
+    depends_on:
+      authentication:
+        condition: service_healthy
+      capabilities:
+        condition: service_healthy
+      user:
+        condition: service_healthy
+    volumes:
+      - ./ui:/app
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    env_file:
+      - ./ui/.env
 
 volumes:
+  authentication_postgres_data:
   user_postgres_data:
   chat_postgres_data:
   care_episode_postgres_data:

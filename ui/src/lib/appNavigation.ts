@@ -46,6 +46,43 @@ export const DEFAULT_APP_ROUTE: AppRoute = {
   clinicianListFilters: DEFAULT_CLINICIAN_LIST_FILTERS,
 };
 
+/** Home-route H1 titles; breadcrumb stays "Dashboard". */
+export function dashboardTitleForActor(actor: string): string {
+  switch (actor.trim().toLowerCase()) {
+    case 'operator':
+      return 'Platform Admin Dashboard';
+    case 'clinician':
+      return 'Clinician Dashboard';
+    case 'patient':
+      return 'Patient Dashboard';
+    case 'study':
+      return 'Study Dashboard';
+    default:
+      return 'Dashboard';
+  }
+}
+
+type LocationListener = () => void;
+
+const locationListeners = new Set<LocationListener>();
+
+function notifyLocationListeners(): void {
+  for (const listener of locationListeners) {
+    listener();
+  }
+}
+
+/** Subscribe to URL changes (push/replace/popstate and auth query cleanup). */
+export function subscribeToAppLocation(listener: LocationListener): () => void {
+  const onPopState = () => listener();
+  locationListeners.add(listener);
+  window.addEventListener('popstate', onPopState);
+  return () => {
+    locationListeners.delete(listener);
+    window.removeEventListener('popstate', onPopState);
+  };
+}
+
 function currentPath(): string {
   return `${window.location.pathname}${window.location.search}`;
 }
@@ -179,6 +216,7 @@ export function pushAppRoute(route: AppRoute): void {
   const nextPath = pathForAppRoute(route);
   if (nextPath !== currentPath()) {
     window.history.pushState(null, '', nextPath);
+    notifyLocationListeners();
   }
 }
 
@@ -186,5 +224,11 @@ export function replaceAppRoute(route: AppRoute): void {
   const nextPath = pathForAppRoute(route);
   if (nextPath !== currentPath()) {
     window.history.replaceState(null, '', nextPath);
+    notifyLocationListeners();
   }
+}
+
+/** Called when the address bar changes outside push/replace (e.g. auth callback cleanup). */
+export function notifyAppLocationChanged(): void {
+  notifyLocationListeners();
 }

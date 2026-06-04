@@ -103,3 +103,10 @@ See [SECURITY.md](SECURITY.md) for platform-wide security principles covering PH
 ## Operations
 
 See [OPERATIONS.md](OPERATIONS.md) for running the full CDP stack locally or in the cloud. For the Structurizr architecture viewer (C4 diagrams, specs, ADRs), see [`architecture/OPERATIONS.md`](architecture/OPERATIONS.md).
+
+## Releases
+
+- [CHANGELOG.md](CHANGELOG.md) -- what changed for users of the platform ([Keep a Changelog](https://keepachangelog.com/))
+- [INSTALLATION_PLAN.md](INSTALLATION_PLAN.md) -- Product Installation Plan for operators (deploy, verify, evidence)
+
+**Versioning:** CDP UI displays **CalVer** `YYYY.MM.DD` in the footer (`ui/src/lib/uiVersion.ts`). Platform services expose **semver** on `GET /health` as `version`.

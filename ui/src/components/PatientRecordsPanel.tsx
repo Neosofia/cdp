@@ -53,6 +53,7 @@ interface Props {
   embedded?: boolean;
   selectedId?: string | null;
   onSelectRecord?: (record: MedicalRecord | null) => void;
+  loading?: boolean;
 }
 
 export default function PatientRecordsPanel({
@@ -60,6 +61,7 @@ export default function PatientRecordsPanel({
   embedded = false,
   selectedId = null,
   onSelectRecord,
+  loading = false,
 }: Props) {
   const [query, setQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<RecordType | 'all'>('all');
@@ -173,7 +175,9 @@ export default function PatientRecordsPanel({
             className="divide-y rounded-xl"
             style={{ border: '1px solid rgba(34,211,238,0.12)' }}
           >
-          {filtered.length === 0 ? (
+          {loading && records.length === 0 ? (
+            <li className="px-4 py-8 text-center text-sm text-slate-500">Loading health records…</li>
+          ) : filtered.length === 0 ? (
             <li className="px-4 py-8 text-center text-sm text-slate-500">No matching records.</li>
           ) : (
             filtered.map(r => (

@@ -69,7 +69,7 @@ CDP owns product Cedar for the user service under `policies/service-overrides/us
 
 **One-time GHCR setup:** after the first `cdp-user-policies` publish, open [`cdp-user-policies` package settings](https://github.com/orgs/Neosofia/packages/container/cdp-user-policies/settings) and add the **`user`** repository under **Manage Actions access → Add repository** (so `user` CI can pull the bundle at build time).
 
-**Local development:** `docker-compose.local.yml` builds `cdp-user-policies:local` from this directory and passes it to the user image build. Optional: `./scripts/repack_user_service_policies.sh` writes `policies-packed/user/` for inspection or volume-mounting.
+**Local development:** `docker-compose.local.yml` builds all platform services from sibling repos (no GHCR application images). It builds `cdp-user-policies:local` from this directory and passes it to the user image build. Optional: `./scripts/repack_user_service_policies.sh` writes `policies-packed/user/` for inspection or volume-mounting.
 
 ## Public cloud staging
 
@@ -114,5 +114,6 @@ Then access the platform at localhost:5173 (UI). Default API ports (8000 + spec 
 When working across platform services, build everything from sibling repos instead of GHCR:
 
 ```bash
+docker compose -f docker-compose.local.yml build cdp-user-policies
 docker compose -f docker-compose.local.yml up -d --build
 ```
