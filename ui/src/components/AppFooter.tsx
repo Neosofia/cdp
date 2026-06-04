@@ -20,17 +20,13 @@ export default function AppFooter({ className, tagline }: AppFooterProps) {
       © 2026 SPAWN 2 Clinical Data Platform
       <span className="text-slate-700"> · </span>
       UI {getUiVersion()}
-      {import.meta.env.DEV ? (
-        <>
-          <span className="text-slate-700"> · </span>
-          <a
-            href={TOS_PREVIEW_PATH}
-            className="normal-case tracking-normal text-cyan-600/90 underline-offset-2 hover:text-cyan-400 hover:underline"
-          >
-            TOS
-          </a>
-        </>
-      ) : null}
+      <span className="text-slate-700"> · </span>
+      <a
+        href={TOS_PREVIEW_PATH}
+        className="normal-case tracking-normal text-cyan-600/90 underline-offset-2 hover:text-cyan-400 hover:underline"
+      >
+        TOS
+      </a>
       {tagline ? (
         <>
           <span className="text-slate-700"> · </span>
