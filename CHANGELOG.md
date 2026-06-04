@@ -3,6 +3,15 @@
 
 ## [Unreleased]
 
+## [2026.06.05 provisioning] - 2026-06-05
+
+**Pinned services:** user **v0.6.8**; **cdp-user-policies v0.2.1**.
+
+### Fixed
+
+- Login-time User registry provisioning on cloud stacks when Authentication pointed at an HTTP internal User URL (Talisman redirect); operators must register an HTTPS `base_url` for `user`.
+- Default tier-2 roles on first login when the user service loads the CDP role catalog overlay from **cdp-user-policies v0.2.1** (`ROLE_CATALOG_OVERLAY=/app/policies/cdp-overlay.json`).
+
 ## [2026.06.05] - 2026-06-05
 
 **Pinned services:** authentication **v0.32.2**; user **v0.6.7**; care-episode **v0.2.2**; **cdp-user-policies v0.2.0**.

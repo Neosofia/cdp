@@ -2,6 +2,35 @@
 
 Per-version instructions for system administrators: prerequisites, deploy and configuration steps, post-deploy verification, and evidence to capture. For what changed in each release, see [CHANGELOG.md](CHANGELOG.md).
 
+## CDP UI 2026.06.05 (provisioning patch)
+
+**Build identifiers:** **user v0.6.8**; **cdp-user-policies v0.2.1**; CDP UI **2026.06.05** unchanged unless repinned.
+
+**Prerequisites:**
+
+- Publish **cdp-user-policies v0.2.1** and rebuild **user v0.6.8** with that pin.
+- Authentication **service registry** `user` row: **HTTPS** `base_url` (not `http://user.railway.internal:…`).
+
+**Pre-deploy:**
+
+- Set `ROLE_CATALOG_OVERLAY=/app/policies/cdp-overlay.json` on the user service (cloud).
+- Optional: set `USER_SERVICE_BASE_URL` on authentication to the same HTTPS user URL for future migration `005` runs.
+
+**Deploy:**
+
+1. Tag and publish **cdp-user-policies/v0.2.1**; wait for GHCR image.
+2. Deploy **user v0.6.8** (Dockerfile pins v0.2.1).
+3. Update Authentication `services.base_url` for `user` to HTTPS if still on internal HTTP.
+
+**Post-deploy verification:**
+
+1. Fresh login provisions registry row with default tier-2 roles; profile menu shows **Choose your role**.
+2. Auth logs: `user_provisioning_succeeded`, not `user_provisioning_failed` with `status_code=302`.
+
+**Evidence:**
+
+- Screenshot of session role picker with Site Clinical and Patient for a clinician+patient test user.
+
 ## CDP UI 2026.06.05
 
 **Build identifiers:** CDP UI **2026.06.05** (CalVer); **authentication v0.32.2**; **user v0.6.7**; **care-episode v0.2.2**; **cdp-user-policies v0.2.0**.

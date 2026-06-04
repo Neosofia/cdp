@@ -1,5 +1,5 @@
 x-auth-image: &auth_image ghcr.io/neosofia/authentication:v0.32.2
-x-user-image: &user_image ghcr.io/neosofia/user:v0.6.7
+x-user-image: &user_image ghcr.io/neosofia/user:v0.6.8
 
 services:
   authentication-migrate:

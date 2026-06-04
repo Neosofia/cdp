@@ -31,7 +31,7 @@ jobs:
     uses: Neosofia/platform-workflows/.github/workflows/_build-push.yml@main
     with:
       image_name: ghcr.io/${{ github.repository_owner }}/cdp-user-policies
-      context: policies/service-overrides/user
+      context: .
       file: policies/service-overrides/user/Dockerfile
       tag_prefix: cdp-user-policies
       cache_scope: cdp-user-policies
