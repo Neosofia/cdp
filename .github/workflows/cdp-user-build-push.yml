@@ -9,9 +9,11 @@
 #   ghcr.io/neosofia/cdp-user:vMAJOR.MINOR.PATCH
 #
 # Tagging convention: cdp-user/vMAJOR.MINOR.PATCH
-#   git tag -a cdp-user/v0.1.0 -m "cdp user runtime v0.1.0" && git push origin cdp-user/v0.1.0
+#   git tag -a cdp-user/v0.1.1 -m "cdp user runtime v0.1.1" && git push origin cdp-user/v0.1.1
 #
 # Pin USER_IMAGE in deploy/user/Dockerfile when the platform user release changes.
+# The user base is built from the matching user/v* tag in this job so CDP CI does not
+# require cross-package GHCR pull access to ghcr.io/neosofia/user.
 
 name: cdp-user-build-push
 
@@ -28,10 +30,87 @@ permissions:
 jobs:
   build-push:
     name: Build & Push to GHCR
-    uses: Neosofia/platform-workflows/.github/workflows/_build-push.yml@main
-    with:
-      image_name: ghcr.io/${{ github.repository_owner }}/cdp-user
-      context: .
-      file: deploy/user/Dockerfile
-      tag_prefix: cdp-user
-      cache_scope: cdp-user
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout CDP
+        uses: actions/checkout@v6
+
+      - name: Resolve USER_IMAGE pin
+        id: user-image
+        run: |
+          pin=$(grep '^ARG USER_IMAGE=' deploy/user/Dockerfile | cut -d= -f2-)
+          version="${pin##*:}"
+          echo "image=${pin}" >> "$GITHUB_OUTPUT"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "ref=user/${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout User service
+        uses: actions/checkout@v6
+        with:
+          repository: Neosofia/user
+          ref: ${{ steps.user-image.outputs.ref }}
+          path: user-service
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Build and push user base (CDP-owned staging tag)
+        id: user-base
+        uses: docker/build-push-action@v7
+        with:
+          context: user-service
+          file: user-service/Dockerfile
+          target: runtime
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/cdp-user:user-base-${{ steps.user-image.outputs.version }}
+
+      - name: Generate metadata tags
+        id: meta-tags
+        run: |
+          echo "TAGS<<EOF" >> "$GITHUB_OUTPUT"
+          echo "type=sha,prefix=sha-"
+          echo "type=raw,value=latest"
+          echo "type=match,pattern=cdp-user/(.*),group=1"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/cdp-user
+          tags: ${{ steps.meta-tags.outputs.TAGS }}
+
+      - name: Normalize metadata tags
+        id: normalized-tags
+        run: |
+          tags="${{ steps.meta.outputs.tags }}"
+          normalized=$(echo "$tags" | tr ',' '\n' | sed -E 's/:cdp-user-/:/' | paste -sd, -)
+          echo "TAGS=$normalized" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push cdp-user image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: deploy/user/Dockerfile
+          build-args: USER_IMAGE=ghcr.io/${{ github.repository_owner }}/cdp-user:user-base-${{ steps.user-image.outputs.version }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.normalized-tags.outputs.TAGS }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=cdp-user
+          cache-to: type=gha,scope=cdp-user,mode=max
