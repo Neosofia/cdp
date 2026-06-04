@@ -26,6 +26,8 @@
 ### Fixed
 
 - Roster risk levels display correctly when care-episode tenant data does not match the roster tenant.
+- Railway production build: removed unused TypeScript variable in failed-sign-in counter (`tsc -b`).
+- Footer **TOS** link and `/tos-preview` crawl route available in production and staging builds (not dev-only).
 
 ## [0.2.1] - 2026-05
 
