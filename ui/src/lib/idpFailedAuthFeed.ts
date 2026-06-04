@@ -68,7 +68,6 @@ export async function countFailedSignInsLast24Hours(
   token: string,
   activeActor: string,
 ): Promise<number> {
-  const windowStart = Date.now() - FAILED_SIGN_IN_WINDOW_MS;
   let total = 0;
   let after: string | null = null;
 
