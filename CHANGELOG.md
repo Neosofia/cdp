@@ -3,6 +3,14 @@
 
 ## [Unreleased]
 
+## [2026.06.05 authz patch] - 2026-06-05
+
+**Pinned services:** user **v0.6.9**; **cdp-user-policies v0.2.1** unchanged.
+
+### Fixed
+
+- Platform operators with multiple tier-2 roles (e.g. `site.clinical` and `platform.admin`) no longer get **403 Forbidden** on **Registered users** when the active session role is **Platform Admin**.
+
 ## [2026.06.05 provisioning] - 2026-06-05
 
 **Pinned services:** user **v0.6.8**; **cdp-user-policies v0.2.1**.

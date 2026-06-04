@@ -2,6 +2,18 @@
 
 Per-version instructions for system administrators: prerequisites, deploy and configuration steps, post-deploy verification, and evidence to capture. For what changed in each release, see [CHANGELOG.md](CHANGELOG.md).
 
+## CDP UI 2026.06.05 (user v0.6.9 authz patch)
+
+**Build identifiers:** **user v0.6.9**; **cdp-user-policies v0.2.1** unchanged.
+
+**Deploy:**
+
+1. Deploy **user v0.6.9** (same policy bundle and `ROLE_CATALOG_OVERLAY` as v0.6.8).
+
+**Post-deploy verification:**
+
+1. Multi-role operator: **Registered users** stat and **Admin → Users** work under **Platform Admin** session role.
+
 ## CDP UI 2026.06.05 (provisioning patch)
 
 **Build identifiers:** **user v0.6.8**; **cdp-user-policies v0.2.1**; CDP UI **2026.06.05** unchanged unless repinned.
