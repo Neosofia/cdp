@@ -1,4 +1,5 @@
-const CARE_EPISODE_API = import.meta.env.VITE_CARE_EPISODE_API_URL as string | undefined;
+const CARE_EPISODE_API =
+  (import.meta.env.VITE_CARE_EPISODE_API_URL as string | undefined) ?? 'http://localhost:8015';
 
 export interface CareEpisodeInviteInput {
   patient_uuid: string;
@@ -269,7 +270,7 @@ export interface ClonePatientDemoInput {
   display_code: string;
 }
 
-/** Clone dashboard/profile demo rows from the seeded template patient (operator actor only). */
+/** Clone dashboard/profile demo rows from the seeded template patient. */
 export async function clonePatientDemoCareEpisode(
   token: string,
   activeActor: string,

@@ -21,3 +21,5 @@ cp roles/user-catalog.overlay.json ui/src/data/user-catalog.overlay.json
 - **Registry behavior:** [spec 018](../specs/018-user-service.md)
 
 Edit labels here first; copy or reference this path from service overlays. Job-function entries extend pickers only — they do not replace Tier-2 Cedar roles.
+
+**`default_roles_by_actor`** (CDP overlay only): on login provision, the User service adds each listed Tier-2 slug when the principal has that Tier-1 actor in the IdP payload but no role yet under that actor's assigner prefixes. Additive only — existing assignments are never removed.

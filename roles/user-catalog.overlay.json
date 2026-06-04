@@ -48,6 +48,12 @@
     "clinician": ["site."],
     "patient": ["patient."]
   },
+  "default_roles_by_actor": {
+    "operator": "platform.admin",
+    "study": "sponsor.clinical-ops",
+    "clinician": "site.clinical",
+    "patient": "patient.self"
+  },
   "job_functions": [
     "clinical.function.ambulatory-care-specialist",
     "clinical.function.ambulatory-nurse",

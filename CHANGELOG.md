@@ -3,6 +3,25 @@
 
 ## [Unreleased]
 
+## [2026.06.05] - 2026-06-05
+
+**Pinned services:** authentication **v0.32.2**; user **v0.6.6**; care-episode **v0.2.2**; **cdp-user-policies v0.2.0**.
+
+### Added
+
+- Role catalog **default_roles_by_actor** maps each tier-1 actor (patient, clinician, study, operator) to a default tier-2 org role for demo and first-login provisioning.
+- Patient dashboard loads appointments, inbox, and records from care-episode when switching to the **patient** role.
+
+### Changed
+
+- Switching to **patient** runs care-episode **clone-demo** using operator, clinician, or patient JWT actors (not operator-only).
+- `docker-compose.dev.yml` pins **user v0.6.6**.
+
+### Fixed
+
+- Patient dashboard no longer stays half-empty after a failed demo clone; care-episode repairs incomplete demo rows and the UI waits for seeding before fetching.
+- Default **VITE_CARE_EPISODE_API_URL** falls back to `http://localhost:8015` when unset in local Vite builds.
+
 ## [2026.06.04] - 2026-06-04
 
 **Pinned services:** authentication **v0.32.2**; user **v0.6.5**.

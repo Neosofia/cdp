@@ -7,18 +7,29 @@ export interface EnsurePatientDemoContextInput {
   displayCode: string;
 }
 
-/** Clone seeded template demo data via care-episode (requires operator in session actors). */
+/** Tier-1 actors allowed to call clone-demo (must appear in JWT session actors). */
+const CLONE_DEMO_ACTOR_PRIORITY = ['operator', 'clinician', 'patient'] as const;
+
+/**
+ * Clone seeded template demo data via care-episode when switching to the patient role.
+ * Uses the first eligible JWT actor (operator, then clinician, then patient self).
+ */
 export async function ensurePatientDemoContext(
   token: string,
   sessionActors: string[],
   input: EnsurePatientDemoContextInput,
 ): Promise<boolean> {
-  if (!isCareEpisodeServiceConfigured() || !sessionActors.includes('operator')) {
+  if (!isCareEpisodeServiceConfigured()) {
+    return false;
+  }
+
+  const cloneActor = CLONE_DEMO_ACTOR_PRIORITY.find((actor) => sessionActors.includes(actor));
+  if (!cloneActor) {
     return false;
   }
 
   try {
-    const result = await clonePatientDemoCareEpisode(token, 'operator', input.patientUuid, {
+    const result = await clonePatientDemoCareEpisode(token, cloneActor, input.patientUuid, {
       tenant_uuid: input.tenantUuid,
       display_name: input.displayName,
       display_code: input.displayCode,

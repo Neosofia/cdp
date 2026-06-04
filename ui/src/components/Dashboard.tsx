@@ -53,6 +53,10 @@ interface DashboardProps {
   clinicianError?: string | null;
   patientToken?: string;
   patientUuid?: string;
+  /** Bumped after clone-demo succeeds so the patient dashboard refetches care-episode data. */
+  patientDemoSeedVersion?: number;
+  /** True while clone-demo is running after switching to the patient role. */
+  patientDemoSeeding?: boolean;
   operatorToken?: string;
   activeOrgRole?: string;
   onPatientGoToProfile?: () => void;
@@ -656,12 +660,16 @@ function PatientDashboard({
   token,
   activeActor,
   patientUuid,
+  demoSeedVersion = 0,
+  demoSeeding = false,
   onGoToProfile,
 }: {
   firstName?: string;
   token?: string;
   activeActor: string;
   patientUuid?: string;
+  demoSeedVersion?: number;
+  demoSeeding?: boolean;
   onGoToProfile?: () => void;
 }) {
   const [appointments, setAppointments] = useState<CareEpisodeAppointment[]>([]);
@@ -671,31 +679,38 @@ function PatientDashboard({
   const nowMs = Date.now();
 
   useEffect(() => {
-    if (!token || !patientUuid) {
-      setAppointments([]);
-      setMessages([]);
-      setRecords([]);
+    if (!token || !patientUuid || demoSeeding) {
+      if (!demoSeeding) {
+        setAppointments([]);
+        setMessages([]);
+        setRecords([]);
+      }
       return;
     }
     let cancelled = false;
     const load = async () => {
       setLoading(true);
-      const [appts, inbox, recs] = await Promise.all([
-        listCareEpisodeAppointments(token, activeActor, patientUuid),
-        listCareEpisodeInboxMessages(token, activeActor, patientUuid),
-        listCareEpisodeRecords(token, activeActor, patientUuid),
-      ]);
-      if (cancelled) return;
-      setAppointments(appts);
-      setMessages(inbox);
-      setRecords(recs);
-      setLoading(false);
+      try {
+        const [appts, inbox, recs] = await Promise.all([
+          listCareEpisodeAppointments(token, activeActor, patientUuid),
+          listCareEpisodeInboxMessages(token, activeActor, patientUuid),
+          listCareEpisodeRecords(token, activeActor, patientUuid),
+        ]);
+        if (cancelled) return;
+        setAppointments(appts);
+        setMessages(inbox);
+        setRecords(recs);
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
     };
     void load();
     return () => {
       cancelled = true;
     };
-  }, [token, activeActor, patientUuid]);
+  }, [token, activeActor, patientUuid, demoSeedVersion, demoSeeding]);
 
   const upcoming = useMemo(
     () =>
@@ -727,7 +742,7 @@ function PatientDashboard({
 
       <div className="mb-6 rounded-xl px-5 py-4" style={{ background: 'rgba(34,211,238,0.04)', border: '1px solid rgba(34,211,238,0.12)' }}>
         <p className="text-slate-300 text-sm">
-          {loading ? (
+          {demoSeeding || loading ? (
             <>Loading your care overview…</>
           ) : nextAppointment ? (
             <>
@@ -875,6 +890,8 @@ export default function Dashboard({
   firstName,
   patientToken,
   patientUuid,
+  patientDemoSeedVersion = 0,
+  patientDemoSeeding = false,
   operatorToken,
   activeOrgRole,
   clinicianPatients = [],
@@ -914,6 +931,8 @@ export default function Dashboard({
         token={patientToken}
         activeActor={activeActor}
         patientUuid={patientUuid}
+        demoSeedVersion={patientDemoSeedVersion}
+        demoSeeding={patientDemoSeeding}
         onGoToProfile={onPatientGoToProfile}
       />
     );

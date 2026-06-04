@@ -2,6 +2,40 @@
 
 Per-version instructions for system administrators: prerequisites, deploy and configuration steps, post-deploy verification, and evidence to capture. For what changed in each release, see [CHANGELOG.md](CHANGELOG.md).
 
+## CDP UI 2026.06.05
+
+**Build identifiers:** CDP UI **2026.06.05** (CalVer); **authentication v0.32.2**; **user v0.6.6**; **care-episode v0.2.2**; **cdp-user-policies v0.2.0**.
+
+**Prerequisites:**
+
+- Deploy **authentication v0.32.2**, **user v0.6.6**, and **care-episode v0.2.2**.
+- Publish **cdp-user-policies v0.2.0** and rebuild the user service image with `CDP_USER_POLICIES_IMAGE=ghcr.io/neosofia/cdp-user-policies:v0.2.0` (or pin that tag in the user Dockerfile before build).
+- Run care-episode migration **004** (`last_activity` on sessions).
+- WorkOS tier-1 actors for demo users: **operator**, **clinician**, **patient** (and **study** when testing sponsor roles).
+
+**Pre-deploy:**
+
+- Set `VITE_*_API_URL` values for the UI build, including `VITE_CARE_EPISODE_API_URL`.
+- Pull `ghcr.io/neosofia/authentication:v0.32.2`, `ghcr.io/neosofia/user:v0.6.6`, and `ghcr.io/neosofia/care-episode:v0.2.2` before updating compose stacks.
+
+**Deploy:**
+
+1. Run authentication, user, and care-episode migrations to head.
+2. Tag and publish **cdp-user-policies/v0.2.0** from CDP; rebuild **user** if the image was built before that tag existed.
+3. Deploy CDP UI build **2026.06.05** with updated `VITE_*` configuration.
+
+**Post-deploy verification:**
+
+1. Log in with a multi-actor demo user; session picker lists tier-2 roles with human-readable labels.
+2. Switch to **patient** — patient dashboard shows upcoming appointments, messages, and recent records (not records-only).
+3. Re-login after WorkOS adds **operator** — **platform.admin** appears when catalog defaults apply.
+4. Operator **clone-demo** path still works for seeding a new patient UUID.
+
+**Evidence:**
+
+- Screenshot of full patient dashboard (stat row plus appointments and messages sections).
+- `GET /health` from care-episode reports **0.2.2**.
+
 ## CDP UI 2026.06.04
 
 **Build identifiers:** CDP UI **2026.06.04** (CalVer); **authentication v0.32.2**; **user v0.6.5**.

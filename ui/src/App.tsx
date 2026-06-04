@@ -232,6 +232,8 @@ export default function App() {
     clinicianListFilters,
   } = route;
   const patientContextSyncRef = useRef<string | null>(null);
+  const [patientDemoSeedVersion, setPatientDemoSeedVersion] = useState(0);
+  const [patientDemoSeeding, setPatientDemoSeeding] = useState(false);
   // True only when the active role's capability map is loaded (skip route guards until then).
   const entitlementsReady =
     Boolean(tokenInfo && activeActor && Object.hasOwn(entitlementsByRole, activeActor));
@@ -453,15 +455,21 @@ export default function App() {
         return;
       }
 
-      const ok = await ensurePatientDemoContext(token, sessionActors, {
-        patientUuid,
-        tenantUuid,
-        displayName,
-        displayCode,
-      });
+      setPatientDemoSeeding(true);
+      try {
+        const ok = await ensurePatientDemoContext(token, sessionActors, {
+          patientUuid,
+          tenantUuid,
+          displayName,
+          displayCode,
+        });
 
-      if (ok) {
-        patientContextSyncRef.current = syncKey;
+        if (ok) {
+          patientContextSyncRef.current = syncKey;
+          setPatientDemoSeedVersion((version) => version + 1);
+        }
+      } finally {
+        setPatientDemoSeeding(false);
       }
     },
     [profile, sessionActors, tokenInfo],
@@ -1500,6 +1508,8 @@ export default function App() {
                   firstName={profile?.first_name}
                   patientToken={tokenInfo.raw}
                   patientUuid={profile?.uuid}
+                  patientDemoSeedVersion={patientDemoSeedVersion}
+                  patientDemoSeeding={patientDemoSeeding}
                   operatorToken={tokenInfo.raw}
                   activeOrgRole={activeOrgRole}
                   clinicianPatients={registryPatients}
