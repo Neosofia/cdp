@@ -4,11 +4,11 @@ Per-version instructions for system administrators: prerequisites, deploy and co
 
 ## CDP UI 2026.06.05
 
-**Build identifiers:** CDP UI **2026.06.05** (CalVer); **authentication v0.32.2**; **user v0.6.6**; **care-episode v0.2.2**; **cdp-user-policies v0.2.0**.
+**Build identifiers:** CDP UI **2026.06.05** (CalVer); **authentication v0.32.2**; **user v0.6.7**; **care-episode v0.2.2**; **cdp-user-policies v0.2.0**.
 
 **Prerequisites:**
 
-- Deploy **authentication v0.32.2**, **user v0.6.6**, and **care-episode v0.2.2**.
+- Deploy **authentication v0.32.2**, **user v0.6.7**, and **care-episode v0.2.2**.
 - Publish **cdp-user-policies v0.2.0** and rebuild the user service image with `CDP_USER_POLICIES_IMAGE=ghcr.io/neosofia/cdp-user-policies:v0.2.0` (or pin that tag in the user Dockerfile before build).
 - Run care-episode migration **004** (`last_activity` on sessions).
 - WorkOS tier-1 actors for demo users: **operator**, **clinician**, **patient** (and **study** when testing sponsor roles).
@@ -16,7 +16,7 @@ Per-version instructions for system administrators: prerequisites, deploy and co
 **Pre-deploy:**
 
 - Set `VITE_*_API_URL` values for the UI build, including `VITE_CARE_EPISODE_API_URL`.
-- Pull `ghcr.io/neosofia/authentication:v0.32.2`, `ghcr.io/neosofia/user:v0.6.6`, and `ghcr.io/neosofia/care-episode:v0.2.2` before updating compose stacks.
+- Pull `ghcr.io/neosofia/authentication:v0.32.2`, `ghcr.io/neosofia/user:v0.6.7`, and `ghcr.io/neosofia/care-episode:v0.2.2` before updating compose stacks.
 
 **Deploy:**
 

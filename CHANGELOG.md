@@ -5,7 +5,7 @@
 
 ## [2026.06.05] - 2026-06-05
 
-**Pinned services:** authentication **v0.32.2**; user **v0.6.6**; care-episode **v0.2.2**; **cdp-user-policies v0.2.0**.
+**Pinned services:** authentication **v0.32.2**; user **v0.6.7**; care-episode **v0.2.2**; **cdp-user-policies v0.2.0**.
 
 ### Added
 
@@ -15,7 +15,7 @@
 ### Changed
 
 - Switching to **patient** runs care-episode **clone-demo** using operator, clinician, or patient JWT actors (not operator-only).
-- `docker-compose.dev.yml` pins **user v0.6.6**.
+- `docker-compose.dev.yml` pins **user v0.6.7**.
 
 ### Fixed
 
