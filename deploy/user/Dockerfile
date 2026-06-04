@@ -2,11 +2,11 @@
 # Same pattern as capabilities + cdp-ui-policies (ADR-0012).
 #
 # Build from CDP repo root:
-#   docker build -f deploy/user/Dockerfile --build-arg USER_IMAGE=ghcr.io/neosofia/user:v0.6.1 -t cdp-user:local .
+#   docker build -f deploy/user/Dockerfile --build-arg USER_IMAGE=ghcr.io/neosofia/user:v0.6.2 -t cdp-user:local .
 #
 # Release: tag cdp-user/vMAJOR.MINOR.PATCH → .github/workflows/cdp-user-build-push.yml
 
-ARG USER_IMAGE=ghcr.io/neosofia/user:v0.6.1
+ARG USER_IMAGE=ghcr.io/neosofia/user:v0.6.2
 
 FROM ${USER_IMAGE} AS user_base
 
