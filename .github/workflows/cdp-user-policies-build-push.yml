@@ -1,0 +1,37 @@
+# Build and push the CDP User service policy override bundle to GHCR.
+#
+# Triggered by:
+#   - Push of a SemVer tag (cdp-user-policies/vMAJOR.MINOR.PATCH)
+#   - Manual dispatch
+#
+# Produces:
+#   ghcr.io/neosofia/cdp-user-policies:<git-sha>
+#   ghcr.io/neosofia/cdp-user-policies:vMAJOR.MINOR.PATCH
+#
+# Tagging convention: cdp-user-policies/vMAJOR.MINOR.PATCH
+#   git tag -a cdp-user-policies/v0.1.0 -m "cdp user policies v0.1.0" && git push origin cdp-user-policies/v0.1.0
+#
+# The user service consumes this image at build time (see Neosofia/user Dockerfile).
+
+name: cdp-user-policies-build-push
+
+on:
+  push:
+    tags:
+      - 'cdp-user-policies/*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-push:
+    name: Build & Push to GHCR
+    uses: Neosofia/platform-workflows/.github/workflows/_build-push.yml@main
+    with:
+      image_name: ghcr.io/${{ github.repository_owner }}/cdp-user-policies
+      context: policies/service-overrides/user
+      file: policies/service-overrides/user/Dockerfile
+      tag_prefix: cdp-user-policies
+      cache_scope: cdp-user-policies

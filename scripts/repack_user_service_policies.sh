@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Merge User service base Cedar policies with CDP product overrides (inspection / CI).
-# Runtime CDP stacks bake policies via deploy/user/Dockerfile → ghcr.io/neosofia/cdp-user.
+# Merge User service base Cedar policies with CDP product overrides (inspection / local mount).
+# Production: CDP publishes cdp-user-policies; user Dockerfile COPY --from= that image.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

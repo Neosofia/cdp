@@ -33,15 +33,9 @@ x-user-local: &user_local
     context: ../user
     dockerfile: Dockerfile
     target: runtime
-  image: neosofia/user:local
-
-x-user-cdp: &user_cdp
-  build:
-    context: .
-    dockerfile: deploy/user/Dockerfile
     args:
-      USER_IMAGE: neosofia/user:local
-  image: neosofia/cdp-user:local
+      CDP_USER_POLICIES_IMAGE: neosofia/cdp-user-policies:local
+  image: neosofia/user:local
 
 x-template-local: &template_local
   build:
@@ -64,7 +58,16 @@ x-care-episode-local: &care_episode_local
     target: runtime
   image: neosofia/care-episode:local
 
+# Build CDP user policy bundle before the user service image (required once per policy change):
+#   docker compose -f docker-compose.local.yml build cdp-user-policies
+#   docker compose -f docker-compose.local.yml up -d --build
 services:
+  cdp-user-policies:
+    build:
+      context: ./policies/service-overrides/user
+      dockerfile: Dockerfile
+    image: neosofia/cdp-user-policies:local
+
   authentication-migrate:
     <<: *auth_local
     volumes:
@@ -92,7 +95,7 @@ services:
         condition: service_healthy
     restart: "no"
   user:
-    <<: *user_cdp
+    <<: *user_local
     container_name: cdp-user
     env_file:
       - ./.user.env
