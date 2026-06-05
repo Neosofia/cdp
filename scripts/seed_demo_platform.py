@@ -373,14 +373,14 @@ def _seed_chat(catalog: dict, now_utc: datetime) -> None:
             sender_uuid = patient_uuid if sender_type == "patient" else None
             message_rows.append(
                 (
-                    patient_uuid,
-                    patient_uuid,
                     sender_type,
                     sender_uuid,
                     item["content"],
                     item["changed_at"],
                     CHAT_SEED_ACTOR_UUID,
                     CHAT_SEED_ACTOR_TYPE,
+                    patient_uuid,
+                    patient_uuid,
                 )
             )
 
@@ -425,10 +425,9 @@ def _seed_chat(catalog: dict, now_utc: datetime) -> None:
 
     with psycopg.connect(migration_database_url("chat")) as conn:
         with conn.cursor() as cur:
-            cur.execute("TRUNCATE messages_audit")
-            cur.execute("TRUNCATE messages")
-            cur.execute("TRUNCATE chat_interactions_audit")
-            cur.execute("TRUNCATE chat_interactions")
+            cur.execute(
+                "TRUNCATE messages_audit, messages, chat_interactions_audit, chat_interactions CASCADE",
+            )
             # ALTER TABLE ... DISABLE TRIGGER is reverted by audit DDL protection; replica role skips DML hooks.
             cur.execute("SET session_replication_role = replica")
             cur.executemany(interaction_sql, interaction_rows)
