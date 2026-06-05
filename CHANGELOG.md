@@ -3,6 +3,21 @@
 
 ## [Unreleased]
 
+## [2026.06.05 chat] - 2026-06-05
+
+**Pinned services:** chat **v0.2.2**; care-episode **v0.2.3**.
+
+### Added
+
+- Patient **Care assistant** supports multiple conversation threads, a conversations sidebar, and a **Care team** badge when a clinician has joined a thread.
+- Clinician patient chat: session pagination, direct replies (assistant paused for that thread), and compose with clinician name and role.
+- Patient banner suggests **New chat with assistant** while the care team is responding in the current thread.
+
+### Changed
+
+- Chat history and completions use the chat service interaction model (care-episode no longer stores transcripts).
+- Demo platform seed script seeds `chat_interactions` and messages for catalog patients.
+
 ## [2026.06.05 authz patch] - 2026-06-05
 
 **Pinned services:** user **v0.6.9**; **cdp-user-policies v0.2.1** unchanged.

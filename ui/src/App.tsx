@@ -41,7 +41,7 @@ import {
 import { useAppRoute } from '@/lib/useAppRoute';
 import { usePatientRegistry } from '@/lib/usePatientRegistry';
 import { upsertCareEpisodeSession } from '@/lib/careEpisodeApi';
-import { ensurePatientDemoContext } from '@/lib/ensurePatientDemoContext';
+import { ensurePatientDemoChat, ensurePatientDemoContext } from '@/lib/ensurePatientDemoContext';
 import { acceptTermsOfService, updatePatientUser } from '@/lib/userRegistryApi';
 import AppFooter from '@/components/AppFooter';
 import SplashPage from '@/components/SplashPage';
@@ -437,9 +437,6 @@ export default function App() {
       }
 
       const syncKey = `${patientUuid}:${tenantUuid}:${actor}`;
-      if (patientContextSyncRef.current === syncKey) {
-        return;
-      }
 
       const displayName =
         `${profile?.first_name ?? ''} ${profile?.last_name ?? ''}`.trim() ||
@@ -452,6 +449,16 @@ export default function App() {
           sessionActors.includes(candidate) && all.indexOf(candidate) === index,
       );
       if (actorCandidates.length === 0) {
+        return;
+      }
+
+      try {
+        await ensurePatientDemoChat(token, sessionActors, patientUuid);
+      } catch {
+        // Chat enrichment should not block dashboard clone.
+      }
+
+      if (patientContextSyncRef.current === syncKey) {
         return;
       }
 
@@ -1390,6 +1397,7 @@ export default function App() {
                 patientName={profile ? `${profile.first_name} ${profile.last_name}` : undefined}
                 patientUuid={profile?.uuid}
                 careEpisodeUuid={profile?.uuid}
+                tenantName={profile?.tenant_name}
               />
             ) : selectedSection === 'Patient' && selectedAction === 'Profile' && profile ? (
               <div className="col-span-2">
@@ -1413,6 +1421,13 @@ export default function App() {
                 registryUsers={registryUsers}
                 token={tokenInfo.raw}
                 activeActor={activeActor}
+                clinicianDisplayName={
+                  profile
+                    ? `${profile.first_name} ${profile.last_name}`.trim() || profile.email
+                    : undefined
+                }
+                clinicianRoleLabel={activeSessionRole?.label}
+                clinicianUuid={profile?.uuid}
                 selfUuid={profile?.uuid}
                 loading={patientsLoading}
                 error={patientsError}

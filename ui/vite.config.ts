@@ -1,4 +1,3 @@
-/// <reference types="vitest/config" />
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
@@ -6,9 +5,6 @@ import path from "path"
 
 // https://vite.dev/config/
 export default defineConfig({
-  test: {
-    environment: 'node',
-  },
     resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
@@ -26,6 +22,8 @@ export default defineConfig({
       'react-dom',
       'react-dom/client',
       'react/jsx-dev-runtime',
+      'react-markdown',
+      'remark-gfm',
       '@opentelemetry/sdk-trace-web',
       '@opentelemetry/auto-instrumentations-web',
       '@opentelemetry/instrumentation',

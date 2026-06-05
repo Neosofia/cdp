@@ -54,13 +54,6 @@ export interface CareEpisodeRecordUpsertItem {
   imageKey?: string;
 }
 
-export interface CareEpisodeTranscriptMessage {
-  id: string;
-  role: 'patient' | 'assistant';
-  content: string;
-  time: string;
-}
-
 /** Opens a post-care monitoring episode (spec 015 FR-001). */
 export async function createCareEpisodeInvite(
   token: string,
@@ -124,20 +117,6 @@ export async function listCareEpisodeRecords(
   });
   if (!res.ok) return [];
   const body = (await res.json()) as { items?: CareEpisodeRecord[] };
-  return body.items ?? [];
-}
-
-export async function listCareEpisodeTranscript(
-  token: string,
-  activeActor: string,
-  patientUuid: string,
-): Promise<CareEpisodeTranscriptMessage[]> {
-  if (!CARE_EPISODE_API) return [];
-  const res = await fetch(`${CARE_EPISODE_API}/api/v1/care-episodes/${patientUuid}/transcript`, {
-    headers: { Authorization: `Bearer ${token}`, 'X-Active-Actor': activeActor },
-  });
-  if (!res.ok) return [];
-  const body = (await res.json()) as { items?: CareEpisodeTranscriptMessage[] };
   return body.items ?? [];
 }
 

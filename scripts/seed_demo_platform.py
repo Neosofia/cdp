@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Seed demo data into user, care-episode, and chat services.
 
-User and care-episode data are created via HTTP APIs. Chat demo transcripts are inserted
+User and care-episode data are created via HTTP APIs. Chat demo messages are inserted
 directly with MIGRATION_DATABASE_URL (audit trigger disabled) so ``changed_at`` reflects
 seeded conversation times without a dedicated column or API backdoor.
 
@@ -267,18 +267,7 @@ def _seed_care_episode(catalog: dict, api_url: str, headers: dict[str, str], now
             {"items": record_items},
         )
 
-        transcript_items = [
-            {"role": item["role"], "content": item["content"], "time": item["time"]}
-            for item in _build_transcript_timeline(patient, now_utc)
-        ]
-        _request_json(
-            "POST",
-            f"{api_url}/api/v1/care-episodes/{patient_uuid}/transcript",
-            headers,
-            {"items": transcript_items},
-        )
-
-    print(f"care-episode: seeded sessions/records/transcript for {len(patients)} catalog patients")
+    print(f"care-episode: seeded sessions/records for {len(patients)} catalog patients")
 
 
 def _seed_patient_dashboard_db(catalog: dict, now_utc: datetime) -> None:
@@ -365,14 +354,24 @@ def _seed_patient_dashboard_db(catalog: dict, now_utc: datetime) -> None:
 
 def _seed_chat(catalog: dict, now_utc: datetime) -> None:
     psycopg = _require_psycopg()
-    rows: list[tuple] = []
+    message_rows: list[tuple] = []
+    interaction_rows: list[tuple] = []
+
     for patient in _catalog_patients(catalog):
         patient_uuid = patient["uuid"]
+        interaction_rows.append(
+            (
+                patient_uuid,
+                patient_uuid,
+                CHAT_SEED_ACTOR_UUID,
+                CHAT_SEED_ACTOR_TYPE,
+            )
+        )
         timeline = _build_transcript_timeline(patient, now_utc)
         for item in timeline:
             sender_type = "patient" if item["role"] == "patient" else "ai_agent"
             sender_uuid = patient_uuid if sender_type == "patient" else None
-            rows.append(
+            message_rows.append(
                 (
                     patient_uuid,
                     patient_uuid,
@@ -385,10 +384,21 @@ def _seed_chat(catalog: dict, now_utc: datetime) -> None:
                 )
             )
 
-    insert_sql = """
-        INSERT INTO messages (
+    interaction_sql = """
+        INSERT INTO chat_interactions (
+            chat_interaction_uuid,
             patient_uuid,
             care_episode_uuid,
+            changed_by_uuid,
+            changed_by_type,
+            change_type
+        )
+        VALUES (uuidv7(), %s::uuid, %s::uuid, %s::uuid, %s, 1)
+    """
+
+    message_sql = """
+        INSERT INTO messages (
+            chat_interaction_uuid,
             sender_type,
             sender_uuid,
             content,
@@ -397,21 +407,37 @@ def _seed_chat(catalog: dict, now_utc: datetime) -> None:
             changed_by_type,
             change_type
         )
-        VALUES (%s::uuid, %s::uuid, %s, %s::uuid, %s, %s::timestamptz, %s::uuid, %s, 1)
+        SELECT
+            interaction_row.chat_interaction_uuid,
+            %s,
+            %s::uuid,
+            %s,
+            %s::timestamptz,
+            %s::uuid,
+            %s,
+            1
+        FROM chat_interactions AS interaction_row
+        WHERE interaction_row.patient_uuid = %s::uuid
+          AND interaction_row.care_episode_uuid = %s::uuid
+        ORDER BY interaction_row.changed_at DESC
+        LIMIT 1
     """
 
     with psycopg.connect(migration_database_url("chat")) as conn:
         with conn.cursor() as cur:
             cur.execute("TRUNCATE messages_audit")
             cur.execute("TRUNCATE messages")
+            cur.execute("TRUNCATE chat_interactions_audit")
+            cur.execute("TRUNCATE chat_interactions")
             # ALTER TABLE ... DISABLE TRIGGER is reverted by audit DDL protection; replica role skips DML hooks.
             cur.execute("SET session_replication_role = replica")
-            cur.executemany(insert_sql, rows)
+            cur.executemany(interaction_sql, interaction_rows)
+            cur.executemany(message_sql, message_rows)
             cur.execute("SET session_replication_role = origin")
         conn.commit()
 
     print(
-        f"chat: seeded {len(rows)} messages via MIGRATION_DATABASE_URL "
+        f"chat: seeded {len(interaction_rows)} interactions and {len(message_rows)} messages via MIGRATION_DATABASE_URL "
         f"(+{CHAT_MESSAGE_GAP_SECONDS}s per turn, changed_at set directly)",
     )
 

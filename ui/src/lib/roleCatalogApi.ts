@@ -39,4 +39,19 @@ export function roleLabelMap(catalog: RoleCatalogSnapshot | null): Map<string, s
   return new Map(catalog.role_definitions.map((def) => [def.id, def.label]));
 }
 
+/** Pretty tier-2 label for the clinician org role on a registry user (e.g. site.research → Site Research). */
+export function clinicianRoleLabelForUserRoles(
+  roles: string[],
+  catalog: RoleCatalogSnapshot,
+): string {
+  const prefixes = catalog.assigner_actor_prefixes?.clinician ?? ['site.'];
+  const labels = roleLabelMap(catalog);
+  const orderIndex = new Map(catalog.role_definitions.map((def, index) => [def.id, index]));
+  const clinicianRoles = roles
+    .filter(role => prefixes.some(prefix => role.startsWith(prefix)))
+    .sort((a, b) => (orderIndex.get(a) ?? 999) - (orderIndex.get(b) ?? 999));
+  const roleId = clinicianRoles[0];
+  return roleId ? (labels.get(roleId) ?? '') : '';
+}
+
 export { cdpClinicalRoleCatalog, roleCatalogForUi } from '@/lib/clinicalRoleCatalog';

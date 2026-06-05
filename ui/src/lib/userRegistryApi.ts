@@ -69,6 +69,26 @@ export interface RegistryUser {
   tos_accepted: boolean;
 }
 
+export function registryUserDisplayName(user: Pick<RegistryUser, 'first_name' | 'last_name'>): string {
+  return `${user.first_name ?? ''} ${user.last_name ?? ''}`.trim();
+}
+
+export async function fetchRegistryUser(
+  token: string,
+  activeActor: string,
+  userUuid: string,
+  activeOrgRole?: string,
+): Promise<RegistryUser> {
+  const res = await fetch(`${USER_API}/api/v1/users/${userUuid}`, {
+    headers: userServiceHeaders(token, activeActor, activeOrgRole),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(apiErrorMessage(body, res.status));
+  }
+  return body as RegistryUser;
+}
+
 /** Record Terms of Service acceptance on the caller's user record (self-service PATCH). */
 export async function acceptTermsOfService(
   token: string,

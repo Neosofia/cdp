@@ -2,6 +2,31 @@
 
 Per-version instructions for system administrators: prerequisites, deploy and configuration steps, post-deploy verification, and evidence to capture. For what changed in each release, see [CHANGELOG.md](CHANGELOG.md).
 
+## CDP UI 2026.06.05 (chat v0.2.2 / care-episode v0.2.3)
+
+**Build identifiers:** CDP UI **2026.06.05**; **chat v0.2.2**; **care-episode v0.2.3**.
+
+**Prerequisites:**
+
+- Deploy **chat v0.2.2** and **care-episode v0.2.3**; run migrations to head on both databases.
+- UI build includes `VITE_CHAT_API_URL` and `VITE_CARE_EPISODE_API_URL` pointing at the deployed services.
+
+**Deploy:**
+
+1. Pull `ghcr.io/neosofia/chat:v0.2.2` and `ghcr.io/neosofia/care-episode:v0.2.3`.
+2. Deploy CDP UI **2026.06.05** after backend images are live.
+
+**Post-deploy verification:**
+
+1. Re-run `scripts/seed_demo_platform.py` against staging (requires operator JWT and migration DB URLs for chat and care-episode).
+2. Patient: open **Care assistant**, send a message, start a **New chat** when sidebar shows multiple threads.
+3. Clinician: open a patient, send a reply; patient thread shows **Care team** badge and no AI reply in that thread.
+
+**Evidence:**
+
+- Screenshot of patient conversations sidebar with **Care team** badge.
+- `GET /health` on chat reports **0.2.2** and care-episode **0.2.3**.
+
 ## CDP UI 2026.06.05 (user v0.6.9 authz patch)
 
 **Build identifiers:** **user v0.6.9**; **cdp-user-policies v0.2.1** unchanged.

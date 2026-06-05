@@ -1,16 +1,19 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useScrollToBottom } from '@/lib/useScrollToBottom';
 import {
   ArrowLeftIcon,
-  ChatBubbleLeftRightIcon,
   ChevronDownIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
   MagnifyingGlassIcon,
+  PaperAirplaneIcon,
   PencilSquareIcon,
   UserGroupIcon,
   SignalIcon,
   UserPlusIcon,
 } from '@heroicons/react/24/outline';
 import { Badge } from '@/components/ui/badge';
+import ChatMessageContent from '@/components/ChatMessageContent';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -39,8 +42,19 @@ import {
   USER_SHEET_TITLE_STYLE,
 } from '@/components/userFormStyles';
 import type { MedicalRecord } from '@/lib/patientRecordsData';
+import {
+  createChatMessage,
+  formatChatInteractionActivityDate,
+  formatChatInteractionLabel,
+  type ChatInteraction,
+} from '@/lib/chatApi';
 import { listCareEpisodeRecords } from '@/lib/careEpisodeApi';
-import { loadPatientTranscript } from '@/lib/patientTranscript';
+import {
+  chatMessageToTranscriptLine,
+  listPatientChatInteractions,
+  loadPatientTranscriptForInteraction,
+  type PatientTranscriptLine,
+} from '@/lib/patientTranscript';
 import {
   applyClinicianListFilters,
   DEFAULT_CLINICIAN_LIST_FILTERS,
@@ -70,6 +84,9 @@ interface Props {
   registryUsers: RegistryPatientUser[];
   token: string;
   activeActor: string;
+  clinicianDisplayName?: string;
+  clinicianRoleLabel?: string;
+  clinicianUuid?: string | null;
   selfUuid?: string | null;
   loading?: boolean;
   error?: string | null;
@@ -96,11 +113,22 @@ export interface EditEnrollmentInput {
   tenant_uuid: string;
 }
 
-interface UiTranscriptMessage {
-  id: string;
-  role: 'patient' | 'assistant';
-  content: string;
-  time: string;
+function transcriptSpeakerLabel(
+  role: PatientTranscriptLine['role'],
+  clinicianName?: string,
+): string {
+  if (role === 'patient') {
+    return 'Patient';
+  }
+  if (role === 'clinician') {
+    return clinicianName?.trim() || 'Clinician';
+  }
+  return 'Care assistant';
+}
+
+/** Clinician view: patient inbound on the left; care team outbound on the right. */
+function isPatientInboundMessage(role: PatientTranscriptLine['role']): boolean {
+  return role === 'patient';
 }
 
 const RISK_FILTER_OPTIONS: { value: ClinicianRiskFilter; label: string }[] = [
@@ -433,12 +461,81 @@ function PatientList({
 function TranscriptPanel({
   patient,
   messages,
+  interactions,
+  activeInteractionUuid,
+  onSelectInteraction,
+  onSendClinicianMessage,
+  clinicianDisplayName,
+  clinicianRoleLabel,
+  canCompose,
+  loading,
+  error,
+  composeError,
+  sending,
 }: {
   patient: ActivePatientSession;
-  messages: UiTranscriptMessage[];
+  messages: PatientTranscriptLine[];
+  interactions: ChatInteraction[];
+  activeInteractionUuid: string | null;
+  onSelectInteraction: (interactionUuid: string) => void;
+  onSendClinicianMessage: (content: string) => Promise<void>;
+  clinicianDisplayName?: string;
+  clinicianRoleLabel?: string;
+  canCompose: boolean;
+  loading: boolean;
+  error: string | null;
+  composeError: string | null;
+  sending: boolean;
 }) {
+  const [draft, setDraft] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
   const lastMessageId = messages[messages.length - 1]?.id;
-  const scrollRef = useScrollToBottom<HTMLDivElement>([patient.patientUuid, messages.length, lastMessageId]);
+  const scrollRef = useScrollToBottom<HTMLDivElement>([
+    patient.patientUuid,
+    activeInteractionUuid,
+    messages.length,
+    lastMessageId,
+  ]);
+  const activeIndex = interactions.findIndex(
+    interaction => interaction.chat_interaction_uuid === activeInteractionUuid,
+  );
+  const activeInteraction = activeIndex >= 0 ? interactions[activeIndex] : null;
+  const canGoOlder = activeIndex >= 0 && activeIndex < interactions.length - 1;
+  const canGoNewer = activeIndex > 0;
+  const sessionLabel = activeInteraction
+    ? formatChatInteractionLabel(activeInteraction)
+    : 'No conversation';
+  const sessionDate = activeInteraction
+    ? formatChatInteractionActivityDate(activeInteraction)
+    : '';
+
+  const focusComposeInput = useCallback(() => {
+    queueMicrotask(() => {
+      requestAnimationFrame(() => {
+        inputRef.current?.focus();
+      });
+    });
+  }, []);
+
+  useEffect(() => {
+    if (canCompose && !sending && !loading) {
+      focusComposeInput();
+    }
+  }, [canCompose, sending, loading, focusComposeInput]);
+
+  const submitReply = async () => {
+    const text = draft.trim();
+    if (!text || sending || !canCompose) {
+      return;
+    }
+    setDraft('');
+    focusComposeInput();
+    try {
+      await onSendClinicianMessage(text);
+    } finally {
+      focusComposeInput();
+    }
+  };
 
   return (
     <Card className="gap-0 py-0 h-full min-h-0 flex flex-col overflow-hidden" style={CARD_STYLE}>
@@ -446,28 +543,73 @@ function TranscriptPanel({
         className="py-3 shrink-0"
         style={{ borderBottom: '1px solid rgba(34,211,238,0.12)', background: 'rgba(34,211,238,0.03)' }}
       >
-        <CardTitle className="text-sm flex items-center gap-2 uppercase tracking-wider" style={{ color: 'rgba(34,211,238,0.8)' }}>
-          <ChatBubbleLeftRightIcon className="h-4 w-4" />
-          Active chat · {messages.length} messages
-        </CardTitle>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            disabled={!canGoOlder}
+            onClick={() => {
+              if (!canGoOlder) return;
+              onSelectInteraction(interactions[activeIndex + 1].chat_interaction_uuid);
+            }}
+            className="shrink-0 text-slate-400 hover:text-cyan-300 hover:bg-cyan-500/10 disabled:opacity-30"
+            aria-label="Older conversation"
+          >
+            <ChevronLeftIcon className="h-4 w-4" />
+          </Button>
+          <div className="min-w-0 flex-1 text-center">
+            <CardTitle className="text-sm font-medium truncate text-slate-100 normal-case tracking-normal">
+              {sessionLabel}
+            </CardTitle>
+            {sessionDate ? (
+              <p className="text-xs text-slate-400 mt-0.5">{sessionDate}</p>
+            ) : null}
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            disabled={!canGoNewer}
+            onClick={() => {
+              if (!canGoNewer) return;
+              onSelectInteraction(interactions[activeIndex - 1].chat_interaction_uuid);
+            }}
+            className="shrink-0 text-slate-400 hover:text-cyan-300 hover:bg-cyan-500/10 disabled:opacity-30"
+            aria-label="Newer conversation"
+          >
+            <ChevronRightIcon className="h-4 w-4" />
+          </Button>
+        </div>
       </CardHeader>
       <CardContent className="p-0 flex flex-1 flex-col min-h-0 overflow-hidden">
         <div
           ref={scrollRef}
           className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain px-3 py-3 pb-6 space-y-3"
         >
-          {messages.map(msg => (
+          {loading && messages.length === 0 ? (
+            <p className="text-sm text-slate-400 text-center py-8">Loading chat transcript…</p>
+          ) : null}
+          {error ? (
+            <p className="text-sm text-red-400 text-center py-8">{error}</p>
+          ) : null}
+          {!loading && !error && messages.length === 0 ? (
+            <p className="text-sm text-slate-400 text-center py-8">No messages in this conversation yet.</p>
+          ) : null}
+          {messages.map(msg => {
+            const inbound = isPatientInboundMessage(msg.role);
+            return (
             <div
               key={msg.id}
-              className={cn('flex', msg.role === 'patient' ? 'justify-end' : 'justify-start')}
+              className={cn('flex', inbound ? 'justify-start' : 'justify-end')}
             >
               <div
                 className={cn(
-                  'max-w-[92%] rounded-xl px-3 py-2 text-xs leading-relaxed',
-                  msg.role === 'patient' ? 'rounded-br-sm' : 'rounded-bl-sm',
+                  'max-w-[92%] rounded-xl px-3 py-2 text-sm leading-relaxed',
+                  inbound ? 'rounded-bl-sm' : 'rounded-br-sm',
                 )}
                 style={
-                  msg.role === 'patient'
+                  inbound
                     ? {
                         background: 'linear-gradient(135deg, rgba(34,211,238,0.2) 0%, rgba(168,85,247,0.2) 100%)',
                         border: '1px solid rgba(34,211,238,0.2)',
@@ -481,13 +623,66 @@ function TranscriptPanel({
                 }
               >
                 <div className="text-[9px] uppercase tracking-widest mb-1 opacity-60">
-                  {msg.role === 'patient' ? 'Patient' : 'Care assistant'} · {msg.time}
+                  {transcriptSpeakerLabel(msg.role, clinicianDisplayName)} · {msg.time}
                 </div>
-                <span className="whitespace-pre-wrap">{msg.content}</span>
+                <ChatMessageContent content={msg.content} markdown={!inbound} />
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
+        {canCompose ? (
+          <div
+            className="shrink-0 border-t px-3 py-3 space-y-2"
+            style={{ borderColor: 'rgba(34,211,238,0.12)', background: 'rgba(34,211,238,0.02)' }}
+          >
+            <div className="min-w-0 text-center">
+              <p className="text-sm font-medium truncate text-slate-100">
+                {clinicianDisplayName?.trim() || 'Clinician'}
+              </p>
+              {clinicianRoleLabel ? (
+                <p className="text-xs text-slate-400 mt-0.5">{clinicianRoleLabel}</p>
+              ) : null}
+            </div>
+            {composeError ? (
+              <p className="text-xs text-red-400 text-center">{composeError}</p>
+            ) : null}
+            <form
+              className="flex gap-2"
+              onSubmit={event => {
+                event.preventDefault();
+                void submitReply();
+              }}
+            >
+              <Input
+                ref={inputRef}
+                value={draft}
+                onChange={event => setDraft(event.target.value)}
+                onKeyDown={event => {
+                  if (event.key === 'Enter' && !event.shiftKey) {
+                    event.preventDefault();
+                    void submitReply();
+                  }
+                }}
+                placeholder="Reply to patient…"
+                disabled={loading}
+                className="flex-1 h-9 bg-slate-900/60 border-slate-700 text-slate-100 placeholder:text-slate-500 focus-visible:border-cyan-500/50 focus-visible:ring-cyan-500/20"
+                autoComplete="off"
+              />
+              <Button
+                type="button"
+                size="icon"
+                onClick={() => void submitReply()}
+                disabled={loading || sending || !draft.trim()}
+                className="shrink-0 text-white"
+                style={{ background: 'linear-gradient(135deg, #22d3ee 0%, #a855f7 100%)' }}
+                aria-label="Send reply"
+              >
+                <PaperAirplaneIcon className="h-4 w-4" />
+              </Button>
+            </form>
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );
@@ -497,6 +692,9 @@ function SessionDetail({
   patient,
   token,
   activeActor,
+  clinicianDisplayName,
+  clinicianRoleLabel,
+  clinicianUuid,
   onBack,
   onEdit,
   saveNotice,
@@ -504,11 +702,20 @@ function SessionDetail({
   patient: ActivePatientSession;
   token: string;
   activeActor: string;
+  clinicianDisplayName?: string;
+  clinicianRoleLabel?: string;
+  clinicianUuid?: string | null;
   onBack: () => void;
   onEdit: (patient: ActivePatientSession) => void;
   saveNotice?: string | null;
 }) {
-  const [transcript, setTranscript] = useState<UiTranscriptMessage[]>([]);
+  const [interactions, setInteractions] = useState<ChatInteraction[]>([]);
+  const [activeInteractionUuid, setActiveInteractionUuid] = useState<string | null>(null);
+  const [transcript, setTranscript] = useState<PatientTranscriptLine[]>([]);
+  const [transcriptLoading, setTranscriptLoading] = useState(true);
+  const [transcriptError, setTranscriptError] = useState<string | null>(null);
+  const [composeError, setComposeError] = useState<string | null>(null);
+  const [sendingReply, setSendingReply] = useState(false);
   const [patientRecords, setPatientRecords] = useState<MedicalRecord[]>([]);
   const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
   const [recordsLoading, setRecordsLoading] = useState(true);
@@ -516,18 +723,13 @@ function SessionDetail({
   useEffect(() => {
     let cancelled = false;
     setRecordsLoading(true);
-    setTranscript([]);
     setPatientRecords([]);
     setSelectedRecordId(null);
 
-    const load = async () => {
+    const loadRecords = async () => {
       try {
-        const [transcriptLines, remoteRecords] = await Promise.all([
-          loadPatientTranscript(token, activeActor, patient.patientUuid),
-          listCareEpisodeRecords(token, activeActor, patient.patientUuid),
-        ]);
+        const remoteRecords = await listCareEpisodeRecords(token, activeActor, patient.patientUuid);
         if (cancelled) return;
-        setTranscript(transcriptLines);
         if (remoteRecords.length > 0) {
           const records = remoteRecords as MedicalRecord[];
           setPatientRecords(records);
@@ -546,14 +748,126 @@ function SessionDetail({
         if (!cancelled) setRecordsLoading(false);
       }
     };
-    void load();
+
+    void loadRecords();
     return () => {
       cancelled = true;
     };
   }, [token, activeActor, patient.patientUuid, patient.riskLevel]);
 
+  useEffect(() => {
+    let cancelled = false;
+    setTranscriptLoading(true);
+    setTranscriptError(null);
+    setInteractions([]);
+    setActiveInteractionUuid(null);
+    setTranscript([]);
+
+    const loadInteractions = async () => {
+      try {
+        const items = await listPatientChatInteractions(token, activeActor, patient.patientUuid);
+        if (cancelled) return;
+        setInteractions(items);
+        setActiveInteractionUuid(items[0]?.chat_interaction_uuid ?? null);
+      } catch (error) {
+        if (cancelled) return;
+        const message = error instanceof Error ? error.message : 'Failed to load conversations';
+        setTranscriptError(message);
+        setTranscriptLoading(false);
+      }
+    };
+
+    void loadInteractions();
+    return () => {
+      cancelled = true;
+    };
+  }, [token, activeActor, patient.patientUuid]);
+
+  useEffect(() => {
+    setComposeError(null);
+  }, [activeInteractionUuid]);
+
+  useEffect(() => {
+    if (!activeInteractionUuid) {
+      setTranscript([]);
+      setTranscriptLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setTranscriptLoading(true);
+    setTranscriptError(null);
+
+    const loadTranscript = async () => {
+      try {
+        const lines = await loadPatientTranscriptForInteraction(
+          token,
+          activeActor,
+          activeInteractionUuid,
+        );
+        if (cancelled) return;
+        setTranscript(lines);
+      } catch (error) {
+        if (cancelled) return;
+        const message = error instanceof Error ? error.message : 'Failed to load chat transcript';
+        setTranscriptError(message);
+        setTranscript([]);
+      } finally {
+        if (!cancelled) setTranscriptLoading(false);
+      }
+    };
+
+    void loadTranscript();
+    return () => {
+      cancelled = true;
+    };
+  }, [token, activeActor, activeInteractionUuid]);
+
   const handleSelectRecord = (record: MedicalRecord | null) => {
     setSelectedRecordId(record?.id ?? null);
+  };
+
+  const activeInteractionIndex = interactions.findIndex(
+    interaction => interaction.chat_interaction_uuid === activeInteractionUuid,
+  );
+  const canCompose =
+    Boolean(activeInteractionUuid && clinicianUuid) && activeInteractionIndex === 0;
+
+  const handleSendClinicianMessage = async (content: string) => {
+    if (!activeInteractionUuid || !clinicianUuid) {
+      return;
+    }
+    setComposeError(null);
+    setSendingReply(true);
+    try {
+      const created = await createChatMessage(token, activeActor, {
+        chat_interaction_uuid: activeInteractionUuid,
+        sender_type: 'clinician',
+        sender_uuid: clinicianUuid,
+        content,
+      });
+      if (!created) {
+        throw new Error('Chat service is not configured');
+      }
+      setTranscript(previous => [...previous, chatMessageToTranscriptLine(created)]);
+      setInteractions(previous =>
+        previous.map(interaction =>
+          interaction.chat_interaction_uuid === activeInteractionUuid
+            ? {
+                ...interaction,
+                message_count: interaction.message_count + 1,
+                last_message_at: created.created_at,
+                preview: content,
+              }
+            : interaction,
+        ),
+      );
+    } catch (sendError) {
+      const message = sendError instanceof Error ? sendError.message : 'Failed to send reply';
+      setComposeError(message);
+    } finally {
+      setSendingReply(false);
+    }
   };
 
   return (
@@ -589,7 +903,21 @@ function SessionDetail({
       </div>
       <div className="flex-1 min-h-0 grid lg:grid-cols-2 gap-4 overflow-hidden">
         <div className="min-h-0 h-full overflow-hidden">
-          <TranscriptPanel patient={patient} messages={transcript} />
+          <TranscriptPanel
+            patient={patient}
+            messages={transcript}
+            interactions={interactions}
+            activeInteractionUuid={activeInteractionUuid}
+            onSelectInteraction={setActiveInteractionUuid}
+            onSendClinicianMessage={handleSendClinicianMessage}
+            clinicianDisplayName={clinicianDisplayName}
+            clinicianRoleLabel={clinicianRoleLabel}
+            canCompose={canCompose}
+            loading={transcriptLoading}
+            error={transcriptError}
+            composeError={composeError}
+            sending={sendingReply}
+          />
         </div>
         <div className="min-h-0 h-full overflow-hidden">
           <PatientRecordsPanel
@@ -610,6 +938,9 @@ export default function ClinicianActivePatients({
   registryUsers,
   token,
   activeActor,
+  clinicianDisplayName,
+  clinicianRoleLabel,
+  clinicianUuid,
   selfUuid,
   loading,
   error,
@@ -720,6 +1051,9 @@ export default function ClinicianActivePatients({
           patient={patient}
           token={token}
           activeActor={activeActor}
+          clinicianDisplayName={clinicianDisplayName}
+          clinicianRoleLabel={clinicianRoleLabel}
+          clinicianUuid={clinicianUuid}
           onBack={() => onSelectPatient(null)}
           onEdit={openEditSheet}
           saveNotice={saveNotice}

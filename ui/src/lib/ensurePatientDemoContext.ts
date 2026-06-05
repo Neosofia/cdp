@@ -1,3 +1,4 @@
+import { clonePatientDemoChat, isChatServiceConfigured } from '@/lib/chatApi';
 import { clonePatientDemoCareEpisode, isCareEpisodeServiceConfigured } from '@/lib/careEpisodeApi';
 
 export interface EnsurePatientDemoContextInput {
@@ -9,6 +10,32 @@ export interface EnsurePatientDemoContextInput {
 
 /** Tier-1 actors allowed to call clone-demo (must appear in JWT session actors). */
 const CLONE_DEMO_ACTOR_PRIORITY = ['operator', 'clinician', 'patient'] as const;
+
+function resolveCloneActor(sessionActors: string[]): string | undefined {
+  return CLONE_DEMO_ACTOR_PRIORITY.find((actor) => sessionActors.includes(actor));
+}
+
+/** Idempotent: copies template chat into the patient thread when still empty. */
+export async function ensurePatientDemoChat(
+  token: string,
+  sessionActors: string[],
+  patientUuid: string,
+): Promise<void> {
+  if (!isChatServiceConfigured()) {
+    return;
+  }
+
+  const cloneActor = resolveCloneActor(sessionActors);
+  if (!cloneActor) {
+    return;
+  }
+
+  try {
+    await clonePatientDemoChat(token, cloneActor, patientUuid);
+  } catch (err) {
+    console.warn('Patient demo chat clone failed', err);
+  }
+}
 
 /**
  * Clone seeded template demo data via care-episode when switching to the patient role.
@@ -23,7 +50,7 @@ export async function ensurePatientDemoContext(
     return false;
   }
 
-  const cloneActor = CLONE_DEMO_ACTOR_PRIORITY.find((actor) => sessionActors.includes(actor));
+  const cloneActor = resolveCloneActor(sessionActors);
   if (!cloneActor) {
     return false;
   }
