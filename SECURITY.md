@@ -8,7 +8,7 @@ For general SDLC and secure coding practices (including configuration, input val
 
 ## PHI Containment & Identity
 
-*See [Constitution §I: PHI Safety](architecture/constitution.md) for core principles regarding PHI encryption, BAA usage, de-identification, and logging.*
+*See [Constitution §I: PHI & Privacy](architecture/constitution.md) for core principles regarding PHI encryption, BAA usage, de-identification, and logging.*
 
 - **Data Locality:** Raw messages with PHI exist only in the Chat Service database, encrypted at rest. No other service stores raw message content.
 - **De-identification Pipeline:** The pipeline is the exclusive path through which message content reaches any downstream workload; quarantine-on-failure ensures no PHI escapes into the clean store.
@@ -25,7 +25,7 @@ For general SDLC and secure coding practices (including configuration, input val
 
 ## HIPAA, Observability & Audit
 
-*See [Constitution §IV: Reliability & Observability](architecture/constitution.md) for overarching metrics and SLA requirements.*
+*See [Constitution §IV: Trustworthy Operation](architecture/constitution.md) for overarching dependability and operational response expectations.*
 
 - **Audit Logging:** Every service that touches PHI emits a tamper-evident audit log on every create/read event ([ADR-0004](architecture/adrs/0004-full-row-audit-history-over-sparse-deltas.md)). Audit log retention is ≥ 6 years (HIPAA minimum) across all services.
 - **Security Events:** Every security-relevant event (authentication, access, escalation, session lifecycle) is emitted as structured JSON validated against a shared schema ([ADR-0009](architecture/adrs/0009-structured-json-logging-with-schema-validation.md)).

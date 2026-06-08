@@ -5,7 +5,7 @@
   "description" : "HIPAA-compliant clinical data platform for AI-assisted care coordination, patient engagement, risk detection, and clinician escalation",
   "documentation" : { },
   "id" : 1,
-  "lastModifiedDate" : "2026-05-29T21:54:16Z",
+  "lastModifiedDate" : "2026-06-08T12:00:04Z",
   "model" : {
     "deploymentNodes" : [ {
       "children" : [ {
@@ -2925,6 +2925,20 @@
           "status" : "Accepted",
           "title" : "ADR 0013: Defer Same-Origin API Proxy for the CDP UI"
         }, {
+          "content" : "# 14. Tenant types and roles\n\nDate: 2026-05-31\n\n## Context\n\nTier-1 **actors** (`operator`, `clinician`, `patient`) express broad principal class on the human JWT. Tier-2 authorization cannot use hundreds of dotted job-function slugs in Cedar -- policies become unmaintainable, and a parallel JSON policy matrix drifts from real permissions.\n\nEnterprise customers organise by **org kind** (platform, CRO, sponsor, site, SMO). Permissions need a small, stable Tier-2 model scoped to that kind, the same way Tier-1 stays a short enum.\n\n## Decision\n\n1. **Tier-2 is tenant type plus roles.** Tenant type is org kind on the Authentication tenant row. Roles are admin or functional hats within that type, stored in the User registry as `{tenant_type}.{role}` slugs (for example `cro.clinical-ops`) and carried on the JWT as short names (`clinical-ops`) together with `neosofia:tenant_type`.\n\n2. **User registry is the source of truth for `roles[]`.** Authentication mirrors `roles[]` into `users.roles` for JWT embedding only. Token mint reads the Authentication database and does not call User on the critical path. The mirror updates on best-effort provision after login.\n\n3. **Cedar is the source of truth for authorization.** Service and CDP UI policy files define who may do what. The role catalog (`roles/*.json`, optional product overlay) validates assignments and powers pickers; it does not generate Cedar and does not hold a parallel permission matrix.\n\n4. **Job functions stay in the catalog for UX only.** Fine-grained titles (for example `clinical.function.staff-nurse`) are not Cedar dimensions. Future job-level scope uses overrides on roles, not new policy axes.\n\n5. **v1 tenant types and role enums** live in the User service catalog and deploy-time overlay. Human-readable tables: [user/roles/README.md](https://github.com/Neosofia/user/blob/main/roles/README.md). Machine source: `user/roles/default.json`; CDP overlay: [roles/user-catalog.overlay.json](https://github.com/Neosofia/cdp/blob/main/roles/user-catalog.overlay.json). `tenants.type` has no default.\n\nRegistry obligations and operator-facing behavior are in [spec 018](https://github.com/Neosofia/cdp/blob/main/specs/018-user-service.md). Field names and service policy depth are in [openapi.json](https://github.com/Neosofia/user/blob/main/openapi.json) and [SECURITY.md](https://github.com/Neosofia/user/blob/main/SECURITY.md).\n\n## Rationale\n\n- **Same pattern as Tier-1:** a few stable facts in the token; Cedar stays readable and auditable.\n- **Tenant type scopes assignment:** a CRO administrator grants CRO roles, not sponsor roles; catalog `assigner_prefixes` tie Tier-1 actors to grantable tenant-type prefixes.\n- **Fault-tolerant login:** sessions and tokens still issue when User is temporarily unavailable; the registry catches up on provision without blocking mint.\n- **DRY:** one vocabulary in catalog JSON; one permission story in Cedar per service or UI bundle.\n\n## Consequences\n\n- Authentication owns `tenants.type` and the `users.roles` mirror; User owns registry `roles[]`.\n- Human JWTs use `neosofia:actors`, `neosofia:tenant_type` (when set), and `neosofia:roles` (short names). Capabilities and User API evaluation both consume those facts; UI menu gating remains a separate concern ([ADR-0012](#12)).\n- Adding a tenant type or role requires catalog overlay (and usually Cedar) changes; products do not fork the User service for vocabulary alone.\n- Superseding this model requires a new ADR; do not revive flat `platform_roles` or job-function Cedar checks without an explicit decision.\n\n## Status\n\nAccepted\n\n## References\n\n- [ADR-0010: Single active role UI](#10)\n- [ADR-0012: UI Capabilities control plane](#12)\n- [Spec 018-user-service](https://github.com/Neosofia/cdp/blob/main/specs/018-user-service.md)\n",
+          "date" : "2026-05-31T00:00:00Z",
+          "format" : "Markdown",
+          "id" : "14",
+          "links" : [ {
+            "description" : "-",
+            "id" : "10"
+          }, {
+            "description" : "-",
+            "id" : "12"
+          } ],
+          "status" : "Accepted",
+          "title" : "Tenant types and roles"
+        }, {
           "content" : "# 02. Use AWS Bedrock for AI Risk Inference\n\nDate: 2026-04-19\n\n## Status\n\nAccepted\n\n## Context\n\nThe platform requires a managed AI inference service for per-message clinical risk evaluation. The evaluation must be auditable, version-tracked, and isolated from PHI-handling components. Any AI provider processing data derived from patient interactions must operate under a signed HIPAA Business Associate Agreement (BAA); self-managed or third-party inference APIs that cannot provide a BAA are not eligible.\n\n## Decision\n\nUse AWS Bedrock as the managed inference provider for the AI Risk Agent. AWS signs a HIPAA BAA covering Bedrock, satisfying the platform's requirement that all AI inference operates under a BAA. Bedrock additionally provides model versioning, audit logging, and does not require self-managed model infrastructure.\n\n## Consequences\n\n- Risk evaluations are tied to AWS region availability\n- Model version is recorded per evaluation for audit purposes\n- The Bedrock AI Workbench (isolated account) is kept strictly separate from the production runtime path\n",
           "date" : "2026-04-19T00:00:00Z",
           "format" : "Markdown",
@@ -3011,12 +3025,12 @@
           "type" : "image/png"
         } ],
         "sections" : [ {
-          "content" : "## Clinical Data Platform (CDP)\n\nA HIPAA-compliant clinical data platform for AI-assisted care coordination, patient engagement, risk detection, and clinician escalation across SMS, web, and mobile channels.\n\nThis system is a reference architecture that leverages the suite of Neosofia platform services. It is intended to act as a starting point for other organizations looking to build their own data management platform. As a reference architecture, this system is not a drop-in substitute for a fully operational, regulatory-compliant system.\n\n\n### Core Platform Capabilities\n\nBelow is an overview of how we address the foundational pillars of platforms using our SDKs, templates, services, and reference architecture (specs, ADRs, and constitution):\n\n#### Identity & Access\nA central pillar for the platform, enforced through our authentication service and authorization patterns. We use the Neosofia [`authentication`](https://github.com/Neosofia/authentication) service for user identity and login flows, and implement access control with the [`authorization-in-the-middle`](https://github.com/Neosofia/sdk/tree/main/python/authorization-middleware) middleware in our [`sdk`](https://github.com/Neosofia/sdk). Service-specific Cedar policies are defined at the service level, ensuring all requests are authorized before they can access protected patient data and default to deny-all to support the principle of least privilege. Higher-level role and organization policies that control UI behavior are handled by our companion Neosofia [`capabilities`](https://github.com/Neosofia/capabilities) service, which evaluates a product-owned policy bundle for UI entitlements (see ADR 0012).\n\n![Authentication - Process Flow](authentication-flow.png)\n\n![Authorization - Process Flow](authorization-flow.png)\n\n#### Observability\nWe use standardized log schema definitions from [`schemas`](https://github.com/Neosofia/schemas) and shared logging SDKs from our [`sdk`](https://github.com/Neosofia/sdk) to enforce consistent logging and correlation across backend services, while leveraging OpenTelemetry instrumentation in the UI layer.\n\n#### Platform Delivery/Operations\nDeployment, CI/CD, and environment management are codified in our [`infrastructure`](https://github.com/Neosofia/infrastructure) scripts, unified `docker-compose` setups, and documented thoroughly in an `OPERATIONS.md` for each service and component. We also support quick service onboarding with environment bootstrapping tools such as the [`authentication` env setup script](https://github.com/Neosofia/authentication/blob/main/scripts/setup-env.py) and reusable workflows (GHAs) in [`platform-workflows`](https://github.com/Neosofia/platform-workflows) for local service bootstrapping, onboarding, and runbook automation.\n\n#### Security/Secrets\nSecurity is enforced at every layer. We use [`authorization-in-the-middle`](https://github.com/Neosofia/sdk/tree/main/python/authorization-middleware) and [`authentication-in-the-middle`](https://github.com/Neosofia/sdk/tree/main/python/authentication-middleware) from the Neosofia [`sdk`](https://github.com/Neosofia/sdk) for deterministic access control and identity, use structured logs for analysis by a SIEM system, and codify supply-chain controls through our SDLC checklist at [`corporate` SDLC checklist](https://github.com/Neosofia/corporate/blob/main/resources/checklists/sdlc.md). That checklist drives package and image pinning, lockfile verification, and automated Trivy vulnerability/secret scans in our release pipeline.\n\n#### Service Connectivity\nServices are loosely coupled but firmly contracted. We rely on OpenAPI specifications from [`schemas`](https://github.com/Neosofia/schemas) to define clear boundaries, and we document integration patterns and service contracts across the CDP service family.\n\n![App and Service Flow](app-flow.png)\n\n#### Data/Storage Foundation\nWe use standardized PostgreSQL 18 deployments and atomic SQL audit trigger templates in [`templates`](https://github.com/Neosofia/templates). These capture every operation (Who, What, When, Why) immutably at the database layer.\n\n![Audit & Immutability Process Flow](audit-flow.png)\n\n#### Developer Experience\nWe standardize and accelerate development using pre-built templates from [`templates`](https://github.com/Neosofia/templates) and shared runtime libraries from [`sdk`](https://github.com/Neosofia/sdk). This ensures new features and services can be scaffolded quickly without reinventing the wheel.\n\n#### Governance/Compliance\nTechnical alignment and regulatory compliance (like HIPAA) are governed by our `architecture/constitution.md`, the ADR catalog in `architecture/adrs/`, and Spec-based service designs. These principles are supported by companion governance artifacts in [`corporate`](https://github.com/Neosofia/corporate) and the broader Neosofia repo portfolio.\n\n\n### Reference Architecture Primary Workflows\n\nThe two primary workflows in this system are patient chat and clinician escalation. After signing up, patients can use a browser, the mobile chat app, or SMS to start a conversation with the AI care agent. If escalation signals are detected, on-call clinicians are notified and begin the clinician escalation workflow.\n\n\n#### Patient Chat Process\n![CDP Platform - Patient Flow](patient-flow.png)\n\n\n#### Clinician Escalation/Response Process\n![CDP Platform - Clinician Flow](clinician-flow.png)\n\n\n### Architecture Diagram\n\nThe system landscape diagram below is an overview of the main system actors, major third-party vendors (PagerDuty and WorkOS), and platform services grouped by function.\n\n![CDP Platform - System Landscape](system-landscape.png)\n\n> Note: An extended set of fully interactive C4 models can be viewed by downloading this repo, running `docker compose -f architecture/docker-compose.yml up -d --build`, and then opening [http://localhost:8080/workspace/1](http://localhost:8080/workspace/1). See `architecture/OPERATIONS.md` for dev vs production workflows.\n\n#### Key Components and Services\n\nThe platform is decomposed into independently deployable services, apps, and data pipelines grouped by the four domains shown in the architecture diagram above.\n\n**Patient Engagement (WIP)** — channel adapters, push notifications, patient UI\n- **Patient Chat App (007)** — The patient-facing app for iOS, Android, and web. Patients chat with their care team, receive AI-assisted replies, and get push notifications.\n- **SMS Service (009)** — Allows patients to participate via SMS without installing the app. Handles opt-in/opt-out compliance.\n- **Devices Service (013)** — Manages device registrations so push notifications reach the right patient or clinician on the right device, without exposing raw tokens to other services.\n\n\n**Clinical Workflow (WIP)** — clinician tools, patient records, care episodes, EMR\n- **Clinician App (008)** — The clinician-facing web app. Shows the live escalation queue, patient chat transcripts, EMR context, and lets clinicians take over from the AI, send replies, and rate session quality.\n- **Patient Service (012)** — The authoritative record for patient identity. Patients are registered via invite only. Every access is audit-logged for HIPAA compliance.\n- **Care Episode Service (015)** — Groups a patient, procedure, and all associated conversations into a single care episode. Answers the question \"which chats belong to which procedure?\" and is the root object for invites, chat history, and EMR context.\n- **EMR Service (004)** — Provides a unified view of patient records from any connected hospital system, so clinicians see relevant clinical context alongside the chat.\n\n**AI & Data Platform (WIP)** — risk evaluation, deidentification, clean chat store\n- **AI Risk Agent (010)** — Evaluates every patient message for clinical risk in the background without slowing down the chat. A high-risk signal triggers the clinician notification flow.\n- **Deidentification Pipeline (002)** — After a chat session ends, it strips all patient-identifying information so the conversation can be safely used for research and model improvement. Failed sessions are held for review, never silently passed through.\n- **Clean Chat Service (003)** — Stores de-identified chat sessions for internal analysis and model training. No raw patient data is accessible here.\n- **AI Workbench (006)** — An isolated environment where ML engineers can experiment with de-identified data and improve the AI models. It has no connection to live patient data or production systems.\n\n**Platform Core** — chat ingestion, authentication, API gateway\n- **Platform Baseline (000)** — Cross-cutting requirements every service and app inherits: TLS, supported mobile and browser platforms, PHI-safe structured logging, published OpenAPI contracts, and WCAG accessibility for user-facing experiences.\n- **Chat Service (001)** — Receives and stores all messages across every channel, streams AI replies back to patients in real time, and triggers risk evaluation and deidentification in the background.\n- **Authentication Service (014)** — Verifies the identity of every user and service before any request is processed. Handles clinician SSO login, patient session management, and service-to-service trust.\n- **Authorization Service (016)** — The single place where access decisions are made. Every service asks \"is this principal allowed to do this?\" here rather than implementing its own rules. Fails closed if unavailable.\n- **Operational Metrics (011)** — Collects and aggregates structured log events across the platform to provide SLI/SLO dashboards, alerting thresholds, and derived metrics without exposing PHI.\n- **Audit Infrastructure (017)** — Ensures every service that stores patient data maintains a tamper-evident audit trail automatically, without each team needing to build it themselves.\n- **User Service (018)** — Tier-2 platform roles registry; CDP Admin → Users (Stage 2).\n- **Notification Service (005)** — When a high-risk message is detected, gives logged-in clinicians 60 seconds to self-assign before escalating to on-call via PagerDuty.\n\n#### Security Considerations\n\nSee SECURITY.md for platform-wide security principles covering PHI containment, identity and access, HIPAA compliance, network and transport, audit logging, and supply chain controls. Service-specific security postures (threat models, rate limits, OAuth flow detail) are documented in each service's own `SECURITY.md`.\n\n\n### Operations\n\nSee OPERATIONS.md for running the full CDP stack locally or in the cloud. For the Structurizr architecture viewer (C4 diagrams, specs, ADRs), see `architecture/OPERATIONS.md`.",
+          "content" : "## Clinical Data Platform (CDP)\n\nA HIPAA-compliant clinical data platform for AI-assisted care coordination, patient engagement, risk detection, and clinician escalation across SMS, web, and mobile channels.\n\nThis system is a reference architecture that leverages the suite of Neosofia platform services. It is intended to act as a starting point for other organizations looking to build their own data management platform. As a reference architecture, this system is not a drop-in substitute for a fully operational, regulatory-compliant system.\n\n\n### Core Platform Capabilities\n\nBelow is an overview of how we address the foundational pillars of platforms using our SDKs, templates, services, and reference architecture (specs, ADRs, and constitution):\n\n#### Identity & Access\nA central pillar for the platform, enforced through our authentication service and authorization patterns. We use the Neosofia [`authentication`](https://github.com/Neosofia/authentication) service for user identity and login flows, and implement access control with the [`authorization-in-the-middle`](https://github.com/Neosofia/sdk/tree/main/python/authorization-middleware) middleware in our [`sdk`](https://github.com/Neosofia/sdk). Service-specific Cedar policies are defined at the service level, ensuring all requests are authorized before they can access protected patient data and default to deny-all to support the principle of least privilege. Higher-level role and organization policies that control UI behavior are handled by our companion Neosofia [`capabilities`](https://github.com/Neosofia/capabilities) service, which evaluates a product-owned policy bundle for UI entitlements (see ADR 0012).\n\n![Authentication - Process Flow](authentication-flow.png)\n\n![Authorization - Process Flow](authorization-flow.png)\n\n#### Observability\nWe use standardized log schema definitions from [`schemas`](https://github.com/Neosofia/schemas) and shared logging SDKs from our [`sdk`](https://github.com/Neosofia/sdk) to enforce consistent logging and correlation across backend services, while leveraging OpenTelemetry instrumentation in the UI layer.\n\n#### Platform Delivery/Operations\nDeployment, CI/CD, and environment management are codified in our [`infrastructure`](https://github.com/Neosofia/infrastructure) scripts, unified `docker-compose` setups, and documented thoroughly in an `OPERATIONS.md` for each service and component. We also support quick service onboarding with environment bootstrapping tools such as the [`authentication` env setup script](https://github.com/Neosofia/authentication/blob/main/scripts/setup-env.py) and reusable workflows (GHAs) in [`platform-workflows`](https://github.com/Neosofia/platform-workflows) for local service bootstrapping, onboarding, and runbook automation.\n\n#### Security/Secrets\nSecurity is enforced at every layer. We use [`authorization-in-the-middle`](https://github.com/Neosofia/sdk/tree/main/python/authorization-middleware) and [`authentication-in-the-middle`](https://github.com/Neosofia/sdk/tree/main/python/authentication-middleware) from the Neosofia [`sdk`](https://github.com/Neosofia/sdk) for deterministic access control and identity, use structured logs for analysis by a SIEM system, and codify supply-chain controls through our SDLC checklist at [`corporate` SDLC checklist](https://github.com/Neosofia/corporate/blob/main/resources/checklists/sdlc.md). That checklist drives package and image pinning, lockfile verification, and automated Trivy vulnerability/secret scans in our release pipeline.\n\n#### Service Connectivity\nServices are loosely coupled but firmly contracted. We rely on OpenAPI specifications from [`schemas`](https://github.com/Neosofia/schemas) to define clear boundaries, and we document integration patterns and service contracts across the CDP service family.\n\n![App and Service Flow](app-flow.png)\n\n#### Data/Storage Foundation\nWe use standardized PostgreSQL 18 deployments and atomic SQL audit trigger templates in [`templates`](https://github.com/Neosofia/templates). These capture every operation (Who, What, When, Why) immutably at the database layer.\n\n![Audit & Immutability Process Flow](audit-flow.png)\n\n#### Developer Experience\nWe standardize and accelerate development using pre-built templates from [`templates`](https://github.com/Neosofia/templates) and shared runtime libraries from [`sdk`](https://github.com/Neosofia/sdk). This ensures new features and services can be scaffolded quickly without reinventing the wheel.\n\n#### Governance/Compliance\nTechnical alignment and regulatory compliance (like HIPAA) are governed by our `architecture/constitution.md`, the ADR catalog in `architecture/adrs/`, and Spec-based service designs. These principles are supported by companion governance artifacts in [`corporate`](https://github.com/Neosofia/corporate) and the broader Neosofia repo portfolio.\n\n\n### Reference Architecture Primary Workflows\n\nThe two primary workflows in this system are patient chat and clinician escalation. After signing up, patients can use a browser, the mobile chat app, or SMS to start a conversation with the AI care agent. If escalation signals are detected, on-call clinicians are notified and begin the clinician escalation workflow.\n\n\n#### Patient Chat Process\n![CDP Platform - Patient Flow](patient-flow.png)\n\n\n#### Clinician Escalation/Response Process\n![CDP Platform - Clinician Flow](clinician-flow.png)\n\n\n### Architecture Diagram\n\nThe system landscape diagram below is an overview of the main system actors, major third-party vendors (PagerDuty and WorkOS), and platform services grouped by function.\n\n![CDP Platform - System Landscape](system-landscape.png)\n\n> Note: An extended set of fully interactive C4 models can be viewed by downloading this repo, running `docker compose -f architecture/docker-compose.yml up -d --build`, and then opening [http://localhost:8080/workspace/1](http://localhost:8080/workspace/1). See `architecture/OPERATIONS.md` for dev vs production workflows.\n\n#### Key Components and Services\n\nThe platform is decomposed into independently deployable services, apps, and data pipelines grouped by the four domains shown in the architecture diagram above.\n\n**Patient Engagement (WIP)** — channel adapters, push notifications, patient UI\n- **Patient Chat App (007)** — The patient-facing app for iOS, Android, and web. Patients chat with their care team, receive AI-assisted replies, and get push notifications.\n- **SMS Service (009)** — Allows patients to participate via SMS without installing the app. Handles opt-in/opt-out compliance.\n- **Devices Service (013)** — Manages device registrations so push notifications reach the right patient or clinician on the right device, without exposing raw tokens to other services.\n\n\n**Clinical Workflow (WIP)** — clinician tools, patient records, care episodes, EMR\n- **Clinician App (008)** — The clinician-facing web app. Shows the live escalation queue, patient chat transcripts, EMR context, and lets clinicians take over from the AI, send replies, and rate session quality.\n- **Patient Service (012)** — The authoritative record for patient identity. Patients are registered via invite only. Every access is audit-logged for HIPAA compliance.\n- **Care Episode Service (015)** — Groups a patient, procedure, and all associated conversations into a single care episode. Answers the question \"which chats belong to which procedure?\" and is the root object for invites, chat history, and EMR context.\n- **EMR Service (004)** — Provides a unified view of patient records from any connected hospital system, so clinicians see relevant clinical context alongside the chat.\n\n**AI & Data Platform (WIP)** — risk evaluation, deidentification, clean chat store\n- **AI Risk Agent (010)** — Evaluates every patient message for clinical risk in the background without slowing down the chat. A high-risk signal triggers the clinician notification flow.\n- **Deidentification Pipeline (002)** — After a chat session ends, it strips all patient-identifying information so the conversation can be safely used for research and model improvement. Failed sessions are held for review, never silently passed through.\n- **Clean Chat Service (003)** — Stores de-identified chat sessions for internal analysis and model training. No raw patient data is accessible here.\n- **AI Workbench (006)** — An isolated environment where ML engineers can experiment with de-identified data and improve the AI models. It has no connection to live patient data or production systems.\n\n**Platform Core** — chat ingestion, authentication, API gateway\n- **Platform Baseline (000)** — Cross-cutting requirements every service and app inherits: TLS, supported mobile and browser platforms, PHI-safe structured logging, published OpenAPI contracts, and WCAG accessibility for user-facing experiences.\n- **Chat Service (001)** — Receives and stores all messages across every channel, streams AI replies back to patients in real time, and triggers risk evaluation and deidentification in the background.\n- **Authentication Service (014)** — Verifies the identity of every user and service before any request is processed. Handles clinician SSO login, patient session management, and service-to-service trust.\n- **Authorization Service (016)** — The single place where access decisions are made. Every service asks \"is this principal allowed to do this?\" here rather than implementing its own rules. Fails closed if unavailable.\n- **Operational Metrics (011)** — Collects and aggregates structured log events across the platform to provide SLI/SLO dashboards, alerting thresholds, and derived metrics without exposing PHI.\n- **Audit Infrastructure (017)** — Ensures every service that stores patient data maintains a tamper-evident audit trail automatically, without each team needing to build it themselves.\n- **User Service (018)** — Tier-2 platform roles registry; CDP Admin → Users (Stage 2).\n- **Notification Service (005)** — When a high-risk message is detected, gives logged-in clinicians 60 seconds to self-assign before escalating to on-call via PagerDuty.\n\n#### Security Considerations\n\nSee SECURITY.md for platform-wide security principles covering PHI containment, identity and access, HIPAA compliance, network and transport, audit logging, and supply chain controls. Service-specific security postures (threat models, rate limits, OAuth flow detail) are documented in each service's own `SECURITY.md`.\n\n\n### Operations\n\nSee OPERATIONS.md for running the full CDP stack locally or in the cloud. For the Structurizr architecture viewer (C4 diagrams, specs, ADRs), see `architecture/OPERATIONS.md`.\n\n### Releases\n\n- CHANGELOG.md -- what changed for users of the platform ([Keep a Changelog](https://keepachangelog.com/))\n- INSTALLATION_PLAN.md -- Product Installation Plan for operators (deploy, verify, evidence)\n\n**Versioning:** CDP UI displays **CalVer** `YYYY.MM.DD` in the footer (`ui/src/lib/uiVersion.ts`). Platform services expose **semver** on `GET /health` as `version`.",
           "format" : "Markdown",
           "order" : 1,
           "title" : ""
         }, {
-          "content" : "## Clinical Data Platform (CDP) Constitution\n\n### Core Principles\n\n#### I. PHI Safety (NON-NEGOTIABLE)\n\nPatient Health Information (PHI) is among the most sensitive data we handle.\nPHI MUST only be accessible to authorised clinical roles and the systems that\nprocess it under appropriate legal and contractual safeguards. When patient\ndata leaves the core clinical boundary, it MUST be de-identified so that it\ncannot be used to identify individual patients.\n\n**Rationale**: The platform exists to support patient care. Any exposure of PHI\noutside authorised pathways would harm patients, violate trust, and breach legal\nrequirements. Safeguarding PHI is the foundation of the entire platform.\n\n#### II. Clinical Safety & Escalation\n\nClinical risk decisions MUST be reliable, explainable, and constrained to\nwell-defined outputs. Escalation pathways MUST be rapid, predictable, and owned\nby clinical stakeholders. Changes to clinical risk logic require explicit clinical\nreview and clear governance before they affect production.\n\n**Rationale**: The platform supports care decisions after discharge. Safety is\nmeasured by timely, trustworthy escalation, not by the complexity of the\nimplementation.\n\n#### III. Interoperability by Contract\n\nEMR/EHR integrations MUST be isolated behind a stable abstraction. The platform\nmust avoid embedding vendor-specific logic outside the integration boundary.\nPatient data should be normalized to a canonical internal form so that business\nlogic remains vendor-agnostic and easier to maintain.\n\n**Rationale**: Healthcare customers use diverse systems. A contract-based\nintegration boundary preserves flexibility and reduces long-term operational risk.\n\n#### IV. Reliability & Observability\n\nThe platform MUST be dependable and transparent in production. Availability,\nerror detection, and operational visibility are core attributes, not optional\nextras. Teams must be able to understand whether the platform is healthy and\nrespond quickly when it is not.\n\n**Rationale**: In a clinical context, downtime or blind spots can directly affect\npatient safety. Reliability and observability are the conditions for safe\noperation.\n\n#### V. Layered Quality Assurance\n\nQuality assurance should be layered so that the system is validated at the\nappropriate scope: broad scenario coverage, integration boundaries, and focused\nbusiness logic. This is how we build confidence without relying on a single type\nof test.\n\n**Rationale**: Clinical systems require both high-level confidence and localized\nprecision. A layered approach balances those needs.\n\n#### VI. Continuous Delivery Discipline\n\nThe primary development line MUST remain deployable. Changes should be\nintegrated frequently, with small batches of work and deliberate review. This\nreduces risk, enables faster feedback, and makes releases predictable.\n\n**Rationale**: Frequent integration and small changes reduce the chance of\nsurprise failures in a multi-team environment.\n\n#### VII. Scalability by Design\n\nThe platform must be capable of supporting meaningful scale from the outset.\nServices should favor stateless design where appropriate, ensure patient-facing\nwork is resilient, manage state intentionally when it exists, and enforce tenant\nboundaries consistently.\n\n**Rationale**: Healthcare platforms are costly to re-architect after launch.\nDesigning for scale early preserves future options and protects operational\nstability.\n\n### Architecture & Governance References\n\nThis constitution is the highest-level statement of platform principles. Any\npractice, decision, or implementation that conflicts with these principles must\nbe re-evaluated and brought back into alignment, or the principles must be\namended.\n\nFor more detail on how these principles apply to our product, refer to the\nADRs and specs that guide the design, implementation, testing, and delivery of\nthis system.\n\n- architecture/adrs/ — Architecture Decision Records capture the\n  platform's architectural decisions, governance rationale, and approved\n  boundaries for future design choices.\n- specs/ — Service and product specifications capture contract\n  expectations, API boundaries, and user-facing behavior requirements.\n\n\n",
+          "content" : "## Clinical Data Platform (CDP) Constitution\n\n### Core Principles\n\n#### I. PHI & Privacy\n\nPatient Health Information (PHI) is among the most sensitive data we handle.\nPHI MUST only be accessible to authorised clinical roles and the systems that\nprocess it under appropriate legal and contractual safeguards. When patient\ndata leaves the core clinical boundary, it MUST be de-identified so that it\ncannot be used to identify individual patients. One organisation's patient data\nMUST NOT be available to another.\n\n**Rationale**: The platform exists to support patient care. Any exposure or\ncommingling of PHI would harm patients, violate trust, and breach legal\nrequirements. Safeguarding PHI is the foundation of the entire platform.\n\n#### II. Clinical Safety & Escalation\n\nClinical risk decisions MUST be reliable, explainable, and constrained to\nwell-defined outputs. Escalation pathways MUST be rapid, predictable, and owned\nby clinical stakeholders. Changes to clinical risk logic require explicit clinical\nreview before they affect production. Safety-critical behavior MUST be validated\nthrough real care workflows and handoffs between systems, not isolated components\nalone.\n\n**Rationale**: The platform supports care decisions after discharge. Safety is\nmeasured by timely, trustworthy escalation and confidence that the whole path\nworks for patients -- not by the complexity of the implementation.\n\n#### III. Open Healthcare Ecosystem\n\nThe platform MUST work across the diverse hospital and clinic systems our\ncustomers already use. Core clinical logic MUST NOT depend on a single vendor's\nEMR or require rewriting the product for each integration.\n\n**Rationale**: Healthcare customers use diverse systems. Locking the platform to\none vendor would limit who we can serve and force risky rewrites as customer\nenvironments change.\n\n#### IV. Trustworthy Operation\n\nThe platform MUST be dependable in production. Operators MUST be able to tell\nwhen it is unhealthy and respond before patient care is affected. Improvements\nand fixes MUST reach production through a safe, reviewable path -- not rare,\nhigh-risk releases that leave known problems in place.\n\n**Rationale**: In a clinical context, downtime, blind spots, and blocked fixes\ncan directly affect patient safety. Dependability and timely delivery of change\nare conditions for safe operation.\n\n### Governance\n\nThis constitution states the platform's enduring principles. If something\nconflicts with a principle, name it in the PR, fix the artifact first, and\namend this document only when the principle needs to evolve.\nClinical risk and escalation changes need explicit clinical review before\nproduction (Principle II).\n\nFormat and document-tree rules:\n[Documentation gold standards — Constitution](https://neosofia.tech/resources/guides/documentation/).\n\n### Amendments\n\nOpen a PR against `architecture/constitution.md`. Say what changed and why,\n@-mention prior authors of the sections you edit, and get one approval before\nmerge. Typo-only edits use normal review.",
           "format" : "Markdown",
           "order" : 2,
           "title" : ""
@@ -3129,7 +3143,7 @@
           "order" : 20,
           "title" : ""
         }, {
-          "content" : "## User Service\n\n### Why we need this service\n\nEvery person using the platform has two distinct questions attached to them: *who are they*, and *what are they allowed to do here*. Login answers the first -- name, organisation, and broad actor type (operator, clinician, patient). That is not enough to run a multi-service product. A clinician may be a staff nurse, a trial coordinator, and a quality reviewer at the same time. An operator may administer the mesh or only read audits. Those job functions change over time, must be assignable by authorised staff, and must be auditable.\n\nWithout a dedicated user registry, each service would invent its own role strings, admin screens would disagree on who holds which privilege, and authorization would drift. The User Service exists so the platform has **one authoritative place** to record which platform roles each human principal holds, who changed them, and the identity fields needed to administer that registry -- while leaving login, tenant metadata, and clinical domain state to the services that own those concerns.\n\n### How this service fits into the platform\n\nThe platform separates **identity** from **platform roles**. After login, the Authentication Service attests who the person is and issues a short-lived token carrying broad actor class. The User Service holds **Tier-2 platform roles** -- dotted job functions such as `operator.platform-admin` or `clinical.function.staff-nurse` -- on a registry row keyed by the same platform user identifier carried in the token. Downstream APIs and admin experiences consult this registry (directly or via their own authorization rules) when they need to know *what jobs* someone performs, not merely *what kind* of principal they are.\n\nThe registry is intentionally narrow. It does not issue tokens, run the identity-provider login flow, store organisation display names, or model site, trial, or care-episode scope -- those belong elsewhere. Human rows appear when Authentication synchronises identity after login; operators manage roles through admin tooling; end users may update a limited subset of their own profile fields. Products deployed on the platform (for example CDP) may extend the role catalog with domain-specific slugs without forking the core service.\n\n### Client objectives\n\n**User administrators** do not want to run a user-provisioning desk. They want the platform to do the right thing when someone logs in -- create or refresh the registry record automatically -- and only involve them when access needs to change. When a role assignment is wrong or outdated, they need to find the right person quickly and update their platform roles, for one person or many, without a separate onboarding workflow or duplicate identity stores.\n\n**Every end user** wants their profile to reflect reality. If a name is misspelled or contact details changed, they should be able to fix what is wrong on their own record without opening a ticket -- and without being able to grant themselves privileges they were never given.\n\n**Deploying products** (for example CDP) need a generic role vocabulary that works on any vertical, plus the ability to add their own domain-specific roles at deploy time so clinical, research, or other specialised slugs live with the product, not in the core platform catalog.\n\n**Downstream services** need one place to answer “what jobs does this person perform?” -- distinct from the coarse actor class on the login token -- so authorization stays consistent across the mesh.\n\n### Functional requirements\n\n- **FR-001**: The service maintains a registry of human principals per tenant, keyed by the same platform user identifier created by the authentication service on first login. A shared key ties the registry to login identity without this service minting its own user ids.\n\n- **FR-002**: Each registry record stores stable identity-provider subject id, tenant reference, name, email, and an assignable set of platform roles. Actor class is not stored on the record; it is stored in the external IDP, and job functions stay where administrators manage them.\n\n- **FR-003**: Platform roles use a stable dotted naming scheme (`branch.category.slug`) so roles are human-readable in admin UI, logs, and policy -- a person can scan `clinical.function.staff-nurse` and understand it without a lookup table. Site, trial, and other domain scope are not encoded in role strings; scope belongs in domain services where context can change independently of job title.\n\n- **FR-004**: The service exposes a role catalog for assignment pickers and validation. The catalog includes a generic default suitable for multiple industries (fintech, edutech, and similar) and supports an optional deploy-time overlay so products add domain-specific roles without forking the service -- the same pattern as bringing your own policy bundles.\n\n- **FR-005**: Assignment of platform roles is constrained by the assigner’s actor class (from the login token) so a clinician cannot grant operator privileges and a patient cannot grant clinical roles -- even if they can edit their own name.\n\n- **FR-006**: Operators can search and list registry records for their tenant, open a record, update role assignments and permitted profile fields, and view audit history. The same flows extend to updating roles for multiple principals when an administrative experience requires batch change -- find the people, fix access, move on.\n\n- **FR-007**: End users can read their own registry record and update only the profile fields explicitly allowed by policy. Self-service fixes typos and stale contact info; self-service cannot elevate platform roles.\n\n- **FR-008**: The service does not expose a public “create user” API for operators. New registry rows appear when Authentication synchronises identity after login -- administrators manage access, not account existence. Identity fields refreshed on later logins do not overwrite operator-assigned platform roles, so a login sync never silently revokes or reshapes deliberate role decisions.\n\n- **FR-009**: Every create, update, and delete on registry data appends a full-row audit history entry. Compliance and incident review need to know who changed what, not merely that a row changed.\n\n- **FR-010**: All registry and catalog access requires a valid human platform token except an unauthenticated health check. Authorization is evaluated in service policy before business logic so denied requests fail closed.\n\n### Operational requirements\n\nPlatform baseline applies ([000-platform-baseline.md](https://github.com/Neosofia/cdp/blob/main/specs/000-platform-baseline.md)). Log payloads must not include names, emails, role strings, or raw identifiers.\n\n- **OR-001**: Logs support **measuring** registry behaviour and changes. At minimum:\n\n  - Classifying request outcomes and errors by endpoint\n  - Attributing request duration by endpoint\n  - Counting registry users created\n  - Counting registry users updated\n\n- **OR-002**: Products that rely on domain-specific roles supply a catalog overlay as part of their deployment. The core service ships and runs with the generic default alone so non-clinical deployments are not burdened with clinical vocabulary.\n\n### Further reading\n\n- Platform baseline: [000-platform-baseline.md](https://github.com/Neosofia/cdp/blob/main/specs/000-platform-baseline.md)\n- Role model: [authentication#11](https://github.com/Neosofia/authentication/issues/11)\n- Authentication service spec: [014-authentication-service.md](https://github.com/Neosofia/cdp/blob/main/specs/014-authentication-service.md)\n- Platform operational metrics: [011-operational-metrics.md](https://github.com/Neosofia/cdp/blob/main/specs/011-operational-metrics.md)\n- API contract: [openapi.json](https://github.com/Neosofia/user/blob/main/openapi.json)\n- Security and authorization: [SECURITY.md](https://github.com/Neosofia/user/blob/main/SECURITY.md)\n",
+          "content" : "## User Service\n\n### Why we need this service\n\nEvery person using the platform has two distinct questions attached to them: *who are they*, and *what are they allowed to do in this organisation*. Login answers the first -- name, tenant, and broad actor class (operator, clinician, patient). That is not enough to run a multi-service product. An operator may administer the mesh or only read audits; a CRO user may be an admin, clinical ops, or read-only within their org kind. Those assignments change over time, must be grantable only by authorised staff, and must be auditable.\n\nWithout a dedicated user registry, each service would invent its own role strings, admin screens would disagree on who holds which privilege, and authorization would drift. The User Service exists so the platform has **one authoritative place** to record which roles each human principal holds within their organisation type, who changed them, and the identity fields needed to administer that registry -- while leaving login, organisation metadata, and clinical domain state to the services that own those concerns.\n\n### How this service fits into the platform\n\nThe platform separates **identity** from **org-level permissions**. After login, the Authentication Service attests who the person is and which broad actor classes apply. This service holds the registry of **roles** -- the smaller set of admin and functional hats someone wears within their organisation type (for example platform admin versus audit-only, or CRO clinical ops versus read-only). Downstream products consult this registry when administering users; authorization at API boundaries uses service policy described in the security document and [ADR-0014](https://github.com/Neosofia/cdp/blob/main/architecture/adrs/0014-tenant-types-and-org-roles.md).\n\nThe registry is intentionally narrow. It does not issue tokens, run the identity-provider login flow, store organisation display names, or model site, trial, or care-episode scope. Human rows appear when Authentication synchronises identity after login; operators manage roles through admin tooling; end users may update a limited subset of their own profile fields. Products deployed on the platform (for example CDP) may extend the role catalog with domain-specific vocabulary at deploy time without forking the core service. Fine-grained job titles may appear in the catalog for labels and future scope; they are not the primary authorization vocabulary.\n\n### Client objectives\n\n**User administrators** do not want to run a user-provisioning desk. They want the platform to create or refresh the registry record automatically when someone logs in, and only involve them when access must change. When a role assignment is wrong or outdated, they need to find the right person quickly and update roles for one person or many, without duplicate identity stores.\n\n**Every end user** wants their profile to reflect reality. If a name is misspelled or contact details changed, they should be able to fix what is wrong on their own record without opening a ticket -- and without being able to grant themselves privileges they were never given.\n\n**Deploying products** (for example CDP) need a generic role vocabulary that works on any vertical, plus the ability to add their own domain-specific roles at deploy time so clinical, research, or other specialised labels live with the product, not in the core platform catalog.\n\n**Downstream services** need one consistent place to answer “what roles does this person hold?” -- distinct from the coarse actor class established at login -- so authorization stays aligned across the mesh.\n\n### Functional requirements\n\n- **FR-001**: The service maintains a registry of human principals per tenant, keyed by the same platform user identifier created by the authentication service on first login. A shared key ties the registry to login identity without this service minting its own user ids.\n\n- **FR-002**: Each registry record stores stable identity-provider subject id, tenant reference, name, email, and an assignable set of roles. Broad actor class and organisation type are not duplicated on the row; they are established at login and in tenant metadata owned elsewhere.\n\n- **FR-003**: Roles use a stable, human-readable naming scheme scoped to organisation type so administrators and auditors can understand assignments without a private lookup table. Site, trial, and other domain scope are not encoded in role strings; scope belongs in domain services where context can change independently of role assignment.\n\n- **FR-004**: The service exposes a role catalog for assignment pickers and validation. The catalog includes a generic default suitable for multiple industries and supports an optional deploy-time overlay so products add domain-specific entries without forking the service.\n\n- **FR-005**: Assignment of roles is constrained by the assigner's actor class so a clinician cannot grant operator privileges and a patient cannot grant clinical roles -- even if they can edit permitted profile fields on their own row.\n\n- **FR-006**: Authorised administrators can search and list registry records for their tenant, open a record, update role assignments and permitted profile fields, and view audit history. The same flows extend to multiple principals when an administrative experience requires batch change.\n\n- **FR-007**: End users can read their own registry record and update only the profile fields explicitly allowed by policy. Self-service fixes typos and stale contact info; self-service cannot elevate roles.\n\n- **FR-008**: The service does not expose a public “create user” API for operators. New registry rows appear when Authentication synchronises identity after login. Identity fields refreshed on later logins do not overwrite operator-assigned roles, so login sync never silently revokes deliberate role decisions.\n\n- **FR-009**: Every create, update, and delete on registry data appends a full-row audit history entry. Compliance and incident review need to know who changed what, not merely that a row changed.\n\n- **FR-010**: Registry and catalog access requires a valid platform token except an unauthenticated health check. Human registry actions use human tokens; login-time provisioning uses an authentication service token. Authorization is evaluated in service policy before business logic so denied requests fail closed.\n\n### Operational requirements\n\nPlatform baseline applies ([000-platform-baseline.md](https://github.com/Neosofia/cdp/blob/main/specs/000-platform-baseline.md)). Log payloads must not include names, emails, role strings, or raw identifiers.\n\n- **OR-001**: Logs support **measuring** registry behaviour and changes. At minimum:\n\n  - Classifying request outcomes and errors by endpoint\n  - Attributing request duration by endpoint\n  - Counting registry users created\n  - Counting registry users updated\n\n- **OR-002**: Products that rely on domain-specific catalog entries supply a role overlay as part of their deployment. The core service ships and runs with the generic default alone so non-clinical deployments are not burdened with clinical vocabulary.\n\n### Illustrative vocabulary (examples)\n\nThe catalog groups assignable roles by **organisation type** (platform operator, CRO, sponsor, site, SMO, patient-facing). Each role is a short admin or functional hat within that type -- for example platform **admin** versus **audit-only**, or CRO **clinical-ops** versus **read-only**. Assignments are stored as readable combined slugs such as `cro.clinical-ops`; administrators see labels from the catalog API, not internal codes.\n\n**Examples (v1, not exhaustive):**\n\n| Organisation type | Example roles |\n|-------------------|---------------|\n| Platform operator | Administer the mesh; read audits without assignment power |\n| CRO | Admin, clinical operations, systems, monitoring, read-only |\n| Sponsor | Admin, clinical operations, systems, oversight, read-only |\n| Investigator site | Admin, research, clinical care, read-only |\n| Site management org | Admin, activation, read-only |\n| Patient-facing org | Self-service; advocate / caregiver |\n\nThe authoritative list, assigner rules (which actor classes may grant which types), and deploy-time overlays live in the User service role catalog. See [user/roles/README.md](https://github.com/Neosofia/user/blob/main/roles/README.md) and [user/roles/default.json](https://github.com/Neosofia/user/blob/main/roles/default.json).\n\n### Further reading\n\n- Platform baseline: [000-platform-baseline.md](https://github.com/Neosofia/cdp/blob/main/specs/000-platform-baseline.md)\n- Tenant types and roles: [ADR-0014](https://github.com/Neosofia/cdp/blob/main/architecture/adrs/0014-tenant-types-and-org-roles.md)\n- Role catalog vocabulary (tables): [user/roles/README.md](https://github.com/Neosofia/user/blob/main/roles/README.md)\n- Authentication service spec: [014-authentication-service.md](https://github.com/Neosofia/cdp/blob/main/specs/014-authentication-service.md)\n- Platform operational metrics: [011-operational-metrics.md](https://github.com/Neosofia/cdp/blob/main/specs/011-operational-metrics.md)\n- API contract: [openapi.json](https://github.com/Neosofia/user/blob/main/openapi.json)\n- Security and authorization: [SECURITY.md](https://github.com/Neosofia/user/blob/main/SECURITY.md)\n",
           "filename" : "018-user-service.md",
           "format" : "Markdown",
           "order" : 21,
@@ -4070,6 +4084,7 @@
       "title" : "Clean Chat Service - Components"
     } ],
     "configuration" : {
+      "lastSavedView" : "ProdDeployment",
       "properties" : {
         "structurizr.metadata" : "false"
       },
@@ -4459,6 +4474,10 @@
       "title" : "Platform Core - Containers"
     } ],
     "deploymentViews" : [ {
+      "dimensions" : {
+        "height" : 2845,
+        "width" : 3441
+      },
       "elements" : [ {
         "id" : "292",
         "x" : 0,
@@ -4469,44 +4488,44 @@
         "y" : 0
       }, {
         "id" : "294",
-        "x" : 0,
-        "y" : 0
+        "x" : 315,
+        "y" : 307
       }, {
         "id" : "295",
-        "x" : 0,
-        "y" : 0
+        "x" : 911,
+        "y" : 299
       }, {
         "id" : "296",
-        "x" : 0,
-        "y" : 0
+        "x" : 1591,
+        "y" : 299
       }, {
         "id" : "297",
-        "x" : 0,
-        "y" : 0
+        "x" : 2141,
+        "y" : 339
       }, {
         "id" : "298",
         "x" : 0,
         "y" : 0
       }, {
         "id" : "299",
-        "x" : 0,
-        "y" : 0
+        "x" : 2820,
+        "y" : 315
       }, {
         "id" : "300",
         "x" : 0,
         "y" : 0
       }, {
         "id" : "301",
-        "x" : 0,
-        "y" : 0
+        "x" : 250,
+        "y" : 1695
       }, {
         "id" : "302",
         "x" : 0,
         "y" : 0
       }, {
         "id" : "303",
-        "x" : 0,
-        "y" : 0
+        "x" : 270,
+        "y" : 1055
       }, {
         "id" : "304",
         "x" : 0,
@@ -4517,16 +4536,16 @@
         "y" : 0
       }, {
         "id" : "306",
-        "x" : 0,
-        "y" : 0
+        "x" : 989,
+        "y" : 1060
       }, {
         "id" : "307",
         "x" : 0,
         "y" : 0
       }, {
         "id" : "308",
-        "x" : 0,
-        "y" : 0
+        "x" : 988,
+        "y" : 1863
       }, {
         "id" : "309",
         "x" : 0,
@@ -4537,20 +4556,20 @@
         "y" : 0
       }, {
         "id" : "311",
-        "x" : 0,
-        "y" : 0
+        "x" : 1676,
+        "y" : 1179
       }, {
         "id" : "312",
-        "x" : 0,
-        "y" : 0
+        "x" : 2486,
+        "y" : 1934
       }, {
         "id" : "313",
-        "x" : 0,
-        "y" : 0
+        "x" : 2486,
+        "y" : 1159
       }, {
         "id" : "314",
-        "x" : 0,
-        "y" : 0
+        "x" : 1654,
+        "y" : 1955
       } ],
       "environment" : "earth",
       "key" : "DevDeployment",
@@ -4559,7 +4578,11 @@
       "relationships" : [ {
         "id" : "328"
       }, {
-        "id" : "329"
+        "id" : "329",
+        "vertices" : [ {
+          "x" : 1811,
+          "y" : 174
+        } ]
       }, {
         "id" : "330"
       }, {
@@ -4588,6 +4611,10 @@
       "softwareSystemId" : "19",
       "title" : "Authentication Service — Dev Deployment (Proxmox on-prem)"
     }, {
+      "dimensions" : {
+        "height" : 2756,
+        "width" : 3271
+      },
       "elements" : [ {
         "id" : "292",
         "x" : 0,
@@ -4598,28 +4625,28 @@
         "y" : 0
       }, {
         "id" : "294",
-        "x" : 0,
-        "y" : 0
+        "x" : 305,
+        "y" : 288
       }, {
         "id" : "295",
-        "x" : 0,
-        "y" : 0
+        "x" : 991,
+        "y" : 298
       }, {
         "id" : "296",
-        "x" : 0,
-        "y" : 0
+        "x" : 1721,
+        "y" : 283
       }, {
         "id" : "297",
-        "x" : 0,
-        "y" : 0
+        "x" : 2341,
+        "y" : 328
       }, {
         "id" : "298",
         "x" : 0,
         "y" : 0
       }, {
         "id" : "299",
-        "x" : 0,
-        "y" : 0
+        "x" : 2571,
+        "y" : 978
       }, {
         "id" : "315",
         "x" : 0,
@@ -4630,8 +4657,8 @@
         "y" : 0
       }, {
         "id" : "317",
-        "x" : 0,
-        "y" : 0
+        "x" : 300,
+        "y" : 1369
       }, {
         "id" : "318",
         "x" : 0,
@@ -4642,8 +4669,8 @@
         "y" : 0
       }, {
         "id" : "320",
-        "x" : 0,
-        "y" : 0
+        "x" : 1101,
+        "y" : 1068
       }, {
         "id" : "321",
         "x" : 0,
@@ -4654,24 +4681,24 @@
         "y" : 0
       }, {
         "id" : "323",
-        "x" : 0,
-        "y" : 0
+        "x" : 1110,
+        "y" : 1717
       }, {
         "id" : "324",
         "x" : 0,
         "y" : 0
       }, {
         "id" : "325",
-        "x" : 0,
-        "y" : 0
+        "x" : 1825,
+        "y" : 1714
       }, {
         "id" : "326",
         "x" : 0,
         "y" : 0
       }, {
         "id" : "327",
-        "x" : 0,
-        "y" : 0
+        "x" : 305,
+        "y" : 1969
       } ],
       "environment" : "earth",
       "key" : "ProdDeployment",
@@ -4680,7 +4707,14 @@
       "relationships" : [ {
         "id" : "328"
       }, {
-        "id" : "329"
+        "id" : "329",
+        "vertices" : [ {
+          "x" : 1622,
+          "y" : 207
+        }, {
+          "x" : 2542,
+          "y" : 207
+        } ]
       }, {
         "id" : "330"
       }, {
@@ -4692,7 +4726,11 @@
       }, {
         "id" : "345"
       }, {
-        "id" : "346"
+        "id" : "346",
+        "vertices" : [ {
+          "x" : 2566,
+          "y" : 793
+        } ]
       }, {
         "id" : "347"
       }, {
@@ -4827,35 +4865,39 @@
       } ],
       "title" : "Audit & Immutability Process Flow (PostgreSQL Templates)"
     }, {
+      "dimensions" : {
+        "height" : 2061,
+        "width" : 3268
+      },
       "elementId" : "19",
       "elements" : [ {
         "id" : "2",
-        "x" : 0,
-        "y" : 0
+        "x" : 204,
+        "y" : 887
       }, {
         "id" : "8",
-        "x" : 0,
-        "y" : 0
+        "x" : 235,
+        "y" : 177
       }, {
         "id" : "20",
-        "x" : 0,
-        "y" : 0
+        "x" : 2518,
+        "y" : 1296
       }, {
         "id" : "34",
-        "x" : 0,
-        "y" : 0
+        "x" : 1678,
+        "y" : 1296
       }, {
         "id" : "42",
-        "x" : 0,
-        "y" : 0
+        "x" : 788,
+        "y" : 1217
       }, {
         "id" : "62",
-        "x" : 0,
-        "y" : 0
+        "x" : 788,
+        "y" : 463
       }, {
         "id" : "85",
-        "x" : 0,
-        "y" : 0
+        "x" : 1678,
+        "y" : 638
       } ],
       "externalBoundariesVisible" : false,
       "key" : "ClinicianAlertFlow",
@@ -4865,27 +4907,56 @@
         "description" : "Escalate high-risk signal",
         "id" : "254",
         "order" : "1",
-        "response" : false
+        "response" : false,
+        "vertices" : [ {
+          "x" : 1628,
+          "y" : 613
+        } ]
       }, {
         "description" : "Subscribe to live escalation queue",
         "id" : "126",
         "order" : "2",
-        "response" : false
+        "response" : false,
+        "vertices" : [ {
+          "x" : 1288,
+          "y" : 963
+        }, {
+          "x" : 1628,
+          "y" : 963
+        } ]
       }, {
         "description" : "Clinician self-assigns and opens transcript",
         "id" : "136",
         "order" : "3",
-        "response" : false
+        "response" : false,
+        "vertices" : [ {
+          "x" : 1288,
+          "y" : 1288
+        }, {
+          "x" : 1628,
+          "y" : 1288
+        } ]
       }, {
         "description" : "Stream transcript and live patient messages",
         "id" : "136",
         "order" : "4",
-        "response" : true
+        "response" : true,
+        "vertices" : [ {
+          "x" : 1628,
+          "y" : 1604
+        }, {
+          "x" : 1288,
+          "y" : 1604
+        } ]
       }, {
         "description" : "Create incident if unclaimed after 60s",
         "id" : "218",
         "order" : "5",
-        "response" : false
+        "response" : false,
+        "vertices" : [ {
+          "x" : 1903,
+          "y" : 284
+        } ]
       }, {
         "description" : "Page on-call clinician",
         "id" : "281",
@@ -4895,12 +4966,20 @@
         "description" : "Open escalated session",
         "id" : "273",
         "order" : "7",
-        "response" : false
+        "response" : false,
+        "vertices" : [ {
+          "x" : 404,
+          "y" : 1368
+        } ]
       }, {
         "description" : "Read transcript and send clinician reply",
         "id" : "136",
         "order" : "8",
-        "response" : false
+        "response" : false,
+        "vertices" : [ {
+          "x" : 1288,
+          "y" : 1446
+        } ]
       }, {
         "description" : "Deliver clinician reply to patient",
         "id" : "234",
@@ -4969,47 +5048,51 @@
       } ],
       "title" : "Authentication - Process Flow"
     }, {
+      "dimensions" : {
+        "height" : 2565,
+        "width" : 3428
+      },
       "elementId" : "19",
       "elements" : [ {
         "id" : "1",
-        "x" : 0,
-        "y" : 0
+        "x" : 237,
+        "y" : 1007
       }, {
         "id" : "8",
-        "x" : 0,
-        "y" : 0
+        "x" : 268,
+        "y" : 1775
       }, {
         "id" : "9",
-        "x" : 0,
-        "y" : 0
+        "x" : 283,
+        "y" : 360
       }, {
         "id" : "20",
-        "x" : 0,
-        "y" : 0
+        "x" : 1112,
+        "y" : 657
       }, {
         "id" : "25",
-        "x" : 0,
-        "y" : 0
+        "x" : 2678,
+        "y" : 675
       }, {
         "id" : "34",
-        "x" : 0,
-        "y" : 0
+        "x" : 1897,
+        "y" : 667
       }, {
         "id" : "53",
-        "x" : 0,
-        "y" : 0
+        "x" : 2613,
+        "y" : 1340
       }, {
         "id" : "62",
-        "x" : 0,
-        "y" : 0
+        "x" : 1838,
+        "y" : 1260
       }, {
         "id" : "77",
-        "x" : 0,
-        "y" : 0
+        "x" : 1828,
+        "y" : 1800
       }, {
         "id" : "85",
-        "x" : 0,
-        "y" : 0
+        "x" : 1058,
+        "y" : 1725
       } ],
       "externalBoundariesVisible" : false,
       "key" : "PatientChatFlow",
@@ -5019,47 +5102,83 @@
         "description" : "Opens chat and sends message",
         "id" : "265",
         "order" : "1",
-        "response" : false
+        "response" : false,
+        "vertices" : [ {
+          "x" : 863,
+          "y" : 1100
+        } ]
       }, {
         "description" : "Sends message via SMS",
         "id" : "269",
         "order" : "1",
-        "response" : false
+        "response" : false,
+        "vertices" : [ {
+          "x" : 283,
+          "y" : 820
+        } ]
       }, {
         "description" : "Fetch raw interaction context",
         "id" : "247",
         "order" : "16",
-        "response" : false
+        "response" : false,
+        "vertices" : [ {
+          "x" : 2122,
+          "y" : 1140
+        } ]
       }, {
         "description" : "Run risk model inference",
         "id" : "249",
         "order" : "17",
-        "response" : false
+        "response" : false,
+        "vertices" : [ {
+          "x" : 1953,
+          "y" : 1660
+        } ]
       }, {
         "description" : "Return risk score",
         "id" : "249",
         "order" : "18",
-        "response" : true
+        "response" : true,
+        "vertices" : [ {
+          "x" : 2218,
+          "y" : 1670
+        } ]
       }, {
         "description" : "Escalate on high-risk outcome",
         "id" : "254",
         "order" : "19",
-        "response" : false
+        "response" : false,
+        "vertices" : [ {
+          "x" : 1283,
+          "y" : 1410
+        } ]
       }, {
         "description" : "POST message",
         "id" : "103",
         "order" : "2",
-        "response" : false
+        "response" : false,
+        "vertices" : [ {
+          "x" : 1718,
+          "y" : 870
+        } ]
       }, {
         "description" : "POST message",
         "id" : "162",
         "order" : "2",
-        "response" : false
+        "response" : false,
+        "vertices" : [ {
+          "x" : 2525,
+          "y" : 870
+        } ]
       }, {
         "description" : "Inbound SMS webhook",
         "id" : "271",
         "order" : "2",
-        "response" : false
+        "response" : false,
+        "vertices" : [ {
+          "x" : 2780,
+          "y" : 472
+        } ]
       }, {
         "description" : "Create incident for unclaimed alert",
         "id" : "218",
@@ -5069,42 +5188,77 @@
         "description" : "Lookup active care episode",
         "id" : "228",
         "order" : "3",
-        "response" : false
+        "response" : false,
+        "vertices" : [ {
+          "x" : 2630,
+          "y" : 1070
+        } ]
       }, {
         "description" : "Return care episode ID",
         "id" : "228",
         "order" : "4",
-        "response" : true
+        "response" : true,
+        "vertices" : [ {
+          "x" : 2455,
+          "y" : 1200
+        } ]
       }, {
         "description" : "ACK + AI reply",
         "id" : "162",
         "order" : "5",
-        "response" : true
+        "response" : true,
+        "vertices" : [ {
+          "x" : 2513,
+          "y" : 730
+        } ]
       }, {
         "description" : "ACK + stream AI reply",
         "id" : "234",
         "order" : "5",
-        "response" : false
+        "response" : false,
+        "vertices" : [ {
+          "x" : 1713,
+          "y" : 675
+        } ]
       }, {
         "description" : "Deliver outbound SMS",
         "id" : "164",
         "order" : "6",
-        "response" : false
+        "response" : false,
+        "vertices" : [ {
+          "x" : 2903,
+          "y" : 330
+        }, {
+          "x" : 1130,
+          "y" : 330
+        } ]
       }, {
         "description" : "message response stream",
         "id" : "265",
         "order" : "7",
-        "response" : true
+        "response" : true,
+        "vertices" : [ {
+          "x" : 823,
+          "y" : 890
+        } ]
       }, {
         "description" : "message response stream",
         "id" : "269",
         "order" : "7",
-        "response" : true
+        "response" : true,
+        "vertices" : [ {
+          "x" : 623,
+          "y" : 830
+        } ]
       }, {
         "description" : "Publish risk-eval event (async)",
         "id" : "238",
         "order" : "A5",
-        "response" : false
+        "response" : false,
+        "vertices" : [ {
+          "x" : 1860,
+          "y" : 1105
+        } ]
       } ],
       "title" : "Patient Chat - Process Flow"
     }, {
@@ -5150,66 +5304,70 @@
       "title" : "App (Service) Token Issuance and Validation"
     } ],
     "systemLandscapeViews" : [ {
+      "dimensions" : {
+        "height" : 2308,
+        "width" : 3599
+      },
       "elements" : [ {
         "id" : "1",
-        "x" : 0,
-        "y" : 0
+        "x" : 1741,
+        "y" : 1684
       }, {
         "id" : "2",
-        "x" : 0,
-        "y" : 0
+        "x" : 690,
+        "y" : 1665
       }, {
         "id" : "3",
-        "x" : 0,
-        "y" : 0
+        "x" : 2150,
+        "y" : 176
       }, {
         "id" : "4",
-        "x" : 0,
-        "y" : 0
+        "x" : 1680,
+        "y" : 176
       }, {
         "id" : "5",
-        "x" : 0,
-        "y" : 0
+        "x" : 740,
+        "y" : 176
       }, {
         "id" : "6",
-        "x" : 0,
-        "y" : 0
+        "x" : 1210,
+        "y" : 176
       }, {
         "id" : "7",
-        "x" : 0,
-        "y" : 0
+        "x" : 200,
+        "y" : 176
       }, {
         "id" : "8",
-        "x" : 0,
-        "y" : 0
+        "x" : 1710,
+        "y" : 1001
       }, {
         "id" : "9",
-        "x" : 0,
-        "y" : 0
+        "x" : 2401,
+        "y" : 1771
       }, {
         "id" : "13",
-        "x" : 0,
-        "y" : 0
+        "x" : 3061,
+        "y" : 1049
       }, {
         "id" : "15",
-        "x" : 0,
-        "y" : 0
+        "x" : 2881,
+        "y" : 1771
       }, {
         "id" : "16",
-        "x" : 0,
-        "y" : 0
+        "x" : 230,
+        "y" : 975
       }, {
         "id" : "17",
-        "x" : 0,
-        "y" : 0
+        "x" : 2896,
+        "y" : 344
       }, {
         "id" : "18",
-        "x" : 0,
-        "y" : 0
+        "x" : 850,
+        "y" : 1000
       }, {
         "id" : "19",
-        "x" : 0,
-        "y" : 0
+        "x" : 2306,
+        "y" : 1129
       } ],
       "enterpriseBoundaryVisible" : true,
       "key" : "Landscape",
@@ -5232,7 +5390,11 @@
       }, {
         "id" : "274"
       }, {
-        "id" : "280"
+        "id" : "280",
+        "vertices" : [ {
+          "x" : 936,
+          "y" : 1434
+        } ]
       }, {
         "id" : "281"
       }, {
