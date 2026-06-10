@@ -21,21 +21,27 @@ All categorical columns in service-owned databases MUST be stored as `SMALLINT N
 
 Each such column MUST have a corresponding enum definition (Python `IntEnum` or equivalent) in the service codebase. The mapping is the single source of truth.
 
-Every service that owns categorical columns MUST expose a `/meta/enums` endpoint (authenticated, read-only) that returns the current integer→label mapping for all registered enums. This endpoint:
+Every service that owns categorical columns MUST expose a `/meta/enums` endpoint (read-only, rate-limited) that returns the current integer→label mapping for all registered enums. Authentication is not required — the mapping is non-sensitive metadata. This endpoint:
 
-- MUST return a stable, versioned JSON structure.
+- MUST return a stable JSON structure keyed by enum name.
 - MUST be additive-only: existing integer→label pairs MUST NOT be reused or removed (only new values added).
 - MUST be used by all consumers (other services, admin tooling, migration scripts) to decode stored integers.
+
+No registry or per-enum version field is required. Integer assignments are immutable once published; consumers always decode stored values against the current mapping. Because integers are never renumbered or reused, historical registry snapshots are unnecessary.
+
+### Labels are stable machine keys, not display copy
+
+Each label string (for example `web`, `mobile_app`) is a **stable identifier** for humans and tooling — not final user-facing copy. Labels MUST remain stable across releases; renaming a label is a breaking change for anything that cached or logged it. Do not use labels as persistence keys in client logic; use the integer.
+
+User-facing display text will eventually route through i18n; translation catalogs SHOULD key off these stable labels (or the integer rendered as a string), not ad hoc UI strings. The `/meta/enums` endpoint supplies the canonical English/default label until a product surface wires locale-specific copy.
 
 ### Enum endpoint contract
 
 ```
 GET /meta/enums
-Authorization: Bearer <service-to-service token>
 
 200 OK
 {
-  "version": 1,
   "enums": {
     "<EnumName>": {
       "<integer>": "<label>",

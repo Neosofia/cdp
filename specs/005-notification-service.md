@@ -8,7 +8,7 @@ The Notification Service exists to bridge that gap. It receives structured escal
 
 ## How this service fits into the platform
 
-The AI Risk Agent Service evaluates patient messages asynchronously and, when intervention is warranted, submits an escalation event to this service over an internal-only API. During the early-intervention window, the service publishes the alert to the clinician portal queue so any available clinician in the region can claim the session. A successful claim marks the alert as handled and **suppresses** the escalation platform call entirely.
+In v1 the Chat Service care assistant evaluates clinical risk synchronously on each patient turn ([010](https://github.com/Neosofia/cdp/blob/main/specs/010-ai-agent-service.md), [001](https://github.com/Neosofia/cdp/blob/main/specs/001-chat-service.md) FR-011) and, when intervention is warranted, submits an escalation event to this service over an internal-only API. A future async risk microservice may perform the same handoff if evaluation is extracted from the completions path. During the early-intervention window, the service publishes the alert to the clinician portal queue so any available clinician in the region can claim the session. A successful claim marks the alert as handled and **suppresses** the escalation platform call entirely.
 
 If the window expires unclaimed, the service triggers an incident through the configured escalation platform integration key. The platform decides which on-call recipient receives the page, using organisation and schedule configuration maintained outside this service. The incident payload carries only opaque identifiers and structured risk labels -- never raw PHI -- plus a link the clinician follows after authentication to reach the alert detail view.
 
@@ -24,11 +24,11 @@ This service is **strictly outbound**. It does not ingest escalation platform we
 
 **Platform operators** need to verify that every unclaimed alert resulted in an escalation platform call (or a logged, auditable failure), that SLA measurement starts at window expiry rather than alert origin, and that malformed or unsafe payloads never reach external systems.
 
-**The AI agent service** needs a simple, dependable handoff: submit a validated escalation event and receive a clear success or failure response without owning paging infrastructure.
+**The risk evaluation path** (Chat Service in v1; optional async service later) needs a simple, dependable handoff: submit a validated escalation event and receive a clear success or failure response without owning paging infrastructure.
 
 ## Functional requirements
 
-- **FR-001**: The service accepts structured escalation events from the AI agent service via an internal-only API. Risk classification stays upstream; this service delivers alerts, it does not reinterpret clinical severity.
+- **FR-001**: The service accepts structured escalation events from the clinical risk evaluation path (Chat Service in v1) via an internal-only API. Risk classification stays upstream; this service delivers alerts, it does not reinterpret clinical severity.
 
 - **FR-002**: On receiving an escalation event, the service starts a 60-second early-intervention window and publishes the alert to the clinician portal queue. During this window it does not call the escalation platform. If a clinician self-assigns the session before expiry, the alert is marked claimed and no escalation platform call is made. If the window expires unclaimed, processing continues to outbound escalation.
 

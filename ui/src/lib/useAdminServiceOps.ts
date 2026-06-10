@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
-import { fetchAuthServices } from '@/lib/authServicesApi';
-import { countFailedSignInsLast24Hours } from '@/lib/idpFailedAuthFeed';
+import { fetchIdpOperatorOps } from '@/lib/idpFailedAuthFeed';
 import {
-  countCredentialsDueForRotation,
-  fetchOperatorAuditFeed,
+  fetchPlatformOperatorOps,
+  mergeAuditFeedEvents,
   type DashboardAuditEvent,
 } from '@/lib/platformAuditFeed';
 
@@ -28,14 +27,13 @@ export function useAdminServiceOps(token: string | undefined, activeActor: strin
     setLoading(true);
     setError(null);
     try {
-      const [servicesRes, events, failedCount] = await Promise.all([
-        fetchAuthServices(token, activeActor, 1, 100),
-        fetchOperatorAuditFeed(token, activeActor),
-        countFailedSignInsLast24Hours(token, activeActor),
+      const [platformOps, idpOps] = await Promise.all([
+        fetchPlatformOperatorOps(token, activeActor),
+        fetchIdpOperatorOps(token, activeActor),
       ]);
-      setRotationDueCount(countCredentialsDueForRotation(servicesRes.items));
-      setAuditEvents(events);
-      setFailedSignIns24h(failedCount);
+      setRotationDueCount(platformOps.rotationDueCount);
+      setAuditEvents(mergeAuditFeedEvents([...platformOps.events, ...idpOps.events]));
+      setFailedSignIns24h(idpOps.failedSignIns24h);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load platform operations');
       setRotationDueCount(null);

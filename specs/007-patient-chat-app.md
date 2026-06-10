@@ -40,7 +40,7 @@ The clinician-facing portal (escalation handling, record review, session takeove
 
 - **FR-006**: The app renders a chat thread with visual differentiation among patient messages, AI agent responses, and clinician messages. When a clinician takes over following escalation, clinician replies appear in the same thread with a distinct visual treatment.
 
-- **FR-007**: The app supports optimistic message sending: messages appear in the thread immediately on send and show a pending indicator until the server confirms delivery.
+- **FR-007**: The app supports optimistic message sending: messages appear in the thread immediately on send and show a pending indicator until the Chat Service confirms ingestion (HTTP success and message identifier). Last-mile delivery concerns for this channel -- offline retry, push when backgrounded, and in-app unread state -- are owned here, not in the Chat Service.
 
 - **FR-008**: Offline message queuing holds composed messages when connectivity is lost and sends them in order when connectivity returns, without duplication.
 

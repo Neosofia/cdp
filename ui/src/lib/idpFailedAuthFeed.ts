@@ -68,8 +68,19 @@ export async function countFailedSignInsLast24Hours(
   token: string,
   activeActor: string,
 ): Promise<number> {
-  let total = 0;
+  const { failedSignIns24h } = await fetchIdpOperatorOps(token, activeActor);
+  return failedSignIns24h;
+}
+
+export async function fetchIdpOperatorOps(
+  token: string,
+  activeActor: string,
+): Promise<{ failedSignIns24h: number; events: DashboardAuditEvent[] }> {
+  let failedSignIns24h = 0;
   let after: string | null = null;
+  const feedItems: IdpFailedAuthenticationItem[] = [];
+  const nowMs = Date.now();
+  const windowStart = nowMs - FAILED_SIGN_IN_WINDOW_MS;
 
   // WorkOS may return rows oldest-first per page even with order=desc; scan every
   // page and count in-window events instead of stopping at the first older row.
@@ -82,19 +93,27 @@ export async function countFailedSignInsLast24Hours(
     );
     if (page.items.length === 0) break;
 
-    total += countFailedSignInsInWindow(page.items, Date.now());
+    feedItems.push(...page.items);
+    failedSignIns24h += countFailedSignInsInWindow(page.items, nowMs);
 
     if (!page.after) break;
     after = page.after;
+
+    const oldest = page.items[page.items.length - 1];
+    const oldestMs = Date.parse(oldest?.occurred_at ?? '');
+    if (!Number.isNaN(oldestMs) && oldestMs < windowStart) break;
   }
 
-  return total;
+  return {
+    failedSignIns24h,
+    events: feedItems.map(mapFailedAuthToAuditEvent),
+  };
 }
 
 export async function fetchIdpFailedAuthAuditEvents(
   token: string,
   activeActor: string,
 ): Promise<DashboardAuditEvent[]> {
-  const { items } = await fetchIdpFailedAuthentications(token, activeActor, 25);
-  return items.map(mapFailedAuthToAuditEvent);
+  const { events } = await fetchIdpOperatorOps(token, activeActor);
+  return events;
 }

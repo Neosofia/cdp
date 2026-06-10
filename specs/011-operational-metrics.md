@@ -2,7 +2,7 @@
 
 ## Why we need this capability
 
-A distributed care platform fails in ways no single service log can explain: the risk agent lagged, the notification shim retried, the SMS adapter queued an undelivered reply -- and a clinician escalation arrived sixty-two seconds late. Without a **platform-wide observability layer**, each team would instrument differently, patient-safety SLIs would be argued per service, and nobody could reconstruct an end-to-end trace from message receipt to pager delivery. Operators would fly blind; clinical safety reviewers could not prove the escalation guarantee is met; and Information Security could not independently verify that PHI never leaked into broadly accessible dashboards.
+A distributed care platform fails in ways no single service log can explain: clinical risk evaluation lagged on the chat completions path (or, if extracted, the async risk consumer lagged), the notification shim retried, the SMS adapter queued an undelivered reply -- and a clinician escalation arrived sixty-two seconds late. Without a **platform-wide observability layer**, each team would instrument differently, patient-safety SLIs would be argued per service, and nobody could reconstruct an end-to-end trace from message receipt to pager delivery. Operators would fly blind; clinical safety reviewers could not prove the escalation guarantee is met; and Information Security could not independently verify that PHI never leaked into broadly accessible dashboards.
 
 Platform Observability is not one microservice's logging feature -- it is the **shared contract** for structured events, derived metrics, trace correlation, alerting, and read-only dashboards across every service in the mesh. Services emit facts; the observability stack aggregates, measures, alerts, and reports -- always without patient-identifiable content in events, metric labels, or dashboard rows.
 
@@ -10,13 +10,13 @@ Platform Observability is not one microservice's logging feature -- it is the **
 
 Every platform service emits structured JSON lifecycle events through the standard log plugin, validated against the shared log schema at emission time. Events carry opaque identifiers (patient, session, care episode, trace), tenant scope, and non-sensitive payload fields -- never names, contact details, clinical narrative, or message body text. A central aggregator ingests events, retains raw history for investigation, derives SLIs and engagement aggregates, evaluates alert rules, and exposes query APIs for engineers and dashboards for operators, clinical leads, and product teams.
 
-Patient-safety paths are first-class: risk agent invocation latency and error rate, escalation end-to-end latency from alert raised to notification delivered, and silence detection when a service stops emitting during active care hours. Product and quality signals -- satisfaction ratings, AI response quality trends, active care episodes -- are tenant-scoped aggregates with no patient-level rows. Multi-tenant isolation applies to every query and dashboard view.
+Patient-safety paths are first-class: clinical risk evaluation latency and error rate (v1: on the Chat completions path), escalation end-to-end latency from alert raised to notification delivered, and silence detection when a service stops emitting during active care hours. Product and quality signals -- satisfaction ratings, AI response quality trends, active care episodes -- are tenant-scoped aggregates with no patient-level rows. Multi-tenant isolation applies to every query and dashboard view.
 
 Prevention of PHI in logs is enforced in CI before deploy and verified independently by Information Security through a third-party SIEM -- the authoritative audit control, with engineering-side validation as defence in depth.
 
 ## Client objectives
 
-**On-call engineers** need alerts that fire within minutes when patient-safety SLIs breach, when the risk agent goes silent, or when error rates spike -- each alert carrying current value, threshold, affected tenant, trace correlator, and a runbook link so remediation starts immediately rather than after log archaeology.
+**On-call engineers** need alerts that fire within minutes when patient-safety SLIs breach, when risk evaluation goes silent (Chat completions path in v1), or when error rates spike -- each alert carrying current value, threshold, affected tenant, trace correlator, and a runbook link so remediation starts immediately rather than after log archaeology.
 
 **Clinical safety reviewers** need weekly and on-demand reports proving the escalation path met its end-to-end time guarantee, with breach rows showing which hop introduced delay -- measurement is the only way to verify a constitutional patient-safety obligation continuously.
 

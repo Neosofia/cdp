@@ -28,6 +28,10 @@ export interface AuthServiceAuditResponse {
   items: ServiceAuditItem[];
 }
 
+export interface CatalogAuditsResponse {
+  items: ServiceAuditItem[];
+}
+
 export function authApiHeaders(token: string, activeActor: string): Record<string, string> {
   return {
     Authorization: `Bearer ${token}`,
@@ -79,4 +83,23 @@ export async function fetchAuthServiceAudits(
     throw new Error(message);
   }
   return body as AuthServiceAuditResponse;
+}
+
+export async function fetchCatalogAudits(
+  token: string,
+  activeActor: string,
+  limit = 50,
+): Promise<CatalogAuditsResponse> {
+  const params = new URLSearchParams({
+    limit: String(limit),
+  });
+  const res = await fetch(`${AUTH_API}/api/services/audits?${params}`, {
+    headers: authApiHeaders(token, activeActor),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const message = typeof body.message === 'string' ? body.message : `HTTP ${res.status}`;
+    throw new Error(message);
+  }
+  return body as CatalogAuditsResponse;
 }

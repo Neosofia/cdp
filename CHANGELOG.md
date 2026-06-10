@@ -3,6 +3,15 @@
 
 ## [Unreleased]
 
+## [2026.06.10] - 2026-06-10
+
+**Pinned services:** authentication **v0.33.0**; user **v0.7.0**; chat **v0.3.0**; care-episode **v0.3.0**; capabilities **v0.6.0**; **cdp-user-policies v0.2.1** unchanged.
+
+### Changed
+
+- `docker-compose.dev.yml` pins the full platform stack on GHCR release images (adds chat and care-episode alongside authentication, user, and capabilities).
+- Backend services ship **authorization-in-the-middle v0.4.23** with simplified `@with_security()` route decorators.
+
 ## [2026.06.05 chat] - 2026-06-05
 
 **Pinned services:** chat **v0.2.2**; care-episode **v0.2.3**.

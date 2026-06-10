@@ -26,6 +26,7 @@
 #
 #   docker compose -f docker-compose.local.yml build cdp-user-policies
 #   docker compose -f docker-compose.local.yml up -d --build
+#   ./scripts/compose-logs-json.sh docker-compose.local.yml
 #
 # For pinned release images, use docker-compose.dev.yml instead (never mix into this file).
 
@@ -78,8 +79,8 @@ services:
   # Policy-only image (FROM scratch). Build before user: `docker compose -f docker-compose.local.yml build cdp-user-policies`
   cdp-user-policies:
     build:
-      context: ./policies/service-overrides/user
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: policies/service-overrides/user/Dockerfile
     image: cdp-user-policies:local
     profiles:
       - build
@@ -345,11 +346,17 @@ services:
   ui:
     build:
       context: ./ui
-      dockerfile: Dockerfile.dev
+      dockerfile: Dockerfile
+      args:
+        VITE_AUTH_BASE_URL: http://localhost:8014
+        VITE_AUTH_API_URL: http://localhost:8014
+        VITE_CAPABILITIES_API_URL: http://localhost:8019
+        VITE_USER_API_URL: http://localhost:8018
+        VITE_CHAT_API_URL: http://localhost:8001
+        VITE_CARE_EPISODE_API_URL: http://localhost:8015
+        VITE_TEMPLATE_API_URL: http://localhost:8900
     image: cdp-ui:local
     container_name: cdp-ui
-    environment:
-      CI: "true"
     depends_on:
       authentication:
         condition: service_healthy
@@ -357,13 +364,8 @@ services:
         condition: service_healthy
       user:
         condition: service_healthy
-    volumes:
-      - ./ui:/app
-      - /app/node_modules
     ports:
       - "5173:5173"
-    env_file:
-      - ./ui/.env
 
 volumes:
   authentication_postgres_data:

@@ -1,5 +1,7 @@
 # Deidentification Pipeline
 
+**Initial version:** deferred. Shipped together with chat interaction close and interaction-end events ([001-chat-service.md](https://github.com/Neosofia/cdp/blob/main/specs/001-chat-service.md) FR-004) and the clean chat store ([003-clean-chat-service.md](https://github.com/Neosofia/cdp/blob/main/specs/003-clean-chat-service.md)). Until then, clinicians and real-time agents use the raw PHI chat store; employee and ML workloads must not consume production chat data.
+
 ## Why we need this service
 
 Raw patient chat is PHI-complete by design -- names, dates, medications, and free-text clinical detail must survive in the chat store so clinicians and real-time agents can act on what was actually said. Employee debugging, observability, exploratory analysis, and model pre-training cannot safely use that same store. Constitution Principle I requires a deliberate boundary: PHI is stripped before any human-accessible clean workload or batch ML pipeline sees message text.

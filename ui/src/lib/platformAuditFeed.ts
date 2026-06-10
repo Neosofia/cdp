@@ -1,10 +1,6 @@
 import type { ServiceAuditItem } from '@/components/AuditHistorySheet';
-import {
-  fetchAuthServiceAudits,
-  fetchAuthServices,
-  type AuthServiceItem,
-} from '@/lib/authServicesApi';
-import { fetchIdpFailedAuthAuditEvents } from '@/lib/idpFailedAuthFeed';
+import { fetchAuthServices, fetchCatalogAudits } from '@/lib/authServicesApi';
+import { fetchIdpOperatorOps } from '@/lib/idpFailedAuthFeed';
 
 /** Matches ServiceManagement rotation warning threshold (≥300 days). */
 export const CREDENTIAL_ROTATION_WARNING_DAYS = 300;
@@ -21,14 +17,6 @@ export type DashboardAuditEvent = {
   changedAt: string;
   level: DashboardAuditLevel;
 };
-
-export function countCredentialsDueForRotation(services: AuthServiceItem[]): number {
-  return services.filter(
-    (svc) =>
-      svc.days_since_rotation !== null &&
-      svc.days_since_rotation >= CREDENTIAL_ROTATION_WARNING_DAYS,
-  ).length;
-}
 
 export function auditEventLevel(changeType: number): DashboardAuditLevel {
   if (changeType === 3) return 'warning';
@@ -70,42 +58,44 @@ export function mergeAuditFeedEvents(events: DashboardAuditEvent[]): DashboardAu
     .slice(0, AUDIT_FEED_LIMIT);
 }
 
-export async function collectPlatformAuditEvents(
-  token: string,
-  activeActor: string,
-): Promise<DashboardAuditEvent[]> {
-  const { items: services } = await fetchAuthServices(token, activeActor, 1, 100);
-  const perSourcePageSize = 5;
-  const batches = await Promise.all(
-    services.flatMap((svc) => [
-      fetchAuthServiceAudits(token, activeActor, svc.slug, 'service', 1, perSourcePageSize).then(
-        (res) => ({ slug: svc.slug, source: 'service' as const, items: res.items }),
-      ),
-      fetchAuthServiceAudits(token, activeActor, svc.slug, 'credential', 1, perSourcePageSize).then(
-        (res) => ({ slug: svc.slug, source: 'credential' as const, items: res.items }),
-      ),
-    ]),
-  );
-
-  return batches.flatMap(({ slug, source, items }) =>
-    items.map((item) => mapAuditItemToDashboardEvent(item, slug, source)),
+export function mapPlatformAuditFeedItems(items: ServiceAuditItem[]): DashboardAuditEvent[] {
+  return items.map((item) =>
+    mapAuditItemToDashboardEvent(item, item.slug ?? 'unknown', item.source ?? 'service'),
   );
 }
 
-export async function fetchPlatformAuditFeed(
+export function countRotationDueCredentials(
+  services: { days_since_rotation: number | null }[],
+  thresholdDays = CREDENTIAL_ROTATION_WARNING_DAYS,
+): number {
+  return services.filter(
+    (service) =>
+      service.days_since_rotation !== null &&
+      service.days_since_rotation >= thresholdDays,
+  ).length;
+}
+
+export async function fetchPlatformOperatorOps(
   token: string,
   activeActor: string,
-): Promise<DashboardAuditEvent[]> {
-  return mergeAuditFeedEvents(await collectPlatformAuditEvents(token, activeActor));
+): Promise<{ rotationDueCount: number; events: DashboardAuditEvent[] }> {
+  const [audits, services] = await Promise.all([
+    fetchCatalogAudits(token, activeActor, 50),
+    fetchAuthServices(token, activeActor),
+  ]);
+  return {
+    rotationDueCount: countRotationDueCredentials(services.items),
+    events: mapPlatformAuditFeedItems(audits.items),
+  };
 }
 
 export async function fetchOperatorAuditFeed(
   token: string,
   activeActor: string,
 ): Promise<DashboardAuditEvent[]> {
-  const [platformEvents, failedSignIns] = await Promise.all([
-    collectPlatformAuditEvents(token, activeActor),
-    fetchIdpFailedAuthAuditEvents(token, activeActor),
+  const [platformOps, idpOps] = await Promise.all([
+    fetchPlatformOperatorOps(token, activeActor),
+    fetchIdpOperatorOps(token, activeActor),
   ]);
-  return mergeAuditFeedEvents([...platformEvents, ...failedSignIns]);
+  return mergeAuditFeedEvents([...platformOps.events, ...idpOps.events]);
 }

@@ -1,5 +1,7 @@
-x-auth-image: &auth_image ghcr.io/neosofia/authentication:v0.32.2
-x-user-image: &user_image ghcr.io/neosofia/user:v0.6.9
+x-auth-image: &auth_image ghcr.io/neosofia/authentication:v0.33.0
+x-user-image: &user_image ghcr.io/neosofia/user:v0.7.0
+x-chat-image: &chat_image ghcr.io/neosofia/chat:v0.3.0
+x-care-episode-image: &care_episode_image ghcr.io/neosofia/care-episode:v0.3.0
 
 services:
   authentication-migrate:
@@ -61,7 +63,7 @@ services:
       retries: 5
 
   capabilities:
-    image: ghcr.io/neosofia/capabilities:v0.5.9
+    image: ghcr.io/neosofia/capabilities:v0.6.0
     container_name: cdp-capabilities
     env_file:
       - ./.capabilities.env
@@ -147,6 +149,100 @@ services:
       retries: 5
       start_period: 15s
 
+  chat-postgres:
+    image: postgres:18
+    container_name: cdp-chat-postgres
+    env_file:
+      - ./.chat-postgres.env
+    ports:
+      - "5001:5432"
+    volumes:
+      - chat_postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chat_template -d cdp_chat"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  chat-migrate:
+    image: *chat_image
+    container_name: cdp-chat-migrate
+    env_file:
+      - ./.chat.env
+    command: ["python", "-m", "alembic", "upgrade", "head"]
+    depends_on:
+      chat-postgres:
+        condition: service_healthy
+    restart: "no"
+
+  chat:
+    image: *chat_image
+    container_name: cdp-chat
+    env_file:
+      - ./.chat.env
+    ports:
+      - "8001:8001"
+    depends_on:
+      chat-postgres:
+        condition: service_healthy
+      chat-migrate:
+        condition: service_completed_successfully
+      authentication:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "/app/.venv/bin/python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:8001/health', timeout=3)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  care-episode-postgres:
+    image: postgres:18
+    container_name: cdp-care-episode-postgres
+    env_file:
+      - ./.care-episode-postgres.env
+    ports:
+      - "5015:5432"
+    volumes:
+      - care_episode_postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U care_episode_template -d cdp_care_episode"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  care-episode-migrate:
+    image: *care_episode_image
+    container_name: cdp-care-episode-migrate
+    env_file:
+      - ./.care-episode.env
+    command: ["python", "-m", "alembic", "upgrade", "head"]
+    depends_on:
+      care-episode-postgres:
+        condition: service_healthy
+    restart: "no"
+
+  care-episode:
+    image: *care_episode_image
+    container_name: cdp-care-episode
+    env_file:
+      - ./.care-episode.env
+    ports:
+      - "8015:8015"
+    depends_on:
+      care-episode-postgres:
+        condition: service_healthy
+      care-episode-migrate:
+        condition: service_completed_successfully
+      authentication:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "/app/.venv/bin/python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:8015/health', timeout=3)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
   ui:
     build:
       context: ./ui
@@ -159,6 +255,10 @@ services:
         condition: service_healthy
       user:
         condition: service_healthy
+      chat:
+        condition: service_healthy
+      care-episode:
+        condition: service_healthy
     volumes:
       - ./ui:/app
       - /app/node_modules
@@ -170,3 +270,5 @@ services:
 volumes:
   authentication_postgres_data:
   user_postgres_data:
+  chat_postgres_data:
+  care_episode_postgres_data:

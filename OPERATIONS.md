@@ -105,6 +105,7 @@ Once you have generated all your environment variables, you can bring up the who
 
 ```bash
 docker compose -f docker-compose.dev.yml up -d --build
+./scripts/compose-logs-json.sh docker-compose.dev.yml
 ```
 
 Then access the platform at localhost:5173 (UI). Default API ports (8000 + spec number): Authentication **8014**, User **8018** (spec 018), Capabilities **8019**. Python template demo **8900** (outside the spec port range). In `ui/.env`, `VITE_TEMPLATE_API_URL` must point at the template service (**8900**), not the user service (**8018**).
@@ -116,4 +117,22 @@ When working across platform services, build everything from sibling repos inste
 ```bash
 docker compose -f docker-compose.local.yml build cdp-user-policies
 docker compose -f docker-compose.local.yml up -d --build
+./scripts/compose-logs-json.sh docker-compose.local.yml
 ```
+
+Press `Ctrl+C` to stop following logs; containers keep running in the background.
+
+### Viewing service logs (structured JSON)
+
+Platform services emit one JSON object per log line. Raw `docker compose logs` output is hard to read because Compose adds a service prefix (`cdp-authentication  | `) before each line, and piping that prefix straight into `jq` fails (jq 1.7 surfaces parse errors instead of the original line).
+
+Use the helper script to strip the prefix, pretty-print JSON, and pass non-JSON lines through unchanged:
+
+```bash
+./scripts/compose-logs-json.sh docker-compose.local.yml authentication
+./scripts/compose-logs-json.sh docker-compose.dev.yml chat user
+```
+
+Requires `jq` (`brew install jq`). Equivalent one-liner:
+
+Use `--no-color` so ANSI escape codes do not break JSON parsing. If the follower goes quiet after rebuilding containers, press `Ctrl+C` and start the script again — an existing `logs -f` session does not always reattach to recreated containers.

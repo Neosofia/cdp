@@ -2,7 +2,7 @@
 
 ## Why we need this app
 
-When the AI risk agent flags a patient conversation, clinicians need to act in seconds -- not after hunting through separate systems for chat history and post-discharge records. On-call pages must land them on a single view where they can read the live thread, review relevant EHR context, halt the AI, and continue the conversation or request consent to call. Clinicians work as a regional pool and are not pre-assigned to individual patients; any authenticated clinician in the region must be able to respond.
+When clinical risk evaluation flags a patient conversation (sync in the Chat care assistant in v1), clinicians need to act in seconds -- not after hunting through separate systems for chat history and post-discharge records. On-call pages must land them on a single view where they can read the live thread, review relevant EHR context, halt the AI, and continue the conversation or request consent to call. Clinicians work as a regional pool and are not pre-assigned to individual patients; any authenticated clinician in the region must be able to respond.
 
 The Clinician App is a browser-based portal for that workflow. Its primary path is: receive an escalation platform alert, follow a deep link, authenticate, and land on a two-panel alert detail -- live AI-patient chat on the left, post-discharge EHR records on the right. A secondary path lets clinicians already logged into the portal claim high-risk sessions during the **60-second early-intervention window** before an on-call page fires at all.
 

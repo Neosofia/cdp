@@ -1,5 +1,7 @@
 # Clean Chat Service
 
+**Initial version:** deferred. Shipped together with the deidentification pipeline ([002-deidentification-pipeline.md](https://github.com/Neosofia/cdp/blob/main/specs/002-deidentification-pipeline.md)) and chat interaction close ([001-chat-service.md](https://github.com/Neosofia/cdp/blob/main/specs/001-chat-service.md) FR-004).
+
 ## Why we need this service
 
 Engineers debugging deidentification behaviour, data scientists building models, and internal analytics jobs all need conversation-shaped data -- threads, timestamps, channels, directions -- without ever touching raw PHI. The deidentification pipeline produces that data, but it still needs a durable home with the same structural semantics as raw chat so queries, exports, and tooling do not reinvent a second schema.
