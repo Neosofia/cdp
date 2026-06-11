@@ -31,6 +31,16 @@ SERVICES_TO_SEED = [
         "base_url": "http://user:8018",
     },
     {
+        "name": "Care Episode Service",
+        "slug": "care-episode",
+        "base_url": "http://care-episode:8015",
+    },
+    {
+        "name": "Chat Service",
+        "slug": "chat",
+        "base_url": "http://chat:8001",
+    },
+    {
         "name": "Python Template",
         "slug": "python-template",
         "base_url": "http://python-template:8900",

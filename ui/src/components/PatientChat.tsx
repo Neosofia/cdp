@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useState, useRef } from 'react';
-import { listCareEpisodeSessions } from '@/lib/careEpisodeApi';
 import {
-  buildPatientChatInteractionContext,
   createChatInteraction,
   fetchChatMeta,
   formatChatInteractionActivityDate,
@@ -15,7 +13,6 @@ import {
   threadMessagesHaveIntervention,
   toPatientThreadMessage,
   type ChatInteraction,
-  type ChatInteractionContext,
   type PatientThreadMessage,
 } from '@/lib/chatApi';
 import { cdpClinicalRoleCatalog, clinicianRoleLabelForUserRoles } from '@/lib/roleCatalogApi';
@@ -46,12 +43,6 @@ interface ClinicianSenderLabel {
   roleLabel: string;
 }
 
-interface EpisodeContext {
-  surgery?: string;
-  procedureDate?: string;
-  daysPostOp?: number;
-}
-
 interface Props {
   token: string;
   activeActor: string;
@@ -66,12 +57,11 @@ const ASSISTANT_UNAVAILABLE_MESSAGE =
 export default function PatientChat({
   token,
   activeActor,
-  patientName,
+  patientName: _patientName,
   patientUuid,
-  tenantName,
+  tenantName: _tenantName,
 }: Props) {
   const canLoadHistory = Boolean(CHAT_API && patientUuid);
-  const [episodeContext, setEpisodeContext] = useState<EpisodeContext>({});
   const [interactions, setInteractions] = useState<ChatInteraction[]>([]);
   const [activeInteractionUuid, setActiveInteractionUuid] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -93,16 +83,6 @@ export default function PatientChat({
   const showSidebar = canLoadHistory && interactions.length >= 2;
   const humanInterventionActive = threadMessagesHaveIntervention(messages);
   const canSendMessages = humanInterventionActive || assistantAvailable;
-
-  const buildInteractionContext = useCallback((): ChatInteractionContext => {
-    return buildPatientChatInteractionContext({
-      patientName,
-      tenantName,
-      surgery: episodeContext.surgery,
-      procedureDate: episodeContext.procedureDate,
-      daysPostOp: episodeContext.daysPostOp,
-    });
-  }, [patientName, tenantName, episodeContext]);
 
   const primeNewSession = useCallback(
     async (interactionUuid: string): Promise<ChatMessage[]> => {
@@ -175,46 +155,23 @@ export default function PatientChat({
 
     let cancelled = false;
 
-    const bootstrap = async () => {
+    const initializeConversation = async () => {
       setLoadingInteractions(true);
       setLoadingHistory(true);
       setError(null);
 
       try {
-        const [itemsResult, sessions, meta] = await Promise.all([
+        const [itemsResult, meta] = await Promise.all([
           listChatInteractions(token, activeActor, patientUuid),
-          listCareEpisodeSessions(token, activeActor).catch(() => []),
           fetchChatMeta(token, activeActor),
         ]);
         const assistantReady = meta.assistant?.available === true;
         setAssistantAvailable(assistantReady);
         if (cancelled) return;
 
-        const session = sessions.find(entry => entry.user_uuid === patientUuid);
-        const nextEpisodeContext: EpisodeContext = session
-          ? {
-              surgery: session.surgery,
-              procedureDate: session.procedure_date,
-              daysPostOp: session.days_post_op,
-            }
-          : {};
-        setEpisodeContext(nextEpisodeContext);
-
         let items = itemsResult;
         if (items.length === 0) {
-          const context = buildPatientChatInteractionContext({
-            patientName,
-            tenantName,
-            surgery: nextEpisodeContext.surgery,
-            procedureDate: nextEpisodeContext.procedureDate,
-            daysPostOp: nextEpisodeContext.daysPostOp,
-          });
-          const created = await createChatInteraction(
-            token,
-            activeActor,
-            patientUuid,
-            context,
-          );
+          const created = await createChatInteraction(token, activeActor, patientUuid);
           if (cancelled) return;
           items = [created];
         }
@@ -260,11 +217,11 @@ export default function PatientChat({
       }
     };
 
-    void bootstrap();
+    void initializeConversation();
     return () => {
       cancelled = true;
     };
-  }, [token, activeActor, patientUuid, patientName, tenantName, canLoadHistory, primeNewSession]);
+  }, [token, activeActor, patientUuid, canLoadHistory, primeNewSession]);
 
   useEffect(() => {
     if (!canLoadHistory || !patientUuid || interactions.length < 2) {
@@ -396,12 +353,7 @@ export default function PatientChat({
     setError(null);
     setLoadingInteractions(true);
     try {
-      const created = await createChatInteraction(
-        token,
-        activeActor,
-        patientUuid,
-        buildInteractionContext(),
-      );
+      const created = await createChatInteraction(token, activeActor, patientUuid);
       setInteractions(prev => [created, ...prev]);
       setActiveInteractionUuid(created.chat_interaction_uuid);
       setLoadingHistory(true);

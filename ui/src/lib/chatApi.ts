@@ -1,3 +1,5 @@
+import { CARE_EPISODE_API } from '@/lib/careEpisodeApi';
+
 const CHAT_API = import.meta.env.VITE_CHAT_API_URL as string | undefined;
 
 export class ChatApiError extends Error {
@@ -51,10 +53,6 @@ export interface ChatMessage {
   created_at: string;
 }
 
-export interface ChatInteractionContext {
-  [key: string]: string | number | boolean | null | undefined;
-}
-
 export interface ChatInteraction {
   chat_interaction_uuid: string;
   user_uuid: string;
@@ -62,40 +60,6 @@ export interface ChatInteraction {
   last_message_at: string | null;
   message_count: number;
   preview: string | null;
-}
-
-export function buildPatientChatInteractionContext(input: {
-  patientName?: string;
-  tenantName?: string;
-  surgery?: string;
-  procedureDate?: string;
-  daysPostOp?: number;
-}): ChatInteractionContext {
-  const context: ChatInteractionContext = {};
-  const displayName = input.patientName?.trim();
-  if (displayName) {
-    context.patient_display_name = displayName;
-    const [firstName] = displayName.split(/\s+/);
-    if (firstName) {
-      context.patient_first_name = firstName;
-    }
-  }
-  const surgery = input.surgery?.trim();
-  if (surgery) {
-    context.procedure_name = surgery;
-  }
-  const procedureDate = input.procedureDate?.trim();
-  if (procedureDate) {
-    context.procedure_date = procedureDate;
-  }
-  if (typeof input.daysPostOp === 'number' && Number.isFinite(input.daysPostOp)) {
-    context.days_post_op = input.daysPostOp;
-  }
-  const tenantName = input.tenantName?.trim();
-  if (tenantName) {
-    context.tenant_name = tenantName;
-  }
-  return context;
 }
 
 export interface ChatSessionRef {
@@ -270,26 +234,18 @@ export async function createChatInteraction(
   token: string,
   activeActor: string,
   userUuid: string,
-  context?: ChatInteractionContext,
 ): Promise<ChatInteraction> {
-  if (!CHAT_API) {
-    throw new Error('Chat API is not configured');
-  }
-
-  const res = await fetch(`${CHAT_API}/api/v1/users/${userUuid}/interactions`, {
+  const res = await fetch(`${CARE_EPISODE_API}/api/v1/care-episodes/${userUuid}/chat/interactions`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
       'X-Active-Actor': activeActor,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      ...(context && Object.keys(context).length > 0 ? { context } : {}),
-    }),
   });
 
   if (!res.ok) {
-    throw new Error(`Chat API returned ${res.status}`);
+    throw new Error(`Care episode API returned ${res.status}`);
   }
 
   return (await res.json()) as ChatInteraction;
@@ -333,12 +289,8 @@ export async function requestChatSessionStart(
   userUuid: string,
   chatInteractionUuid: string,
 ): Promise<PatientCompletionResult> {
-  if (!CHAT_API) {
-    throw new Error('Chat API is not configured');
-  }
-
   const res = await chatApiFetch(
-    `${CHAT_API}/api/v1/users/${userUuid}/interactions/${chatInteractionUuid}/completions`,
+    `${CARE_EPISODE_API}/api/v1/care-episodes/${userUuid}/chat/interactions/${chatInteractionUuid}/completions`,
     {
       method: 'POST',
       headers: {
@@ -363,12 +315,8 @@ export async function requestPatientCompletion(
   chatInteractionUuid: string,
   input: PatientCompletionInput,
 ): Promise<PatientCompletionResult> {
-  if (!CHAT_API) {
-    throw new Error('Chat API is not configured');
-  }
-
   const res = await chatApiFetch(
-    `${CHAT_API}/api/v1/users/${userUuid}/interactions/${chatInteractionUuid}/completions`,
+    `${CARE_EPISODE_API}/api/v1/care-episodes/${userUuid}/chat/interactions/${chatInteractionUuid}/completions`,
     {
       method: 'POST',
       headers: {

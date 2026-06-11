@@ -1,4 +1,4 @@
-const CARE_EPISODE_API =
+export const CARE_EPISODE_API =
   (import.meta.env.VITE_CARE_EPISODE_API_URL as string | undefined) ?? 'http://localhost:8015';
 
 export interface CareEpisodeInviteInput {

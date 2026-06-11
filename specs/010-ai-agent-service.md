@@ -1,6 +1,6 @@
 # Clinical Risk Evaluation (AI Risk Agent)
 
-**Initial version:** Clinical risk evaluation runs **synchronously** inside the Chat Service real-time care assistant on each patient turn — the same completion path that produces the conversational reply ([001-chat-service.md](https://github.com/Neosofia/cdp/blob/main/specs/001-chat-service.md) FR-011). Care-episode context for evaluation is supplied through the chat-session bootstrap path ([015-care-episode-service.md](https://github.com/Neosofia/cdp/blob/main/specs/015-care-episode-service.md) FR-015; [care-episode#1](https://github.com/Neosofia/care-episode/issues/1)). There is no separate queue-consuming risk microservice in v1.
+**Initial version:** Clinical risk evaluation runs **synchronously** inside the Chat Service real-time care assistant on each patient turn — the same path that produces the conversational reply ([001-chat-service.md](https://github.com/Neosofia/cdp/blob/main/specs/001-chat-service.md) FR-011). Care-episode context for evaluation is attached when the patient starts a new conversation ([015-care-episode-service.md](https://github.com/Neosofia/cdp/blob/main/specs/015-care-episode-service.md) FR-015) and retained for the thread. There is no separate queue-consuming risk microservice in v1.
 
 **Future:** If combined inference latency or throughput exceeds capacity targets, risk evaluation may be extracted to an **asynchronous** service per the queue-based requirements below — without changing binary outcomes, audit records, or escalation semantics.
 
@@ -12,7 +12,7 @@ This spec covers **clinical risk evaluation** in the v1 AI pipeline. The convers
 
 ## How this capability fits into the platform
 
-**Initial version:** When the Chat Service handles an inbound patient message (for example `POST /api/v1/messages/completions`), the care assistant invokes a versioned approved model that produces both the patient-facing reply and a binary clinical-risk outcome. Episode and interaction context come from Care Episode bootstrap and stored interaction state. If the outcome is yes, Chat calls the Notification Service within the platform escalation time budget. Risk evaluation records and correlators are persisted per FR-006; message text does not appear in logs.
+**Initial version:** When the Chat Service handles an inbound patient message, the care assistant invokes a versioned approved model that produces both the patient-facing reply and a binary clinical-risk outcome. Episode and conversation context come from authoritative care-episode data supplied when the patient started the chat and from stored conversation state. If the outcome is yes, the platform triggers the Notification escalation path within the platform time budget. Risk evaluation records and correlators are persisted per FR-006; message text does not appear in logs.
 
 **Future (async service):** When extracted for scale, the Chat Service may publish fire-and-forget events after storing each inbound message. A dedicated consumer retrieves session context, invokes the risk model, and performs escalation and audit as specified in the functional requirements below — without blocking the visible chat reply path.
 

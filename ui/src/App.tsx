@@ -232,6 +232,7 @@ export default function App() {
     clinicianListFilters,
   } = route;
   const patientContextSyncRef = useRef<string | null>(null);
+  const patientContextSyncInFlightRef = useRef<string | null>(null);
   const [patientDemoSeedVersion, setPatientDemoSeedVersion] = useState(0);
   const [patientDemoSeeding, setPatientDemoSeeding] = useState(false);
   // True only when the active role's capability map is loaded (skip route guards until then).
@@ -447,6 +448,10 @@ export default function App() {
       if (patientContextSyncRef.current === syncKey) {
         return;
       }
+      if (patientContextSyncInFlightRef.current === syncKey) {
+        return;
+      }
+      patientContextSyncInFlightRef.current = syncKey;
 
       setPatientDemoSeeding(true);
       try {
@@ -462,6 +467,9 @@ export default function App() {
           setPatientDemoSeedVersion((version) => version + 1);
         }
       } finally {
+        if (patientContextSyncInFlightRef.current === syncKey) {
+          patientContextSyncInFlightRef.current = null;
+        }
         setPatientDemoSeeding(false);
       }
     },
@@ -479,9 +487,6 @@ export default function App() {
     });
     setTestResult(null);
     applyRoute(DEFAULT_APP_ROUTE, 'replace');
-    if (tokenInfo?.raw) {
-      void ensurePatientContext(tokenInfo.raw, choice.actor);
-    }
   };
 
   const fetchSessionData = useCallback(async (retries = 2): Promise<string | null> => {
