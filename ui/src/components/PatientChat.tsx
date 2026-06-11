@@ -3,14 +3,16 @@ import { listCareEpisodeSessions } from '@/lib/careEpisodeApi';
 import {
   buildPatientChatInteractionContext,
   createChatInteraction,
+  fetchChatMeta,
   formatChatInteractionActivityDate,
   formatChatInteractionLabel,
-  interactionsWithClinicianEngagement,
+  interactionsWithIntervention,
+  isAssistantUnavailableError,
   loadPatientChatHistory,
   listChatInteractions,
   requestChatSessionStart,
   requestPatientCompletion,
-  threadMessagesHaveClinicianIntervention,
+  threadMessagesHaveIntervention,
   toPatientThreadMessage,
   type ChatInteraction,
   type ChatInteractionContext,
@@ -55,130 +57,100 @@ interface Props {
   activeActor: string;
   patientName?: string;
   patientUuid?: string;
-  careEpisodeUuid?: string;
   tenantName?: string;
 }
 
-const WELCOME: ChatMessage = {
-  id: 'welcome',
-  role: 'assistant',
-  senderType: 'ai_agent',
-  content:
-    "Hi — I'm your care assistant. Ask about symptoms, medications, appointments, or your health records. This is a demo chat; responses are stubbed until the chat service is connected.",
-  createdAt: new Date(),
-};
-
-function stubReply(userText: string, patientName?: string): string {
-  const q = userText.toLowerCase();
-  const name = patientName ? patientName.split(' ')[0] : 'there';
-
-  if (/\b(hello|hi|hey)\b/.test(q)) {
-    return `Hello ${name}. How can I help you today?`;
-  }
-  if (/\b(pain|hurt|symptom)\b/.test(q)) {
-    return "I'm not a substitute for emergency care. For new or worsening symptoms, contact your care team or call emergency services. I can help you prepare questions for your clinician — what are you experiencing?";
-  }
-  if (/\b(medication|medicine|prescription|metformin|pill)\b/.test(q)) {
-    return 'Your active prescriptions include Metformin 500 mg (twice daily) and Lisinopril 10 mg (once daily). Always follow your clinician\'s instructions and report side effects promptly.';
-  }
-  if (/\b(appointment|visit|schedule)\b/.test(q)) {
-    return 'Your next confirmed appointment is Jun 27 at 10:30 AM with Dr. Sarah Chen (Primary Care). You also have a pending cardiology visit on Jul 3.';
-  }
-  if (/\b(lab|result|record)\b/.test(q)) {
-    return 'Your most recent record is a Complete Metabolic Panel from Jun 22, 2026. Open **Health records** on your dashboard for the full searchable list.';
-  }
-  return `Thanks for your message. I've noted: "${userText.slice(0, 120)}${userText.length > 120 ? '…' : ''}". In production this will route to the platform AI agent with your care-episode context.`;
-}
+const ASSISTANT_UNAVAILABLE_MESSAGE =
+  'The care assistant is temporarily unavailable. You can still read past messages, but new assistant replies are paused.';
 
 export default function PatientChat({
   token,
   activeActor,
   patientName,
   patientUuid,
-  careEpisodeUuid,
   tenantName,
 }: Props) {
-  const canLoadHistory = Boolean(CHAT_API && patientUuid && careEpisodeUuid);
+  const canLoadHistory = Boolean(CHAT_API && patientUuid);
   const [episodeContext, setEpisodeContext] = useState<EpisodeContext>({});
   const [interactions, setInteractions] = useState<ChatInteraction[]>([]);
   const [activeInteractionUuid, setActiveInteractionUuid] = useState<string | null>(null);
-  const [messages, setMessages] = useState<ChatMessage[]>(canLoadHistory ? [] : [WELCOME]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(canLoadHistory);
   const [loadingInteractions, setLoadingInteractions] = useState(canLoadHistory);
+  const [assistantAvailable, setAssistantAvailable] = useState(false);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [clinicianSenders, setClinicianSenders] = useState<Map<string, ClinicianSenderLabel>>(
     () => new Map(),
   );
-  const [clinicianEngagedUuids, setClinicianEngagedUuids] = useState<Set<string>>(
+  const [interventionThreadUuids, setInterventionThreadUuids] = useState<Set<string>>(
     () => new Set(),
   );
   const scrollRef = useScrollToBottom<HTMLDivElement>([messages, sending, loadingHistory]);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const showSidebar = canLoadHistory && interactions.length >= 2;
-  const careTeamResponding = threadMessagesHaveClinicianIntervention(messages);
+  const humanInterventionActive = threadMessagesHaveIntervention(messages);
+  const canSendMessages = humanInterventionActive || assistantAvailable;
 
   const buildInteractionContext = useCallback((): ChatInteractionContext => {
     return buildPatientChatInteractionContext({
       patientName,
-      patientUuid,
-      careEpisodeUuid,
       tenantName,
       surgery: episodeContext.surgery,
       procedureDate: episodeContext.procedureDate,
       daysPostOp: episodeContext.daysPostOp,
     });
-  }, [patientName, patientUuid, careEpisodeUuid, tenantName, episodeContext]);
+  }, [patientName, tenantName, episodeContext]);
 
   const primeNewSession = useCallback(
     async (interactionUuid: string): Promise<ChatMessage[]> => {
-      try {
-        const result = await requestChatSessionStart(token, activeActor, {
-          chat_interaction_uuid: interactionUuid,
-        });
-        if (result.assistant_message) {
-          return [toPatientThreadMessage(result.assistant_message)];
-        }
-        if (result.message) {
-          return [
-            {
-              id: crypto.randomUUID(),
-              role: 'assistant',
-              senderType: 'ai_agent',
-              content: result.message,
-              createdAt: new Date(),
-            },
-          ];
-        }
-      } catch (primeError) {
-        console.warn('Chat session start failed; using local welcome', primeError);
+      if (!patientUuid) {
+        return [];
       }
-      return [WELCOME];
+      const result = await requestChatSessionStart(token, activeActor, patientUuid, interactionUuid);
+      if (result.assistant_message) {
+        return [toPatientThreadMessage(result.assistant_message)];
+      }
+      if (result.message) {
+        return [
+          {
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            senderType: 'ai_agent',
+            content: result.message,
+            createdAt: new Date(),
+          },
+        ];
+      }
+      return [];
     },
-    [token, activeActor],
+    [token, activeActor, patientUuid],
   );
 
   const refreshInteractions = useCallback(async () => {
-    if (!canLoadHistory || !patientUuid || !careEpisodeUuid) {
+    if (!canLoadHistory || !patientUuid) {
       return [];
     }
-    const items = await listChatInteractions(token, activeActor, patientUuid, careEpisodeUuid);
+    const items = await listChatInteractions(token, activeActor, patientUuid);
     setInteractions(items);
     return items;
-  }, [token, activeActor, patientUuid, careEpisodeUuid, canLoadHistory]);
+  }, [token, activeActor, patientUuid, canLoadHistory]);
 
   const loadThreadHistory = useCallback(
     async (interactionUuid: string) => {
+      if (!patientUuid) {
+        return;
+      }
       setLoadingHistory(true);
       setError(null);
       try {
-        const history = await loadPatientChatHistory(token, activeActor, interactionUuid);
-        setMessages(history.length > 0 ? history : [WELCOME]);
-        setClinicianEngagedUuids(previous => {
+        const history = await loadPatientChatHistory(token, activeActor, patientUuid, interactionUuid);
+        setMessages(history);
+        setInterventionThreadUuids(previous => {
           const next = new Set(previous);
-          if (threadMessagesHaveClinicianIntervention(history)) {
+          if (threadMessagesHaveIntervention(history)) {
             next.add(interactionUuid);
           } else {
             next.delete(interactionUuid);
@@ -188,16 +160,16 @@ export default function PatientChat({
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Failed to load chat history';
         setError(msg);
-        setMessages([WELCOME]);
+        setMessages([]);
       } finally {
         setLoadingHistory(false);
       }
     },
-    [token, activeActor],
+    [token, activeActor, patientUuid],
   );
 
   useEffect(() => {
-    if (!canLoadHistory || !patientUuid || !careEpisodeUuid) {
+    if (!canLoadHistory || !patientUuid) {
       return;
     }
 
@@ -209,13 +181,16 @@ export default function PatientChat({
       setError(null);
 
       try {
-        const [itemsResult, sessions] = await Promise.all([
-          listChatInteractions(token, activeActor, patientUuid, careEpisodeUuid),
+        const [itemsResult, sessions, meta] = await Promise.all([
+          listChatInteractions(token, activeActor, patientUuid),
           listCareEpisodeSessions(token, activeActor).catch(() => []),
+          fetchChatMeta(token, activeActor),
         ]);
+        const assistantReady = meta.assistant?.available === true;
+        setAssistantAvailable(assistantReady);
         if (cancelled) return;
 
-        const session = sessions.find(entry => entry.patient_uuid === patientUuid);
+        const session = sessions.find(entry => entry.user_uuid === patientUuid);
         const nextEpisodeContext: EpisodeContext = session
           ? {
               surgery: session.surgery,
@@ -229,8 +204,6 @@ export default function PatientChat({
         if (items.length === 0) {
           const context = buildPatientChatInteractionContext({
             patientName,
-            patientUuid,
-            careEpisodeUuid,
             tenantName,
             surgery: nextEpisodeContext.surgery,
             procedureDate: nextEpisodeContext.procedureDate,
@@ -240,7 +213,6 @@ export default function PatientChat({
             token,
             activeActor,
             patientUuid,
-            careEpisodeUuid,
             context,
           );
           if (cancelled) return;
@@ -252,21 +224,34 @@ export default function PatientChat({
         setActiveInteractionUuid(selected);
 
         if (selected) {
-          const history = await loadPatientChatHistory(token, activeActor, selected);
+          const history = await loadPatientChatHistory(token, activeActor, patientUuid, selected);
           if (cancelled) return;
           if (history.length > 0) {
             setMessages(history);
+          } else if (assistantReady) {
+            try {
+              setMessages(await primeNewSession(selected));
+            } catch (primeError) {
+              if (isAssistantUnavailableError(primeError)) {
+                setAssistantAvailable(false);
+                setError(ASSISTANT_UNAVAILABLE_MESSAGE);
+                setMessages([]);
+              } else {
+                throw primeError;
+              }
+            }
           } else {
-            setMessages(await primeNewSession(selected));
+            setError(ASSISTANT_UNAVAILABLE_MESSAGE);
+            setMessages([]);
           }
         } else {
-          setMessages([WELCOME]);
+          setMessages([]);
         }
       } catch (e) {
         if (cancelled) return;
         const msg = e instanceof Error ? e.message : 'Failed to load conversations';
         setError(msg);
-        setMessages([WELCOME]);
+        setMessages([]);
       } finally {
         if (!cancelled) {
           setLoadingInteractions(false);
@@ -279,10 +264,10 @@ export default function PatientChat({
     return () => {
       cancelled = true;
     };
-  }, [token, activeActor, patientUuid, careEpisodeUuid, patientName, tenantName, canLoadHistory, primeNewSession]);
+  }, [token, activeActor, patientUuid, patientName, tenantName, canLoadHistory, primeNewSession]);
 
   useEffect(() => {
-    if (!canLoadHistory || interactions.length < 2) {
+    if (!canLoadHistory || !patientUuid || interactions.length < 2) {
       return;
     }
 
@@ -291,10 +276,10 @@ export default function PatientChat({
       interaction => interaction.chat_interaction_uuid,
     );
 
-    void interactionsWithClinicianEngagement(token, activeActor, interactionUuids).then(
+    void interactionsWithIntervention(token, activeActor, patientUuid, interactionUuids).then(
       engaged => {
         if (!cancelled) {
-          setClinicianEngagedUuids(engaged);
+          setInterventionThreadUuids(engaged);
         }
       },
     );
@@ -302,13 +287,13 @@ export default function PatientChat({
     return () => {
       cancelled = true;
     };
-  }, [interactions, token, activeActor, canLoadHistory]);
+  }, [interactions, token, activeActor, patientUuid, canLoadHistory]);
 
   useEffect(() => {
-    if (!careTeamResponding || !activeInteractionUuid) {
+    if (!humanInterventionActive || !activeInteractionUuid) {
       return;
     }
-    setClinicianEngagedUuids(previous => {
+    setInterventionThreadUuids(previous => {
       if (previous.has(activeInteractionUuid)) {
         return previous;
       }
@@ -316,7 +301,7 @@ export default function PatientChat({
       next.add(activeInteractionUuid);
       return next;
     });
-  }, [careTeamResponding, activeInteractionUuid]);
+  }, [humanInterventionActive, activeInteractionUuid]);
 
   const focusChatInput = useCallback(() => {
     queueMicrotask(() => {
@@ -404,7 +389,7 @@ export default function PatientChat({
   };
 
   const startNewChat = async () => {
-    if (!canLoadHistory || !patientUuid || !careEpisodeUuid || sending || loadingInteractions) {
+    if (!canLoadHistory || !patientUuid || sending || loadingInteractions) {
       return;
     }
 
@@ -415,13 +400,27 @@ export default function PatientChat({
         token,
         activeActor,
         patientUuid,
-        careEpisodeUuid,
         buildInteractionContext(),
       );
       setInteractions(prev => [created, ...prev]);
       setActiveInteractionUuid(created.chat_interaction_uuid);
       setLoadingHistory(true);
-      setMessages(await primeNewSession(created.chat_interaction_uuid));
+      if (assistantAvailable) {
+        try {
+          setMessages(await primeNewSession(created.chat_interaction_uuid));
+        } catch (primeError) {
+          if (isAssistantUnavailableError(primeError)) {
+            setAssistantAvailable(false);
+            setError(ASSISTANT_UNAVAILABLE_MESSAGE);
+            setMessages([]);
+          } else {
+            throw primeError;
+          }
+        }
+      } else {
+        setError(ASSISTANT_UNAVAILABLE_MESSAGE);
+        setMessages([]);
+      }
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Failed to start a new chat';
       setError(msg);
@@ -451,52 +450,46 @@ export default function PatientChat({
     focusChatInput();
 
     try {
-      if (CHAT_API && patientUuid && careEpisodeUuid && activeInteractionUuid) {
-        const result = await requestPatientCompletion(token, activeActor, {
-          chat_interaction_uuid: activeInteractionUuid,
+      if (!CHAT_API || !patientUuid || !activeInteractionUuid) {
+        setAssistantAvailable(false);
+        setError(ASSISTANT_UNAVAILABLE_MESSAGE);
+        setMessages(prev => prev.filter(message => message.id !== userMsg.id));
+        return;
+      }
+
+      const result = await requestPatientCompletion(
+        token,
+        activeActor,
+        patientUuid,
+        activeInteractionUuid,
+        {
           sender_uuid: patientUuid,
           content: text,
-        });
-        if (result.ai_disabled || !result.assistant_message) {
-          if (result.patient_message) {
-            const persisted = toPatientThreadMessage(result.patient_message);
-            setMessages(prev => [
-              ...prev.filter(message => message.id !== userMsg.id),
-              persisted,
-            ]);
-          }
-        } else {
-          const assistantMsg = toPatientThreadMessage(result.assistant_message);
-          setMessages(prev => [...prev, assistantMsg]);
-        }
-        await refreshInteractions();
-      } else {
-        await new Promise(r => setTimeout(r, 600 + Math.random() * 400));
-        const reply = stubReply(text, patientName);
-        setMessages(prev => [
-          ...prev,
-          {
-            id: crypto.randomUUID(),
-            role: 'assistant',
-            senderType: 'ai_agent',
-            content: reply,
-            createdAt: new Date(),
-          },
-        ]);
-      }
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Failed to get a response';
-      setError(msg);
-      setMessages(prev => [
-        ...prev,
-        {
-          id: crypto.randomUUID(),
-          role: 'assistant',
-          senderType: 'ai_agent',
-          content: `Sorry — I couldn't reach the assistant (${msg}). Please try again.`,
-          createdAt: new Date(),
         },
-      ]);
+      );
+      if (result.intervention || !result.assistant_message) {
+        if (result.user_message) {
+          const persisted = toPatientThreadMessage(result.user_message);
+          setMessages(prev => [
+            ...prev.filter(message => message.id !== userMsg.id),
+            persisted,
+          ]);
+        }
+      } else {
+        const assistantMsg = toPatientThreadMessage(result.assistant_message);
+        setMessages(prev => [...prev, assistantMsg]);
+      }
+      await refreshInteractions();
+    } catch (e) {
+      if (isAssistantUnavailableError(e)) {
+        setAssistantAvailable(false);
+        setError(ASSISTANT_UNAVAILABLE_MESSAGE);
+        setMessages(prev => prev.filter(message => message.id !== userMsg.id));
+      } else {
+        const msg = e instanceof Error ? e.message : 'Failed to get a response';
+        setError(msg);
+        setMessages(prev => prev.filter(message => message.id !== userMsg.id));
+      }
     } finally {
       setSending(false);
       focusChatInput();
@@ -523,7 +516,7 @@ export default function PatientChat({
         {interactions.map(interaction => {
           const isActive = interaction.chat_interaction_uuid === activeInteractionUuid;
           const activityDate = formatChatInteractionActivityDate(interaction);
-          const careTeamEngaged = clinicianEngagedUuids.has(interaction.chat_interaction_uuid);
+          const threadHasIntervention = interventionThreadUuids.has(interaction.chat_interaction_uuid);
           return (
             <button
               key={interaction.chat_interaction_uuid}
@@ -534,7 +527,7 @@ export default function PatientChat({
                 'w-full text-left rounded-lg px-3 py-2 text-sm transition-colors',
                 isActive
                   ? 'text-cyan-200 bg-cyan-500/15 border border-cyan-500/30'
-                  : careTeamEngaged
+                  : threadHasIntervention
                     ? 'text-slate-300 hover:bg-slate-800/60 border border-amber-500/25 bg-amber-500/5'
                     : 'text-slate-300 hover:bg-slate-800/60 border border-transparent',
               )}
@@ -543,7 +536,7 @@ export default function PatientChat({
                 <span className="block truncate font-medium flex-1 min-w-0">
                   {formatChatInteractionLabel(interaction)}
                 </span>
-                {careTeamEngaged ? (
+                {threadHasIntervention ? (
                   <span
                     className="shrink-0 inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-amber-200/90 bg-amber-500/15 border border-amber-500/25"
                     title="Your care team is responding in this conversation"
@@ -577,9 +570,9 @@ export default function PatientChat({
             <CardTitle className="text-lg flex items-center gap-2" style={{ color: '#22d3ee' }}>
               <ChatBubbleLeftRightIcon className="h-5 w-5" />
               Care assistant
-              {!CHAT_API && (
-                <span className="text-[10px] font-semibold uppercase tracking-widest px-2 py-0.5 rounded-md ml-2 text-slate-400 border border-slate-600">
-                  Stub
+              {canLoadHistory && !assistantAvailable && !humanInterventionActive && (
+                <span className="text-[10px] font-semibold uppercase tracking-widest px-2 py-0.5 rounded-md ml-2 text-amber-200/90 border border-amber-500/30 bg-amber-500/10">
+                  Unavailable
                 </span>
               )}
             </CardTitle>
@@ -661,7 +654,20 @@ export default function PatientChat({
               </div>
               );
             })}
-            {careTeamResponding ? (
+            {!humanInterventionActive && !assistantAvailable && canLoadHistory && !loadingHistory ? (
+              <div
+                className="mx-auto max-w-md rounded-xl px-4 py-3 text-center"
+                style={{
+                  background: 'rgba(245,158,11,0.08)',
+                  border: '1px solid rgba(245,158,11,0.22)',
+                }}
+              >
+                <p className="text-xs text-amber-100/90 leading-relaxed">
+                  {ASSISTANT_UNAVAILABLE_MESSAGE}
+                </p>
+              </div>
+            ) : null}
+            {humanInterventionActive ? (
               <div
                 className="mx-auto max-w-md rounded-xl px-4 py-3 text-center space-y-2"
                 style={{
@@ -690,7 +696,7 @@ export default function PatientChat({
                 </Button>
               </div>
             ) : null}
-            {sending && !careTeamResponding ? (
+            {sending && !humanInterventionActive ? (
               <div className="flex justify-start">
                 <div
                   className="rounded-2xl rounded-bl-md px-4 py-3 text-sm text-slate-400"
@@ -728,15 +734,19 @@ export default function PatientChat({
                   void sendMessage();
                 }
               }}
-              placeholder="Type your message…"
-              disabled={loadingHistory || loadingInteractions}
+              placeholder={
+                canSendMessages ? 'Type your message…' : 'Care assistant is unavailable'
+              }
+              disabled={loadingHistory || loadingInteractions || !canSendMessages}
               className="flex-1 h-10 bg-slate-900/60 border-slate-700 text-slate-100 placeholder:text-slate-500 focus-visible:border-cyan-500/50 focus-visible:ring-cyan-500/20"
               autoComplete="off"
             />
             <Button
               type="button"
               onClick={() => void sendMessage()}
-              disabled={sending || loadingHistory || loadingInteractions || !input.trim()}
+              disabled={
+                sending || loadingHistory || loadingInteractions || !canSendMessages || !input.trim()
+              }
               className="shrink-0 text-white"
               style={{ background: 'linear-gradient(135deg, #22d3ee 0%, #a855f7 100%)' }}
             >

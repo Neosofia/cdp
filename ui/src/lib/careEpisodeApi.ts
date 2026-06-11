@@ -14,7 +14,7 @@ export interface CareEpisodeInviteResult {
 }
 
 export interface CareEpisodeSession {
-  patient_uuid: string;
+  user_uuid: string;
   display_code: string;
   display_name: string;
   surgery: string;
@@ -102,8 +102,19 @@ export async function listCareEpisodeSessions(
     headers: { Authorization: `Bearer ${token}`, 'X-Active-Actor': activeActor },
   });
   if (!res.ok) return [];
-  const body = (await res.json()) as { items?: CareEpisodeSession[] };
-  return body.items ?? [];
+  const body = (await res.json()) as {
+    items?: Array<CareEpisodeSession & { patient_uuid?: string }>;
+  };
+  return (body.items ?? []).map(item => ({
+    user_uuid: item.user_uuid ?? item.patient_uuid ?? '',
+    display_code: item.display_code,
+    display_name: item.display_name,
+    surgery: item.surgery,
+    procedure_date: item.procedure_date,
+    days_post_op: item.days_post_op,
+    session_id: item.session_id,
+    risk_level: item.risk_level,
+  }));
 }
 
 export async function listCareEpisodeRecords(

@@ -41,7 +41,7 @@ import {
 import { useAppRoute } from '@/lib/useAppRoute';
 import { usePatientRegistry } from '@/lib/usePatientRegistry';
 import { upsertCareEpisodeSession } from '@/lib/careEpisodeApi';
-import { ensurePatientDemoChat, ensurePatientDemoContext } from '@/lib/ensurePatientDemoContext';
+import { ensurePatientDemoContext } from '@/lib/ensurePatientDemoContext';
 import { acceptTermsOfService, updatePatientUser } from '@/lib/userRegistryApi';
 import AppFooter from '@/components/AppFooter';
 import SplashPage from '@/components/SplashPage';
@@ -443,20 +443,6 @@ export default function App() {
         profile?.email ||
         'Demo Patient';
       const displayCode = profile?.display_code?.trim() || `PAT-${patientUuid.slice(-6).toUpperCase()}`;
-
-      const actorCandidates = ['operator', 'clinician', actor].filter(
-        (candidate, index, all) =>
-          sessionActors.includes(candidate) && all.indexOf(candidate) === index,
-      );
-      if (actorCandidates.length === 0) {
-        return;
-      }
-
-      try {
-        await ensurePatientDemoChat(token, sessionActors, patientUuid);
-      } catch {
-        // Chat enrichment should not block dashboard clone.
-      }
 
       if (patientContextSyncRef.current === syncKey) {
         return;
@@ -1396,7 +1382,6 @@ export default function App() {
                 activeActor={activeActor}
                 patientName={profile ? `${profile.first_name} ${profile.last_name}` : undefined}
                 patientUuid={profile?.uuid}
-                careEpisodeUuid={profile?.uuid}
                 tenantName={profile?.tenant_name}
               />
             ) : selectedSection === 'Patient' && selectedAction === 'Profile' && profile ? (

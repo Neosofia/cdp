@@ -13,7 +13,7 @@ import {
   type PostCareEnrollmentResult,
 } from '@/lib/postCareEnrollment';
 import { listCareEpisodeSessions, type CareEpisodeSession } from '@/lib/careEpisodeApi';
-import { careEpisodeUuidForPatient, fetchLastChatActivityByPatient } from '@/lib/chatApi';
+import { fetchLastChatActivityByPatient } from '@/lib/chatApi';
 
 const USER_API = import.meta.env.VITE_USER_API_URL ?? 'http://localhost:8018';
 const PATIENT_PAGE_SIZE = 100;
@@ -42,7 +42,7 @@ function sessionFromCareEpisode(
   user?: RegistryPatientUser,
 ): ActivePatientSession {
   return {
-    patientUuid: care.patient_uuid,
+    patientUuid: care.user_uuid,
     displayCode: care.display_code,
     displayName: user ? displayNameForUser(user) : care.display_name,
     surgery: care.surgery,
@@ -65,8 +65,7 @@ async function hydrateLastChatAt(
       token,
       activeActor,
       sessions.map(session => ({
-        patient_uuid: session.patientUuid,
-        care_episode_uuid: careEpisodeUuidForPatient(session.patientUuid),
+        user_uuid: session.patientUuid,
       })),
     );
   } catch (error) {
@@ -155,7 +154,7 @@ export function usePatientRegistry(
           );
           const registryUuids = scoped.map(user => user.uuid);
           const filteredCoversRegistry = registryUuids.length === 0 || registryUuids.every(uuid =>
-            episodeSessions.some(session => session.patient_uuid === uuid),
+            episodeSessions.some(session => session.user_uuid === uuid),
           );
           if (
             episodeSessions.length === 0
@@ -170,9 +169,9 @@ export function usePatientRegistry(
         const mergedByUuid = new Map(merged.map(session => [session.patientUuid, session]));
 
         for (const care of episodeSessions) {
-          const existing = mergedByUuid.get(care.patient_uuid);
+          const existing = mergedByUuid.get(care.user_uuid);
           if (existing) {
-            mergedByUuid.set(care.patient_uuid, {
+            mergedByUuid.set(care.user_uuid, {
               ...existing,
               surgery: care.surgery,
               procedureDate: care.procedure_date,
@@ -185,8 +184,8 @@ export function usePatientRegistry(
 
           // Clinician roster should include active episodes even if registry role is not patient.self.
           mergedByUuid.set(
-            care.patient_uuid,
-            sessionFromCareEpisode(care, usersByUuid.get(care.patient_uuid)),
+            care.user_uuid,
+            sessionFromCareEpisode(care, usersByUuid.get(care.user_uuid)),
           );
         }
 

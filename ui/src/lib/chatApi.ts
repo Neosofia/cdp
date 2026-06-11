@@ -1,5 +1,47 @@
 const CHAT_API = import.meta.env.VITE_CHAT_API_URL as string | undefined;
 
+export class ChatApiError extends Error {
+  readonly status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'ChatApiError';
+    this.status = status;
+  }
+}
+
+export function isAssistantUnavailableError(error: unknown): boolean {
+  return error instanceof ChatApiError && error.status === 503;
+}
+
+async function chatApiFetch(url: string, init: RequestInit): Promise<Response> {
+  const res = await fetch(url, init);
+  if (!res.ok) {
+    throw new ChatApiError(`Chat API returned ${res.status}`, res.status);
+  }
+  return res;
+}
+
+export interface ChatMeta {
+  assistant?: {
+    available?: boolean;
+  };
+}
+
+export async function fetchChatMeta(
+  token: string,
+  activeActor: string,
+): Promise<ChatMeta> {
+  if (!CHAT_API) {
+    return { assistant: { available: false } };
+  }
+
+  const res = await chatApiFetch(`${CHAT_API}/meta/enums`, {
+    headers: { Authorization: `Bearer ${token}`, 'X-Active-Actor': activeActor },
+  });
+  return (await res.json()) as ChatMeta;
+}
+
 export interface ChatMessage {
   message_uuid: string;
   chat_interaction_uuid: string;
@@ -10,19 +52,12 @@ export interface ChatMessage {
 }
 
 export interface ChatInteractionContext {
-  patient_first_name?: string;
-  patient_display_name?: string;
-  procedure_name?: string;
-  procedure_date?: string;
-  days_post_op?: number;
-  care_episode_uuid?: string;
-  tenant_name?: string;
+  [key: string]: string | number | boolean | null | undefined;
 }
 
 export interface ChatInteraction {
   chat_interaction_uuid: string;
-  patient_uuid: string;
-  care_episode_uuid: string;
+  user_uuid: string;
   started_at: string;
   last_message_at: string | null;
   message_count: number;
@@ -31,8 +66,6 @@ export interface ChatInteraction {
 
 export function buildPatientChatInteractionContext(input: {
   patientName?: string;
-  patientUuid?: string;
-  careEpisodeUuid?: string;
   tenantName?: string;
   surgery?: string;
   procedureDate?: string;
@@ -58,9 +91,6 @@ export function buildPatientChatInteractionContext(input: {
   if (typeof input.daysPostOp === 'number' && Number.isFinite(input.daysPostOp)) {
     context.days_post_op = input.daysPostOp;
   }
-  if (input.careEpisodeUuid) {
-    context.care_episode_uuid = input.careEpisodeUuid;
-  }
   const tenantName = input.tenantName?.trim();
   if (tenantName) {
     context.tenant_name = tenantName;
@@ -69,22 +99,60 @@ export function buildPatientChatInteractionContext(input: {
 }
 
 export interface ChatSessionRef {
-  patient_uuid: string;
-  care_episode_uuid: string;
+  user_uuid: string;
 }
 
-export interface LastChatActivityItem {
-  patient_uuid: string;
-  care_episode_uuid: string;
+export interface LastChatActivity {
+  user_uuid: string;
   last_message_at: string | null;
 }
 
-/** Catalog template patient (PAT-2847). See care-episode/src/data/demo_patient_template.json */
-export const DEMO_CHAT_TEMPLATE_PATIENT_UUID = '00000000-0000-7000-8000-000000002847';
+export async function fetchLastChatActivityForUser(
+  token: string,
+  activeActor: string,
+  userUuid: string,
+): Promise<string | null> {
+  if (!CHAT_API) {
+    return null;
+  }
 
-/** Demo and MVP episodes use patient UUID as the care-episode key until invite flow wires episode_uuid. */
-export function careEpisodeUuidForPatient(patientUuid: string): string {
-  return patientUuid;
+  const res = await fetch(`${CHAT_API}/api/v1/users/${userUuid}/last-activity`, {
+    headers: { Authorization: `Bearer ${token}`, 'X-Active-Actor': activeActor },
+  });
+
+  if (!res.ok) {
+    return null;
+  }
+
+  const body = (await res.json()) as LastChatActivity;
+  return body.last_message_at;
+}
+
+export async function fetchLastChatActivityByPatient(
+  token: string,
+  activeActor: string,
+  sessions: ChatSessionRef[],
+): Promise<Map<string, string | null>> {
+  const byPatient = new Map<string, string | null>();
+  if (!CHAT_API || sessions.length === 0) {
+    return byPatient;
+  }
+
+  const results = await Promise.all(
+    sessions.map(async session => {
+      const lastMessageAt = await fetchLastChatActivityForUser(
+        token,
+        activeActor,
+        session.user_uuid,
+      );
+      return [session.user_uuid, lastMessageAt] as const;
+    }),
+  );
+
+  for (const [userUuid, lastMessageAt] of results) {
+    byPatient.set(userUuid, lastMessageAt);
+  }
+  return byPatient;
 }
 
 export function isChatServiceConfigured(): boolean {
@@ -140,16 +208,15 @@ export function toPatientThreadMessage(message: ChatMessage): PatientThreadMessa
   };
 }
 
-export function chatMessagesHaveClinicianIntervention(messages: ChatMessage[]): boolean {
+export function chatMessagesHaveIntervention(messages: ChatMessage[]): boolean {
   return messages.some(message => message.sender_type === 'clinician');
 }
 
-export function threadMessagesHaveClinicianIntervention(messages: PatientThreadMessage[]): boolean {
+export function threadMessagesHaveIntervention(messages: PatientThreadMessage[]): boolean {
   return messages.some(message => message.senderType === 'clinician');
 }
 
 export interface CreateChatMessageInput {
-  chat_interaction_uuid: string;
   sender_type: 'patient' | 'ai_agent' | 'clinician';
   sender_uuid?: string;
   content: string;
@@ -158,23 +225,24 @@ export interface CreateChatMessageInput {
 export async function createChatMessage(
   token: string,
   activeActor: string,
+  userUuid: string,
+  chatInteractionUuid: string,
   input: CreateChatMessageInput,
 ): Promise<ChatMessage | null> {
   if (!CHAT_API) return null;
 
-  const res = await fetch(`${CHAT_API}/api/v1/messages`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'X-Active-Actor': activeActor,
-      'Content-Type': 'application/json',
+  const res = await chatApiFetch(
+    `${CHAT_API}/api/v1/users/${userUuid}/interactions/${chatInteractionUuid}/messages`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'X-Active-Actor': activeActor,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(input),
     },
-    body: JSON.stringify(input),
-  });
-
-  if (!res.ok) {
-    throw new Error(`Chat API returned ${res.status}`);
-  }
+  );
 
   return (await res.json()) as ChatMessage;
 }
@@ -182,17 +250,11 @@ export async function createChatMessage(
 export async function listChatInteractions(
   token: string,
   activeActor: string,
-  patientUuid: string,
-  careEpisodeUuid: string,
+  userUuid: string,
 ): Promise<ChatInteraction[]> {
   if (!CHAT_API) return [];
 
-  const params = new URLSearchParams({
-    patient_uuid: patientUuid,
-    care_episode_uuid: careEpisodeUuid,
-  });
-
-  const res = await fetch(`${CHAT_API}/api/v1/interactions?${params.toString()}`, {
+  const res = await fetch(`${CHAT_API}/api/v1/users/${userUuid}/interactions`, {
     headers: { Authorization: `Bearer ${token}`, 'X-Active-Actor': activeActor },
   });
 
@@ -207,15 +269,14 @@ export async function listChatInteractions(
 export async function createChatInteraction(
   token: string,
   activeActor: string,
-  patientUuid: string,
-  careEpisodeUuid: string,
+  userUuid: string,
   context?: ChatInteractionContext,
 ): Promise<ChatInteraction> {
   if (!CHAT_API) {
     throw new Error('Chat API is not configured');
   }
 
-  const res = await fetch(`${CHAT_API}/api/v1/interactions`, {
+  const res = await fetch(`${CHAT_API}/api/v1/users/${userUuid}/interactions`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -223,8 +284,6 @@ export async function createChatInteraction(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      patient_uuid: patientUuid,
-      care_episode_uuid: careEpisodeUuid,
       ...(context && Object.keys(context).length > 0 ? { context } : {}),
     }),
   });
@@ -239,65 +298,59 @@ export async function createChatInteraction(
 export async function resolveLatestChatInteractionUuid(
   token: string,
   activeActor: string,
-  patientUuid: string,
-  careEpisodeUuid: string,
+  userUuid: string,
 ): Promise<string | null> {
-  const interactions = await listChatInteractions(token, activeActor, patientUuid, careEpisodeUuid);
+  const interactions = await listChatInteractions(token, activeActor, userUuid);
   return interactions[0]?.chat_interaction_uuid ?? null;
 }
 
 export async function loadPatientChatHistory(
   token: string,
   activeActor: string,
+  userUuid: string,
   chatInteractionUuid: string,
 ): Promise<PatientThreadMessage[]> {
-  const messages = await listChatMessages(token, activeActor, chatInteractionUuid);
+  const messages = await listChatMessages(token, activeActor, userUuid, chatInteractionUuid);
   return messages.map(toPatientThreadMessage);
 }
 
 export interface PatientCompletionInput {
-  chat_interaction_uuid: string;
   content: string;
   sender_uuid?: string;
 }
 
-export interface ChatSessionStartInput {
-  chat_interaction_uuid: string;
-}
-
 export interface PatientCompletionResult {
   message: string | null;
-  patient_message?: ChatMessage;
+  user_message?: ChatMessage;
   assistant_message?: ChatMessage;
-  ai_disabled?: boolean;
+  intervention?: boolean;
 }
 
 /** Prime an empty thread with the server session-start prompt and persist the greeting. */
 export async function requestChatSessionStart(
   token: string,
   activeActor: string,
-  input: ChatSessionStartInput,
+  userUuid: string,
+  chatInteractionUuid: string,
 ): Promise<PatientCompletionResult> {
   if (!CHAT_API) {
     throw new Error('Chat API is not configured');
   }
 
-  const res = await fetch(`${CHAT_API}/api/v1/messages/completions`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'X-Active-Actor': activeActor,
-      'Content-Type': 'application/json',
+  const res = await chatApiFetch(
+    `${CHAT_API}/api/v1/users/${userUuid}/interactions/${chatInteractionUuid}/completions`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'X-Active-Actor': activeActor,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        session_start: true,
+      }),
     },
-    body: JSON.stringify({
-      chat_interaction_uuid: input.chat_interaction_uuid,
-      session_start: true,
-    }),
-  });
-
-  if (!res.ok) {
-    throw new Error(`Chat API returned ${res.status}`);
-  }
+  );
 
   return (await res.json()) as PatientCompletionResult;
 }
@@ -306,83 +359,28 @@ export async function requestChatSessionStart(
 export async function requestPatientCompletion(
   token: string,
   activeActor: string,
+  userUuid: string,
+  chatInteractionUuid: string,
   input: PatientCompletionInput,
 ): Promise<PatientCompletionResult> {
   if (!CHAT_API) {
     throw new Error('Chat API is not configured');
   }
 
-  const res = await fetch(`${CHAT_API}/api/v1/messages/completions`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'X-Active-Actor': activeActor,
-      'Content-Type': 'application/json',
+  const res = await chatApiFetch(
+    `${CHAT_API}/api/v1/users/${userUuid}/interactions/${chatInteractionUuid}/completions`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'X-Active-Actor': activeActor,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(input),
     },
-    body: JSON.stringify(input),
-  });
-
-  if (!res.ok) {
-    throw new Error(`Chat API returned ${res.status}`);
-  }
+  );
 
   return (await res.json()) as PatientCompletionResult;
-}
-
-/** Copy seeded template chat into a demo patient when their thread is still empty. */
-export async function clonePatientDemoChat(
-  token: string,
-  activeActor: string,
-  targetPatientUuid: string,
-): Promise<boolean> {
-  if (!CHAT_API || targetPatientUuid === DEMO_CHAT_TEMPLATE_PATIENT_UUID) {
-    return false;
-  }
-
-  const careEpisodeUuid = careEpisodeUuidForPatient(targetPatientUuid);
-  const existingInteractions = await listChatInteractions(
-    token,
-    activeActor,
-    targetPatientUuid,
-    careEpisodeUuid,
-  );
-  if (existingInteractions.some(interaction => interaction.message_count > 0)) {
-    return false;
-  }
-
-  const templateEpisodeUuid = careEpisodeUuidForPatient(DEMO_CHAT_TEMPLATE_PATIENT_UUID);
-  const templateInteractionUuid = await resolveLatestChatInteractionUuid(
-    token,
-    activeActor,
-    DEMO_CHAT_TEMPLATE_PATIENT_UUID,
-    templateEpisodeUuid,
-  );
-  if (!templateInteractionUuid) {
-    return false;
-  }
-
-  const templateMessages = await listChatMessages(token, activeActor, templateInteractionUuid);
-  if (templateMessages.length === 0) {
-    return false;
-  }
-
-  const targetInteraction = await createChatInteraction(
-    token,
-    activeActor,
-    targetPatientUuid,
-    careEpisodeUuid,
-  );
-
-  for (const message of templateMessages) {
-    await createChatMessage(token, activeActor, {
-      chat_interaction_uuid: targetInteraction.chat_interaction_uuid,
-      sender_type: message.sender_type,
-      sender_uuid: message.sender_type === 'patient' ? targetPatientUuid : undefined,
-      content: message.content,
-    });
-  }
-
-  return true;
 }
 
 export function formatChatMessageTime(iso: string): string {
@@ -399,27 +397,28 @@ export function formatChatMessageTime(iso: string): string {
 export async function listChatMessages(
   token: string,
   activeActor: string,
+  userUuid: string,
   chatInteractionUuid: string,
 ): Promise<ChatMessage[]> {
   if (!CHAT_API) return [];
 
-  const params = new URLSearchParams({
-    chat_interaction_uuid: chatInteractionUuid,
-  });
-
-  const res = await fetch(`${CHAT_API}/api/v1/messages?${params.toString()}`, {
-    headers: { Authorization: `Bearer ${token}`, 'X-Active-Actor': activeActor },
-  });
+  const res = await fetch(
+    `${CHAT_API}/api/v1/users/${userUuid}/interactions/${chatInteractionUuid}/messages`,
+    {
+      headers: { Authorization: `Bearer ${token}`, 'X-Active-Actor': activeActor },
+    },
+  );
 
   if (!res.ok) return [];
   const body = (await res.json()) as { items?: ChatMessage[] };
   return sortChatMessagesBySentAt(body.items ?? []);
 }
 
-/** Interaction UUIDs where a clinician has joined the thread (care assistant paused). */
-export async function interactionsWithClinicianEngagement(
+/** Interaction UUIDs where a human has taken over the thread (AI paused). */
+export async function interactionsWithIntervention(
   token: string,
   activeActor: string,
+  userUuid: string,
   interactionUuids: string[],
 ): Promise<Set<string>> {
   if (!CHAT_API || interactionUuids.length === 0) {
@@ -428,41 +427,10 @@ export async function interactionsWithClinicianEngagement(
 
   const engaged = await Promise.all(
     interactionUuids.map(async interactionUuid => {
-      const messages = await listChatMessages(token, activeActor, interactionUuid);
-      return chatMessagesHaveClinicianIntervention(messages) ? interactionUuid : null;
+      const messages = await listChatMessages(token, activeActor, userUuid, interactionUuid);
+      return chatMessagesHaveIntervention(messages) ? interactionUuid : null;
     }),
   );
 
   return new Set(engaged.filter((uuid): uuid is string => uuid !== null));
-}
-
-export async function fetchLastChatActivityByPatient(
-  token: string,
-  activeActor: string,
-  sessions: ChatSessionRef[],
-): Promise<Map<string, string | null>> {
-  const byPatient = new Map<string, string | null>();
-  if (!CHAT_API || sessions.length === 0) {
-    return byPatient;
-  }
-
-  const res = await fetch(`${CHAT_API}/api/v1/messages/last-activity`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'X-Active-Actor': activeActor,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ items: sessions }),
-  });
-
-  if (!res.ok) {
-    return byPatient;
-  }
-
-  const body = (await res.json()) as { items?: LastChatActivityItem[] };
-  for (const item of body.items ?? []) {
-    byPatient.set(item.patient_uuid, item.last_message_at);
-  }
-  return byPatient;
 }

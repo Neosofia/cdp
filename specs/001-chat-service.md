@@ -14,9 +14,9 @@ When a **chat interaction** ends -- because the patient closes it after feedback
 
 ## Client objectives
 
-**Patients** want to send a message on whichever channel they use and receive a helpful reply without thinking about sessions, storage, or retries. Their words should be captured faithfully and answered in real time until the conversation naturally ends.
+**Patients** want to send a message on whichever channel they use and receive a helpful reply without thinking about sessions, storage, or retries. Their words should be captured faithfully and answered in real time until the conversation naturally ends. They must be able to open their own chat threads and read their own conversation history without accessing other patients' data.
 
-**Clinicians and operators** need to read the full message history for patients within their authorised scope when reviewing care or investigating an interaction -- without seeing data from other tenants or regions they are not permitted to access.
+**Clinicians** need to read and send messages for patients enrolled at their site tenant when reviewing care or taking over a thread -- without seeing chat data from other tenants.
 
 **Channel adapters** need a single, dependable write path that accepts inbound traffic, enforces rate limits fairly, and returns clear errors when an episode is missing or a message cannot be accepted.
 
@@ -28,17 +28,17 @@ When a **chat interaction** ends -- because the patient closes it after feedback
 
 - **FR-001**: The service accepts inbound messages from all supported channels (mobile app, web browser, SMS gateway) through a unified internal API so channel adapters share one ingestion contract rather than bespoke storage per channel.
 
-- **FR-002**: Every message is persisted with its full, unmodified content, channel source, patient identifier, chat interaction identifier, unique message identifier, direction, and UTC timestamp -- this layer is the authoritative PHI-complete audit trail and deliberately performs no redaction.
+- **FR-002**: Every message is persisted with its full, unmodified content, channel source, user identifier, chat interaction identifier, unique message identifier, direction, and UTC timestamp -- this layer is the authoritative PHI-complete audit trail and deliberately performs no redaction.
 
 - **FR-003**: The service distinguishes two session concepts: a **chat interaction** (a short-lived conversation window within a care episode) and a **care episode** (owned elsewhere). A new interaction is opened on first message in a window, linked to the patient's active care episode; if no active episode exists, the message is rejected and no interaction is created.
 
-- **FR-004**: A chat interaction ends when the patient explicitly closes via the post-chat feedback window or after fifteen minutes of inactivity. End reason (`user-closed` or `inactivity-timeout`) is recorded, and an interaction-end event is published containing only interaction id, care episode id, patient id, tenant id, and end reason -- no message content -- so the deidentification pipeline can fetch the full log from storage. **Initial version:** deferred together with the deidentification pipeline ([002](https://github.com/Neosofia/cdp/blob/main/specs/002-deidentification-pipeline.md)) and clean chat store ([003](https://github.com/Neosofia/cdp/blob/main/specs/003-clean-chat-service.md)); no close API, inactivity timeout, or interaction-end events until that bundle ships.
+- **FR-004**: A chat interaction ends when the patient explicitly closes via the post-chat feedback window or after fifteen minutes of inactivity. End reason (`user-closed` or `inactivity-timeout`) is recorded, and an interaction-end event is published containing only interaction id, care episode id, user id, tenant id, and end reason -- no message content -- so the deidentification pipeline can fetch the full log from storage. **Initial version:** deferred together with the deidentification pipeline ([002](https://github.com/Neosofia/cdp/blob/main/specs/002-deidentification-pipeline.md)) and clean chat store ([003](https://github.com/Neosofia/cdp/blob/main/specs/003-clean-chat-service.md)); no close API, inactivity timeout, or interaction-end events until that bundle ships.
 
 - **FR-005**: Outbound messages (AI or clinician replies) are stored alongside inbound messages in the same interaction with direction indicated, preserving a complete conversational record.
 
 - **FR-006**: For every inbound patient message, the service invokes the real-time care assistant and delivers the reply back to the patient's active channel; the complete response is persisted as an outbound message once the turn completes. Token streaming to the channel is desirable but not required for the initial version.
 
-- **FR-007**: Access is enforced by role and tenant: only authenticated identities with clinician or operator privileges may read stored messages for patients within their authorised geographic scope; only authorised channel adapters may write messages; data from one organisation is never visible to identities scoped to another.
+- **FR-007**: Chat access is enforced by service policy before business logic runs. Patients may read and send messages only in their own conversations. Clinicians may read and send messages for patients enrolled at their site tenant. Authorised channel adapters may write inbound messages on behalf of patients through the unified ingestion API. Data from one organisation is never visible to identities scoped to another. Operator, study, and geographic scope rules are out of scope for this revision.
 
 - **FR-008**: A configurable per-patient rate limit applies to inbound messages (default one message per second). When exceeded, the service returns HTTP 429, does not store the message, and does not publish downstream events -- protecting the mesh from abuse without silently dropping accepted traffic.
 

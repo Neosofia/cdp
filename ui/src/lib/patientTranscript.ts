@@ -1,11 +1,9 @@
 import {
-  careEpisodeUuidForPatient,
   formatChatMessageTime,
   listChatInteractions,
   listChatMessages,
   type ChatInteraction,
   type ChatMessage,
-  resolveLatestChatInteractionUuid,
 } from '@/lib/chatApi';
 
 export type PatientTranscriptRole = 'patient' | 'assistant' | 'clinician';
@@ -27,10 +25,6 @@ export function transcriptRoleForSender(senderType: ChatMessage['sender_type']):
   return 'assistant';
 }
 
-export function transcriptHasClinicianMessage(lines: PatientTranscriptLine[]): boolean {
-  return lines.some(line => line.role === 'clinician');
-}
-
 export function chatMessageToTranscriptLine(message: ChatMessage): PatientTranscriptLine {
   return {
     id: `chat-${message.message_uuid}`,
@@ -44,9 +38,10 @@ export function chatMessageToTranscriptLine(message: ChatMessage): PatientTransc
 export async function loadPatientTranscriptForInteraction(
   token: string,
   activeActor: string,
+  userUuid: string,
   chatInteractionUuid: string,
 ): Promise<PatientTranscriptLine[]> {
-  const chatMessages = await listChatMessages(token, activeActor, chatInteractionUuid);
+  const chatMessages = await listChatMessages(token, activeActor, userUuid, chatInteractionUuid);
   return chatMessages.map(chatMessageToTranscriptLine);
 }
 
@@ -56,33 +51,9 @@ export async function listPatientChatInteractions(
   patientUuid: string,
 ): Promise<ChatInteraction[]> {
   try {
-    const careEpisodeUuid = careEpisodeUuidForPatient(patientUuid);
-    return await listChatInteractions(token, activeActor, patientUuid, careEpisodeUuid);
+    return await listChatInteractions(token, activeActor, patientUuid);
   } catch (error) {
     console.warn('Failed to list chat interactions for clinician transcript', error);
-    return [];
-  }
-}
-
-export async function loadPatientTranscript(
-  token: string,
-  activeActor: string,
-  patientUuid: string,
-): Promise<PatientTranscriptLine[]> {
-  try {
-    const careEpisodeUuid = careEpisodeUuidForPatient(patientUuid);
-    const chatInteractionUuid = await resolveLatestChatInteractionUuid(
-      token,
-      activeActor,
-      patientUuid,
-      careEpisodeUuid,
-    );
-    if (!chatInteractionUuid) {
-      return [];
-    }
-    return loadPatientTranscriptForInteraction(token, activeActor, chatInteractionUuid);
-  } catch (error) {
-    console.warn('Failed to load patient transcript', error);
     return [];
   }
 }

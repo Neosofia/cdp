@@ -9,12 +9,11 @@ Environment:
   USER_API_URL              User service base URL (default http://localhost:8018)
   USER_SEED_BEARER_TOKEN    Bearer token for a platform admin operator in the target tenant
   USER_SEED_ACTIVE_ACTOR    X-Active-Actor header (default operator)
-  DEMO_PATIENTS_TENANT_UUID Tenant to seed (defaults to catalog tenant_uuid)
+  USER_SEED_TENANT_UUID     Optional override; default is the tenant claim on USER_SEED_BEARER_TOKEN
 
 Example:
 
   export USER_SEED_BEARER_TOKEN="$(your-token)"
-  export DEMO_PATIENTS_TENANT_UUID=019e02e1-94e1-722b-bd61-f7f95fb1601f
   python scripts/seed_demo_patients.py
 """
 from __future__ import annotations
@@ -26,6 +25,8 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+from seed_tenant import resolve_seed_tenant_uuid
+
 ROOT = Path(__file__).resolve().parents[1]
 DATA_FILE = ROOT.parent / "care-episode" / "src" / "data" / "demo_patients.json"
 PATIENT_ROLE = "patient.self"
@@ -33,7 +34,7 @@ PATIENT_ROLE = "patient.self"
 
 def load_patients() -> tuple[str, list[dict]]:
     payload = json.loads(DATA_FILE.read_text(encoding="utf-8"))
-    tenant_uuid = os.getenv("DEMO_PATIENTS_TENANT_UUID", payload["tenant_uuid"])
+    tenant_uuid = resolve_seed_tenant_uuid(env_prefix="USER_SEED")
     return tenant_uuid, payload["patients"]
 
 
@@ -114,8 +115,6 @@ def main() -> None:
         )
 
     print(f"\nDone ({created} created, {updated} updated).")
-    if tenant_uuid != json.loads(DATA_FILE.read_text(encoding="utf-8"))["tenant_uuid"]:
-        print("DEMO_PATIENTS_TENANT_UUID overrides the catalog default tenant.")
 
 
 if __name__ == "__main__":

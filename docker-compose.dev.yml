@@ -1,6 +1,6 @@
 x-auth-image: &auth_image ghcr.io/neosofia/authentication:v0.33.0
 x-user-image: &user_image ghcr.io/neosofia/user:v0.7.0
-x-chat-image: &chat_image ghcr.io/neosofia/chat:v0.3.0
+x-chat-image: &chat_image ghcr.io/neosofia/chat:v0.4.0
 x-care-episode-image: &care_episode_image ghcr.io/neosofia/care-episode:v0.3.0
 
 services:
@@ -86,6 +86,8 @@ services:
     container_name: cdp-python-template
     env_file:
       - ./.template.env
+    environment:
+      PORT: "8900"
     ports:
       - "8900:8900"
     depends_on:
@@ -264,6 +266,8 @@ services:
       - /app/node_modules
     ports:
       - "5173:5173"
+    environment:
+      CI: "true"
     env_file:
       - ./ui/.env
 

@@ -803,6 +803,7 @@ function SessionDetail({
         const lines = await loadPatientTranscriptForInteraction(
           token,
           activeActor,
+          patient.patientUuid,
           activeInteractionUuid,
         );
         if (cancelled) return;
@@ -840,8 +841,7 @@ function SessionDetail({
     setComposeError(null);
     setSendingReply(true);
     try {
-      const created = await createChatMessage(token, activeActor, {
-        chat_interaction_uuid: activeInteractionUuid,
+      const created = await createChatMessage(token, activeActor, patient.patientUuid, activeInteractionUuid, {
         sender_type: 'clinician',
         sender_uuid: clinicianUuid,
         content,

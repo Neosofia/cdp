@@ -8,6 +8,7 @@ seeded conversation times without a dedicated column or API backdoor.
 Environment variables:
   SEED_BEARER_TOKEN        Required when seeding user or care-episode (not required for chat-only).
   SEED_ACTIVE_ACTOR        Optional. X-Active-Actor header (default: operator).
+  SEED_TENANT_UUID         Optional override; default is the tenant claim on SEED_BEARER_TOKEN.
   USER_API_URL             Optional. Default: http://localhost:8018
   CARE_EPISODE_API_URL     Optional. Default: http://localhost:8015
   CHAT_API_URL             Optional. Default: http://localhost:8001
@@ -18,6 +19,9 @@ Source chat env for DB access: ``set -a && source .chat.env && set +a``.
 Dashboard/profile demo for any operator patient actor is cloned from the catalog template
 patient (PAT-2847 / ``care-episode/src/data/demo_patient_template.json``) via
 ``POST /api/v1/care-episodes/{uuid}/clone-demo`` — keep that template row seeded.
+
+Chat and care-episode dashboard DB writes delete existing rows for catalog patient UUIDs
+only (``demo_patients.json``); other users' data is left untouched.
 """
 from __future__ import annotations
 
@@ -41,6 +45,7 @@ from demo_seed_payload import (
     dashboard_inbox_messages,
 )
 from seed_migration_url import migration_database_url
+from seed_tenant import resolve_seed_tenant_uuid
 
 ROOT = Path(__file__).resolve().parents[1]
 MONOREPO_ROOT = ROOT.parent
@@ -48,7 +53,6 @@ CARE_EPISODE_ROOT = MONOREPO_ROOT / "care-episode"
 CATALOG_FILE = CARE_EPISODE_ROOT / "src" / "data" / "demo_patients.json"
 CLINICIANS_FILE = CARE_EPISODE_ROOT / "src" / "data" / "demo_clinicians.json"
 PATIENT_ROLE = "patient.self"
-CLINICIAN_ROLE = "site.clinical"
 
 def _services_to_seed() -> set[str]:
     raw = os.getenv("SEED_SERVICES", "user,care-episode,chat").strip()
@@ -70,6 +74,25 @@ def _api_urls() -> dict[str, str]:
 
 CHAT_SEED_ACTOR_UUID = "00000000-0000-7000-8000-000000000000"
 CHAT_SEED_ACTOR_TYPE = 2
+CHAT_CHANNEL_WEB = 1
+
+
+def _rehome_catalog_clinician_tenants(tenant_uuid: str) -> None:
+    """Demo clinicians use stable UUIDs; operator create cannot assign site.clinical."""
+    clinicians = _load_clinicians()
+    uuids = [clinician["uuid"] for clinician in clinicians["clinicians"]]
+    if not uuids:
+        return
+    psycopg = _require_psycopg()
+    with psycopg.connect(migration_database_url("user")) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE users SET tenant_uuid = %s::uuid WHERE uuid = ANY(%s::uuid[])",
+                (tenant_uuid, uuids),
+            )
+            updated = cur.rowcount
+        conn.commit()
+    print(f"user: re-homed {updated} catalog clinician(s) to tenant {tenant_uuid}")
 
 
 def _headers(*, required: bool = True) -> dict[str, str]:
@@ -108,6 +131,44 @@ def _catalog_patients(catalog: dict) -> list[dict]:
     return list(catalog["patients"])
 
 
+def _catalog_patient_uuids(catalog: dict) -> list[str]:
+    return [patient["uuid"] for patient in _catalog_patients(catalog)]
+
+
+def _delete_demo_patient_rows(cur, table: str, patient_uuids: list[str], *, column: str = "patient_uuid") -> int:
+    if not patient_uuids:
+        return 0
+    cur.execute(
+        f"DELETE FROM {table} WHERE {column} = ANY(%s::uuid[])",
+        (patient_uuids,),
+    )
+    return cur.rowcount
+
+
+def _clear_demo_chat_for_patients(cur, patient_uuids: list[str]) -> tuple[int, int]:
+    if not patient_uuids:
+        return 0, 0
+    cur.execute(
+        """
+        DELETE FROM messages
+        WHERE chat_interaction_uuid IN (
+            SELECT chat_interaction_uuid
+            FROM chat_interactions
+            WHERE user_uuid = ANY(%s::uuid[])
+        )
+        """,
+        (patient_uuids,),
+    )
+    messages_deleted = cur.rowcount
+    interactions_deleted = _delete_demo_patient_rows(
+        cur,
+        "chat_interactions",
+        patient_uuids,
+        column="user_uuid",
+    )
+    return messages_deleted, interactions_deleted
+
+
 def _require_psycopg():
     try:
         import psycopg
@@ -119,8 +180,7 @@ def _require_psycopg():
     return psycopg
 
 
-def _seed_users(catalog: dict, api_url: str, headers: dict[str, str]) -> None:
-    tenant_uuid = os.getenv("SEED_TENANT_UUID", catalog["tenant_uuid"])
+def _seed_users(catalog: dict, api_url: str, headers: dict[str, str], tenant_uuid: str) -> None:
     created = 0
     updated = 0
     for patient in catalog["patients"]:
@@ -140,26 +200,8 @@ def _seed_users(catalog: dict, api_url: str, headers: dict[str, str]) -> None:
         elif status == 200:
             updated += 1
 
-    clinicians = _load_clinicians()
-    clinician_tenant = os.getenv("SEED_TENANT_UUID", clinicians["tenant_uuid"])
-    for clinician in clinicians["clinicians"]:
-        body = {
-            "uuid": clinician["uuid"],
-            "idp_id": clinician["idp_id"],
-            "tenant_uuid": clinician_tenant,
-            "display_code": clinician["display_code"],
-            "first_name": clinician["first_name"],
-            "last_name": clinician["last_name"],
-            "email": clinician["email"],
-            "roles": [CLINICIAN_ROLE],
-        }
-        status, _ = _request_json("POST", f"{api_url}/api/v1/users", headers, body)
-        if status == 201:
-            created += 1
-        elif status == 200:
-            updated += 1
-
-    print(f"user: {created} created, {updated} updated (catalog patients + clinicians)")
+    _rehome_catalog_clinician_tenants(tenant_uuid)
+    print(f"user: {created} created, {updated} updated (tenant {tenant_uuid})")
 
 
 CHAT_MESSAGE_GAP_SECONDS = 30
@@ -222,8 +264,13 @@ def _build_transcript_timeline(patient: dict, now_utc: datetime) -> list[dict]:
     return items
 
 
-def _seed_care_episode(catalog: dict, api_url: str, headers: dict[str, str], now_utc: datetime) -> None:
-    tenant_uuid = os.getenv("SEED_TENANT_UUID", catalog["tenant_uuid"])
+def _seed_care_episode(
+    catalog: dict,
+    api_url: str,
+    headers: dict[str, str],
+    tenant_uuid: str,
+    now_utc: datetime,
+) -> None:
     records_by_id = {record["id"]: record for record in MEDICAL_RECORDS}
     patients = _catalog_patients(catalog)
     for patient in patients:
@@ -267,12 +314,13 @@ def _seed_care_episode(catalog: dict, api_url: str, headers: dict[str, str], now
             {"items": record_items},
         )
 
-    print(f"care-episode: seeded sessions/records for {len(patients)} catalog patients")
+    print(f"care-episode: seeded sessions/records for {len(patients)} catalog patients (tenant {tenant_uuid})")
 
 
 def _seed_patient_dashboard_db(catalog: dict, now_utc: datetime) -> None:
-    """Truncate and reload dashboard tables via migration role (app role cannot DELETE)."""
+    """Replace dashboard demo rows for catalog patients via migration role."""
     psycopg = _require_psycopg()
+    demo_patient_uuids = _catalog_patient_uuids(catalog)
     actor_uuid = CHAT_SEED_ACTOR_UUID
     appointment_rows: list[tuple] = []
     message_rows: list[tuple] = []
@@ -338,17 +386,26 @@ def _seed_patient_dashboard_db(catalog: dict, now_utc: datetime) -> None:
 
     with psycopg.connect(migration_database_url("care-episode")) as conn:
         with conn.cursor() as cur:
-            cur.execute("TRUNCATE care_episode_appointments_audit")
-            cur.execute("TRUNCATE care_episode_inbox_messages_audit")
-            cur.execute("TRUNCATE care_episode_appointments")
-            cur.execute("TRUNCATE care_episode_inbox_messages")
+            cur.execute("SET session_replication_role = replica")
+            appointments_deleted = _delete_demo_patient_rows(
+                cur,
+                "care_episode_appointments",
+                demo_patient_uuids,
+            )
+            inbox_deleted = _delete_demo_patient_rows(
+                cur,
+                "care_episode_inbox_messages",
+                demo_patient_uuids,
+            )
             cur.executemany(appointment_sql, appointment_rows)
             cur.executemany(message_sql, message_rows)
+            cur.execute("SET session_replication_role = origin")
         conn.commit()
 
     print(
-        f"care-episode: seeded {len(appointment_rows)} appointments and "
-        f"{len(message_rows)} inbox messages via MIGRATION_DATABASE_URL",
+        f"care-episode: cleared {appointments_deleted} appointments and {inbox_deleted} inbox rows "
+        f"for {len(demo_patient_uuids)} catalog patients; seeded {len(appointment_rows)} appointments "
+        f"and {len(message_rows)} inbox messages via MIGRATION_DATABASE_URL",
     )
 
 
@@ -361,7 +418,6 @@ def _seed_chat(catalog: dict, now_utc: datetime) -> None:
         patient_uuid = patient["uuid"]
         interaction_rows.append(
             (
-                patient_uuid,
                 patient_uuid,
                 CHAT_SEED_ACTOR_UUID,
                 CHAT_SEED_ACTOR_TYPE,
@@ -376,10 +432,10 @@ def _seed_chat(catalog: dict, now_utc: datetime) -> None:
                     sender_type,
                     sender_uuid,
                     item["content"],
+                    CHAT_CHANNEL_WEB,
                     item["changed_at"],
                     CHAT_SEED_ACTOR_UUID,
                     CHAT_SEED_ACTOR_TYPE,
-                    patient_uuid,
                     patient_uuid,
                 )
             )
@@ -387,13 +443,12 @@ def _seed_chat(catalog: dict, now_utc: datetime) -> None:
     interaction_sql = """
         INSERT INTO chat_interactions (
             chat_interaction_uuid,
-            patient_uuid,
-            care_episode_uuid,
+            user_uuid,
             changed_by_uuid,
             changed_by_type,
             change_type
         )
-        VALUES (uuidv7(), %s::uuid, %s::uuid, %s::uuid, %s, 1)
+        VALUES (uuidv7(), %s::uuid, %s::uuid, %s, 1)
     """
 
     message_sql = """
@@ -402,6 +457,7 @@ def _seed_chat(catalog: dict, now_utc: datetime) -> None:
             sender_type,
             sender_uuid,
             content,
+            channel,
             changed_at,
             changed_by_uuid,
             changed_by_type,
@@ -412,31 +468,36 @@ def _seed_chat(catalog: dict, now_utc: datetime) -> None:
             %s,
             %s::uuid,
             %s,
+            %s,
             %s::timestamptz,
             %s::uuid,
             %s,
             1
         FROM chat_interactions AS interaction_row
-        WHERE interaction_row.patient_uuid = %s::uuid
-          AND interaction_row.care_episode_uuid = %s::uuid
+        WHERE interaction_row.user_uuid = %s::uuid
         ORDER BY interaction_row.changed_at DESC
         LIMIT 1
     """
 
+    demo_patient_uuids = _catalog_patient_uuids(catalog)
+
     with psycopg.connect(migration_database_url("chat")) as conn:
         with conn.cursor() as cur:
-            cur.execute(
-                "TRUNCATE messages_audit, messages, chat_interactions_audit, chat_interactions CASCADE",
-            )
             # ALTER TABLE ... DISABLE TRIGGER is reverted by audit DDL protection; replica role skips DML hooks.
             cur.execute("SET session_replication_role = replica")
+            messages_deleted, interactions_deleted = _clear_demo_chat_for_patients(
+                cur,
+                demo_patient_uuids,
+            )
             cur.executemany(interaction_sql, interaction_rows)
             cur.executemany(message_sql, message_rows)
             cur.execute("SET session_replication_role = origin")
         conn.commit()
 
     print(
-        f"chat: seeded {len(interaction_rows)} interactions and {len(message_rows)} messages via MIGRATION_DATABASE_URL "
+        f"chat: cleared {messages_deleted} messages and {interactions_deleted} interactions "
+        f"for {len(demo_patient_uuids)} catalog patients; seeded {len(interaction_rows)} interactions "
+        f"and {len(message_rows)} messages via MIGRATION_DATABASE_URL "
         f"(+{CHAT_MESSAGE_GAP_SECONDS}s per turn, changed_at set directly)",
     )
 
@@ -451,13 +512,16 @@ def main() -> None:
     urls = _api_urls()
     catalog = _load_catalog()
     now_utc = datetime.now(timezone.utc)
+    tenant_uuid = resolve_seed_tenant_uuid() if api_services else None
 
     print(f"Seeding services: {', '.join(sorted(services))}")
+    if tenant_uuid:
+        print(f"Seed tenant: {tenant_uuid}")
     if "user" in services:
-        _seed_users(catalog, urls["user"], headers)
+        _seed_users(catalog, urls["user"], headers, tenant_uuid)
     if "care-episode" in services:
         if api_services:
-            _seed_care_episode(catalog, urls["care-episode"], headers, now_utc)
+            _seed_care_episode(catalog, urls["care-episode"], headers, tenant_uuid, now_utc)
         _seed_patient_dashboard_db(catalog, now_utc)
     if "chat" in services:
         _seed_chat(catalog, now_utc)

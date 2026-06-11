@@ -3,6 +3,15 @@
 
 ## [Unreleased]
 
+## [2026.06.11] - 2026-06-11
+
+**Pinned services:** chat **v0.4.0**; other backend pins unchanged from **2026.06.10**.
+
+### Changed
+
+- Patient **Care assistant** and clinician patient chat use user-scoped chat API paths and completion fields `intervention` / `user_message`.
+- `docker-compose.dev.yml` pins **chat v0.4.0**.
+
 ## [2026.06.10] - 2026-06-10
 
 **Pinned services:** authentication **v0.33.0**; user **v0.7.0**; chat **v0.3.0**; care-episode **v0.3.0**; capabilities **v0.6.0**; **cdp-user-policies v0.2.1** unchanged.

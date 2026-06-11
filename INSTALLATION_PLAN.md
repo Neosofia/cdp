@@ -1,6 +1,21 @@
 # Product Installation Plan
 
-Per-version instructions for system administrators: prerequisites, deploy and configuration steps, post-deploy verification, and evidence to capture. For what changed in each release, see [CHANGELOG.md](CHANGELOG.md).
+Per-version deploy steps for operators. User-visible changes: [CHANGELOG.md](CHANGELOG.md).
+
+## CDP UI 2026.06.11 (chat v0.4.0 client)
+
+**Build:** CDP UI **2026.06.11**; compose pin **chat v0.4.0**
+
+**Deploy:**
+
+1. Deploy chat **v0.4.0** per [chat INSTALLATION_PLAN](https://github.com/Neosofia/chat/blob/main/INSTALLATION_PLAN.md).
+2. Deploy CDP UI **2026.06.11** in the same change window.
+
+**Verify:**
+
+- Patient **Care assistant** and clinician patient chat work end-to-end.
+
+---
 
 ## CDP UI 2026.06.10 (authorization middleware v0.4.23)
 
