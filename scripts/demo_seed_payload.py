@@ -5,7 +5,7 @@ from __future__ import annotations
 import datetime
 from datetime import timedelta, timezone
 
-ALICE_DISPLAY_CODE = "PAT-2847"
+ALICE_DISPLAY_CODE = "DEMO-123"
 
 
 def clinical_persona_code(patient: dict) -> str:
@@ -153,7 +153,7 @@ MEDICAL_RECORDS: list[dict[str, str | None]] = [
 ]
 
 RECORD_IDS_BY_DISPLAY_CODE: dict[str, list[str]] = {
-    "PAT-2847": ["rec-xray-2847", "rec-007", "rec-001", "rec-002", "rec-003", "rec-010", "rec-006"],
+    "DEMO-123": ["rec-xray-2847", "rec-007", "rec-001", "rec-002", "rec-003", "rec-010", "rec-006"],
     "PAT-2912": ["rec-hernia-2912", "rec-002", "rec-006"],
     "PAT-2763": ["rec-knee-2763", "rec-005", "rec-004"],
     "PAT-3001": ["rec-append-3001", "rec-001", "rec-006"],

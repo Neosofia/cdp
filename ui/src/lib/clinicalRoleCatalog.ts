@@ -1,7 +1,5 @@
 /**
  * CDP clinical role vocabulary — bundled from the repo overlay (source of truth for UI labels).
- * User and other services may mount the same JSON via ROLE_CATALOG_OVERLAY at deploy time;
- * the clinical platform UI does not depend on the network for display names.
  */
 import type { RoleCatalogSnapshot, RoleDefinition } from '@/lib/roleCatalogApi';
 import cdpRoleCatalogOverlay from '@/data/user-catalog.overlay.json';
@@ -9,7 +7,7 @@ import cdpRoleCatalogOverlay from '@/data/user-catalog.overlay.json';
 interface CdpRoleCatalogOverlay {
   tenant_types: Record<string, { roles: string[] }>;
   roles: Array<{ id: string; label: string }>;
-  assigner_actors: Record<string, string[]>;
+  default_roles_by_actor?: Record<string, string>;
   job_functions?: string[];
 }
 
@@ -22,26 +20,22 @@ function roleDefinitionsFromOverlay(): RoleDefinition[] {
   }));
 }
 
-/** Full catalog snapshot for session menu labels, assigner prefixes, and admin pickers. */
+/** Full catalog snapshot for session menu labels and admin pickers. */
 export function cdpClinicalRoleCatalog(): RoleCatalogSnapshot {
   const role_definitions = roleDefinitionsFromOverlay();
-  const assigner_actor_prefixes = overlay.assigner_actors;
-  const actor_classes = Object.keys(assigner_actor_prefixes).sort();
   return {
-    actor_classes,
+    actor_classes: ['operator', 'study', 'clinician', 'patient', 'demo'],
     roles: role_definitions.map((def) => def.id),
     role_definitions,
     tenant_types: Object.fromEntries(
       Object.entries(overlay.tenant_types).map(([tenantType, spec]) => [tenantType, [...spec.roles]]),
     ),
-    assigner_actor_prefixes,
-    assigner_actors: actor_classes,
   };
 }
 
 /**
- * CDP labels and taxonomy always from the bundled overlay.
- * User API (when present) only narrows `roles` to what the signed-in principal may assign.
+ * CDP labels always from the bundled overlay.
+ * User API (when present) may narrow `roles`; assignment authz is Cedar.
  */
 export function roleCatalogForUi(remote: RoleCatalogSnapshot | null): RoleCatalogSnapshot {
   const clinical = cdpClinicalRoleCatalog();
@@ -51,9 +45,21 @@ export function roleCatalogForUi(remote: RoleCatalogSnapshot | null): RoleCatalo
   return {
     ...clinical,
     roles: remote.roles?.length ? remote.roles : clinical.roles,
-    assigner_actors: remote.assigner_actors?.length ? remote.assigner_actors : clinical.assigner_actors,
     actor_classes: remote.actor_classes?.length ? remote.actor_classes : clinical.actor_classes,
   };
 }
 
 export const CDP_JOB_FUNCTION_IDS = overlay.job_functions ?? [];
+
+/** UI-only tier-1 → default tier-2 slug (enroll forms, demo seeds). Not sent on login provision. */
+export function defaultRoleForActor(actor: string): string | undefined {
+  const defaults = overlay.default_roles_by_actor;
+  if (!defaults) {
+    return undefined;
+  }
+  return defaults[actor];
+}
+
+export function defaultRolesByActor(): Record<string, string> {
+  return { ...(overlay.default_roles_by_actor ?? {}) };
+}

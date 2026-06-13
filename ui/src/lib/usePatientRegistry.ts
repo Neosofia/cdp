@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   displayNameForUser,
-  mergePatientSessions,
+  mergePatientRecoveries,
   riskLevelFromApi,
-  sortPatientSessionsByRiskAndRecency,
-  type ActivePatientSession,
+  sortPatientRecoveriesByRiskAndRecency,
+  type ActivePatientRecovery,
   type RegistryPatientUser,
 } from '@/lib/demoPatients';
 import {
@@ -12,12 +12,42 @@ import {
   type PostCareEnrollmentInput,
   type PostCareEnrollmentResult,
 } from '@/lib/postCareEnrollment';
-import { listCareEpisodeSessions, type CareEpisodeSession } from '@/lib/careEpisodeApi';
+import { listCareEpisodeRecoveries, type CareEpisodeRecovery } from '@/lib/careEpisodeApi';
 import { fetchLastChatActivityByPatient } from '@/lib/chatApi';
+import { tenantUsersListPath } from '@/lib/userRegistryApi';
 
-const USER_API = import.meta.env.VITE_USER_API_URL ?? 'http://localhost:8018';
 const PATIENT_PAGE_SIZE = 100;
 const PATIENT_SELF_ROLE = 'patient.self';
+const REGISTRY_FETCH_RETRIES = 3;
+const REGISTRY_FETCH_RETRY_MS = 400;
+
+function isTransientFetchError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+  const message = error.message.toLowerCase();
+  return message === 'failed to fetch' || message.includes('network');
+}
+
+async function fetchWithRetry(
+  url: string,
+  init: RequestInit,
+  retries = REGISTRY_FETCH_RETRIES,
+): Promise<Response> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < retries; attempt += 1) {
+    try {
+      return await fetch(url, init);
+    } catch (error) {
+      lastError = error;
+      if (!isTransientFetchError(error) || attempt === retries - 1) {
+        throw error;
+      }
+      await new Promise(resolve => setTimeout(resolve, REGISTRY_FETCH_RETRY_MS * (attempt + 1)));
+    }
+  }
+  throw lastError;
+}
 
 interface UserListResponse {
   items: RegistryPatientUser[];
@@ -25,7 +55,7 @@ interface UserListResponse {
 }
 
 export interface PatientRegistryState {
-  patients: ActivePatientSession[];
+  patients: ActivePatientRecovery[];
   registryUsers: RegistryPatientUser[];
   loading: boolean;
   error: string | null;
@@ -37,10 +67,10 @@ function isRegistryPatient(user: RegistryPatientUser): boolean {
   return user.roles.includes(PATIENT_SELF_ROLE);
 }
 
-function sessionFromCareEpisode(
-  care: CareEpisodeSession,
+function recoveryFromCareEpisode(
+  care: CareEpisodeRecovery,
   user?: RegistryPatientUser,
-): ActivePatientSession {
+): ActivePatientRecovery {
   return {
     patientUuid: care.user_uuid,
     displayCode: care.display_code,
@@ -48,17 +78,18 @@ function sessionFromCareEpisode(
     surgery: care.surgery,
     procedureDate: care.procedure_date,
     daysPostOp: care.days_post_op,
-    sessionId: care.session_id,
+    recoveryId: care.recovery_id,
     lastChatAt: null,
     riskLevel: riskLevelFromApi(care.risk_level),
+    riskSummary: care.risk_summary ?? null,
   };
 }
 
 async function hydrateLastChatAt(
   token: string,
   activeActor: string,
-  sessions: ActivePatientSession[],
-): Promise<ActivePatientSession[]> {
+  sessions: ActivePatientRecovery[],
+): Promise<ActivePatientRecovery[]> {
   let lastByPatient = new Map<string, string | null>();
   try {
     lastByPatient = await fetchLastChatActivityByPatient(
@@ -84,7 +115,7 @@ export function usePatientRegistry(
   activeActor: string,
   tenantUuid?: string | null,
 ): PatientRegistryState {
-  const [patients, setPatients] = useState<ActivePatientSession[]>([]);
+  const [patients, setPatients] = useState<ActivePatientRecovery[]>([]);
   const [registryUsers, setRegistryUsers] = useState<RegistryPatientUser[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -107,11 +138,11 @@ export function usePatientRegistry(
   );
 
   useEffect(() => {
-    if (!token || activeActor !== 'clinician') {
+    if (!token || activeActor !== 'clinician' || !tenantUuid) {
       setPatients([]);
       setRegistryUsers([]);
       setLoading(false);
-      setError(null);
+      setError(tenantUuid ? null : 'Tenant context is required to load the patient registry.');
       return;
     }
 
@@ -122,8 +153,8 @@ export function usePatientRegistry(
       setError(null);
 
       try {
-        const res = await fetch(
-          `${USER_API}/api/v1/users?page=1&page_size=${PATIENT_PAGE_SIZE}`,
+        const res = await fetchWithRetry(
+          tenantUsersListPath(tenantUuid, `page=1&page_size=${PATIENT_PAGE_SIZE}`),
           {
             headers: {
               Authorization: `Bearer ${token}`,
@@ -139,36 +170,13 @@ export function usePatientRegistry(
 
         const data = (await res.json()) as UserListResponse;
         const allPatientUsers = data.items.filter(isRegistryPatient);
-        const scoped = tenantUuid
-          ? allPatientUsers.filter(user => user.tenant_uuid === tenantUuid)
-          : allPatientUsers;
 
-        const merged = mergePatientSessions(allPatientUsers);
-        let episodeSessions = await listCareEpisodeSessions(token, activeActor, tenantUuid);
-        if (tenantUuid) {
-          const allEpisodeSessions = await listCareEpisodeSessions(
-            token,
-            activeActor,
-            undefined,
-            { includeTenantFilter: false },
-          );
-          const registryUuids = scoped.map(user => user.uuid);
-          const filteredCoversRegistry = registryUuids.length === 0 || registryUuids.every(uuid =>
-            episodeSessions.some(session => session.user_uuid === uuid),
-          );
-          if (
-            episodeSessions.length === 0
-            || !filteredCoversRegistry
-            || allEpisodeSessions.length > episodeSessions.length
-          ) {
-            // Demo seed tenant may differ from the clinician JWT tenant; keep full roster visible.
-            episodeSessions = allEpisodeSessions;
-          }
-        }
+        const merged = mergePatientRecoveries(allPatientUsers);
+        const episodeRecoveries = await listCareEpisodeRecoveries(token, activeActor, tenantUuid);
         const usersByUuid = new Map(allPatientUsers.map(user => [user.uuid, user]));
         const mergedByUuid = new Map(merged.map(session => [session.patientUuid, session]));
 
-        for (const care of episodeSessions) {
+        for (const care of episodeRecoveries) {
           const existing = mergedByUuid.get(care.user_uuid);
           if (existing) {
             mergedByUuid.set(care.user_uuid, {
@@ -176,8 +184,9 @@ export function usePatientRegistry(
               surgery: care.surgery,
               procedureDate: care.procedure_date,
               daysPostOp: care.days_post_op,
-              sessionId: care.session_id,
+              recoveryId: care.recovery_id,
               riskLevel: riskLevelFromApi(care.risk_level),
+              riskSummary: care.risk_summary ?? existing.riskSummary ?? null,
             });
             continue;
           }
@@ -185,12 +194,12 @@ export function usePatientRegistry(
           // Clinician roster should include active episodes even if registry role is not patient.self.
           mergedByUuid.set(
             care.user_uuid,
-            sessionFromCareEpisode(care, usersByUuid.get(care.user_uuid)),
+            recoveryFromCareEpisode(care, usersByUuid.get(care.user_uuid)),
           );
         }
 
         const roster = [...mergedByUuid.values()];
-        const hydrated = sortPatientSessionsByRiskAndRecency(
+        const hydrated = sortPatientRecoveriesByRiskAndRecency(
           await hydrateLastChatAt(token, activeActor, roster),
         );
 

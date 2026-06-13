@@ -2,6 +2,38 @@
 
 Per-version deploy steps for operators. User-visible changes: [CHANGELOG.md](CHANGELOG.md).
 
+## Greenfield Step 0 — assign platform registry roles
+
+Run once per new environment **before** platform admin UI or `GET /api/v1/users` will work. Login provision creates identity only; **`roles` stays `[]`** until tier-2 slugs are assigned. Tier-1 WorkOS **`operator`** does **not** imply **`platform.admin`**. CDP `default_roles_by_actor` is UI-only and is **not** applied on login ([roles/README.md](roles/README.md)).
+
+**Prerequisites**
+
+- WorkOS org exists; the platform admin has tier-1 **`operator`** assigned.
+- Authentication and user services deployed; migrations applied; `USER_PROVISIONING_ENABLED=true` and `AUTHENTICATION_CLIENT_SECRET` set.
+- Admin completes **one successful login** (creates the user registry row). Record their **`user_uuid`** (`JWT sub`).
+
+**Steps**
+
+1. Assign tier-2 roles on the user registry row (first platform admin example):
+
+   ```sql
+   UPDATE users
+   SET roles = ARRAY['platform.admin']::text[]
+   WHERE uuid = '<admin-user-uuid>';
+   ```
+
+   Use the user service **migration/superuser** database URL. After the first admin exists, further role changes use **Admin → Users** or authorized `PATCH /api/v1/users/{uuid}`.
+
+2. Admin **logs out and back in** so authentication reprovisions and refreshes its JWT roles mirror from the user-service row. Token refresh alone does not update the mirror.
+
+3. **Verify:** `GET /api/v1/users/{uuid}` shows `platform.admin`; decoded JWT has `neosofia:roles` containing **`admin`**; **Admin → Users** returns **200**.
+
+**Evidence:** ticket with admin `user_uuid` (no PHI); JWT claim capture.
+
+**Demo data:** [`scripts/seed_demo_platform.py`](scripts/seed_demo_platform.py) seeds catalog patients separately; it does not replace Step 0 for your real admin account. See also [user INSTALLATION_PLAN](https://github.com/Neosofia/user/blob/main/INSTALLATION_PLAN.md) and [authentication INSTALLATION_PLAN](https://github.com/Neosofia/authentication/blob/main/INSTALLATION_PLAN.md).
+
+---
+
 ## CDP UI 2026.06.11 (chat v0.4.0 client)
 
 **Build:** CDP UI **2026.06.11**; compose pin **chat v0.4.0**
@@ -101,12 +133,12 @@ Per-version deploy steps for operators. User-visible changes: [CHANGELOG.md](CHA
 
 **Post-deploy verification:**
 
-1. Fresh login provisions registry row with default tier-2 roles; profile menu shows **Choose your role**.
+1. Fresh login provisions a registry row with **`roles: []`**; complete [Greenfield Step 0](#greenfield-step-0--assign-platform-registry-roles) before expecting tier-2 roles in the session picker.
 2. Auth logs: `user_provisioning_succeeded`, not `user_provisioning_failed` with `status_code=302`.
 
 **Evidence:**
 
-- Screenshot of session role picker with Site Clinical and Patient for a clinician+patient test user.
+- Step 0 complete for the platform admin; session role picker lists assigned tier-2 roles (for example Site Clinical and Patient on demo multi-role users).
 
 ## CDP UI 2026.06.05
 
@@ -132,9 +164,9 @@ Per-version deploy steps for operators. User-visible changes: [CHANGELOG.md](CHA
 
 **Post-deploy verification:**
 
-1. Log in with a multi-actor demo user; session picker lists tier-2 roles with human-readable labels.
+1. Log in with a multi-actor demo user; session picker lists tier-2 roles with human-readable labels (requires Step 0 or demo seed for tier-2 assignments).
 2. Switch to **patient** — patient dashboard shows upcoming appointments, messages, and recent records (not records-only).
-3. Re-login after WorkOS adds **operator** — **platform.admin** appears when catalog defaults apply.
+3. After WorkOS adds tier-1 **`operator`**, assign tier-2 roles (Step 0 or **Admin → Users**); **`platform.admin` is not inferred from WorkOS actor class**.
 4. Operator **clone-demo** path still works for seeding a new patient UUID.
 
 **Evidence:**

@@ -4,7 +4,7 @@ export interface DemoPatientClinical {
   surgery: string;
   procedureDate: string;
   daysPostOp: number;
-  sessionId: string;
+  recoveryId: string;
   riskLevel: PatientRiskLevel;
 }
 
@@ -28,17 +28,19 @@ export interface RegistryPatientUser {
   roles: string[];
 }
 
-export interface ActivePatientSession {
+export interface ActivePatientRecovery {
   patientUuid: string;
   displayCode: string;
   displayName: string;
   surgery: string;
   procedureDate: string;
   daysPostOp: number;
-  sessionId: string;
+  recoveryId: string;
   /** ISO timestamp of the latest chat message, from the chat service. */
   lastChatAt: string | null;
   riskLevel: PatientRiskLevel;
+  /** Rolling clinical risk summary from the care-episode risk agent, when available. */
+  riskSummary?: string | null;
 }
 
 export type ClinicianRiskFilter = 'all' | 'high-risk' | 'medium-risk';
@@ -77,7 +79,7 @@ const DEFAULT_ENROLLED_CLINICAL: DemoPatientClinical = {
   surgery: 'Enrollment — clinical data pending',
   procedureDate: new Date().toISOString().slice(0, 10),
   daysPostOp: 0,
-  sessionId: 'NEW',
+  recoveryId: 'NEW',
   riskLevel: 'Low',
 };
 
@@ -85,7 +87,7 @@ function defaultClinicalForUser(user: RegistryPatientUser): DemoPatientClinical 
   const code = user.display_code?.trim() || user.uuid.slice(0, 8).toUpperCase();
   return {
     ...DEFAULT_ENROLLED_CLINICAL,
-    sessionId: `S-${code}`,
+    recoveryId: `S-${code}`,
   };
 }
 
@@ -97,13 +99,13 @@ export function displayNameForUser(user: Pick<RegistryPatientUser, 'first_name' 
 /** Registry patients not yet on the clinician active roster (post-care enroll pick list). */
 export function registryUsersNotYetEnrolled(
   registryUsers: RegistryPatientUser[],
-  enrolledSessions: ActivePatientSession[],
+  enrolledRecoveries: ActivePatientRecovery[],
 ): RegistryPatientUser[] {
-  const enrolledUuids = new Set(enrolledSessions.map((session) => session.patientUuid));
+  const enrolledUuids = new Set(enrolledRecoveries.map((session) => session.patientUuid));
   return registryUsers.filter((user) => !enrolledUuids.has(user.uuid));
 }
 
-export function mergePatientSession(user: RegistryPatientUser): ActivePatientSession | null {
+export function mergePatientRecovery(user: RegistryPatientUser): ActivePatientRecovery | null {
   if (!user.roles.includes('patient.self')) {
     return null;
   }
@@ -119,7 +121,7 @@ export function mergePatientSession(user: RegistryPatientUser): ActivePatientSes
     surgery: clinical.surgery,
     procedureDate: clinical.procedureDate,
     daysPostOp: clinical.daysPostOp,
-    sessionId: clinical.sessionId,
+    recoveryId: clinical.recoveryId,
     lastChatAt: null,
     riskLevel: clinical.riskLevel ?? 'Low',
   };
@@ -133,39 +135,39 @@ export function riskLevelFromApi(value: string | null | undefined): PatientRiskL
   return 'Low';
 }
 
-export function mergePatientSessions(users: RegistryPatientUser[]): ActivePatientSession[] {
+export function mergePatientRecoveries(users: RegistryPatientUser[]): ActivePatientRecovery[] {
   return users
-    .map(mergePatientSession)
-    .filter((session): session is ActivePatientSession => session !== null)
+    .map(mergePatientRecovery)
+    .filter((session): session is ActivePatientRecovery => session !== null)
     .sort((a, b) => a.displayName.localeCompare(b.displayName));
 }
 
-export function activePatientBySessionId(
-  sessions: ActivePatientSession[],
-  sessionId: string,
-): ActivePatientSession | undefined {
-  return sessions.find(p => p.sessionId === sessionId);
+export function activePatientByRecoveryId(
+  sessions: ActivePatientRecovery[],
+  recoveryId: string,
+): ActivePatientRecovery | undefined {
+  return sessions.find(p => p.recoveryId === recoveryId);
 }
 
 export function activePatientByUuid(
-  sessions: ActivePatientSession[],
+  sessions: ActivePatientRecovery[],
   patientUuid: string,
-): ActivePatientSession | undefined {
+): ActivePatientRecovery | undefined {
   return sessions.find(p => p.patientUuid === patientUuid);
 }
 
 export function activePatientByDisplayCode(
-  sessions: ActivePatientSession[],
+  sessions: ActivePatientRecovery[],
   displayCode: string,
-): ActivePatientSession | undefined {
+): ActivePatientRecovery | undefined {
   return sessions.find(p => p.displayCode === displayCode);
 }
 
 /** Top dashboard patients — highest risk first, then recent chat activity. */
-export function highlightDashboardSessions(all: ActivePatientSession[]): ActivePatientSession[] {
+export function highlightDashboardRecoveries(all: ActivePatientRecovery[]): ActivePatientRecovery[] {
   return [...all]
     .sort((a, b) => {
-      const riskDiff = riskRank(riskForSession(a)) - riskRank(riskForSession(b));
+      const riskDiff = riskRank(riskForRecovery(a)) - riskRank(riskForRecovery(b));
       if (riskDiff !== 0) return riskDiff;
       return parseActivityMs(b.lastChatAt) - parseActivityMs(a.lastChatAt);
     })
@@ -176,10 +178,10 @@ export const PATIENT_UUID_BY_DISPLAY_NAME: Record<string, string> = {};
 
 export const PATIENT_LIST_PAGE_SIZE = 10;
 
-export function filterPatientSessions(
-  sessions: ActivePatientSession[],
+export function filterPatientRecoveries(
+  sessions: ActivePatientRecovery[],
   query: string,
-): ActivePatientSession[] {
+): ActivePatientRecovery[] {
   const q = query.trim().toLowerCase();
   if (!q) {
     return sessions;
@@ -188,7 +190,7 @@ export function filterPatientSessions(
     session.displayName.toLowerCase().includes(q)
     || session.displayCode.toLowerCase().includes(q)
     || session.surgery.toLowerCase().includes(q)
-    || session.sessionId.toLowerCase().includes(q),
+    || session.recoveryId.toLowerCase().includes(q),
   );
 }
 
@@ -211,7 +213,7 @@ export function formatRelativeActivity(value: string | null | undefined, nowMs: 
   return `${days} day${days === 1 ? '' : 's'} ago`;
 }
 
-export function riskForSession(session: ActivePatientSession): PatientRiskLevel {
+export function riskForRecovery(session: ActivePatientRecovery): PatientRiskLevel {
   return session.riskLevel;
 }
 
@@ -222,11 +224,11 @@ function riskRank(risk: PatientRiskLevel): number {
 }
 
 /** Default roster order: highest risk first, then most recent chat. */
-export function sortPatientSessionsByRiskAndRecency(
-  sessions: ActivePatientSession[],
-): ActivePatientSession[] {
+export function sortPatientRecoveriesByRiskAndRecency(
+  sessions: ActivePatientRecovery[],
+): ActivePatientRecovery[] {
   return [...sessions].sort((a, b) => {
-    const riskDiff = riskRank(riskForSession(a)) - riskRank(riskForSession(b));
+    const riskDiff = riskRank(riskForRecovery(a)) - riskRank(riskForRecovery(b));
     if (riskDiff !== 0) return riskDiff;
     const activityDiff = parseActivityMs(b.lastChatAt) - parseActivityMs(a.lastChatAt);
     if (activityDiff !== 0) return activityDiff;
@@ -235,7 +237,7 @@ export function sortPatientSessionsByRiskAndRecency(
 }
 
 export function hasRecentChat(
-  session: ActivePatientSession,
+  session: ActivePatientRecovery,
   nowMs: number,
   windowMs: number,
 ): boolean {
@@ -244,15 +246,15 @@ export function hasRecentChat(
 }
 
 export function applyClinicianListFilters(
-  sessions: ActivePatientSession[],
+  sessions: ActivePatientRecovery[],
   filters: ClinicianListFilters,
   nowMs: number,
-): ActivePatientSession[] {
+): ActivePatientRecovery[] {
   let result = sessions;
   if (filters.risk === 'high-risk') {
-    result = result.filter((session) => riskForSession(session) === 'High');
+    result = result.filter((session) => riskForRecovery(session) === 'High');
   } else if (filters.risk === 'medium-risk') {
-    result = result.filter((session) => riskForSession(session) === 'Medium');
+    result = result.filter((session) => riskForRecovery(session) === 'Medium');
   }
 
   if (filters.activity === 'active-30m') {
@@ -276,7 +278,7 @@ export function clinicianListFiltersLabel(filters: ClinicianListFilters): string
   return parts.length > 0 ? parts.join(' · ') : 'All patients';
 }
 
-export function paginatePatientSessions<T>(
+export function paginatePatientRecoveries<T>(
   sessions: T[],
   page: number,
   pageSize: number,

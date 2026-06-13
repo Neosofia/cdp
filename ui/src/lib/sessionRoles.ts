@@ -1,7 +1,7 @@
 import type { RoleCatalogSnapshot } from '@/lib/roleCatalogApi';
 
 /** Tier-1 actor sent as X-Active-Actor on API calls. */
-export type Tier1Actor = 'operator' | 'study' | 'clinician' | 'patient';
+export type Tier1Actor = 'operator' | 'study' | 'clinician' | 'patient' | 'demo';
 
 /** One assigned tier-2 org role in the session menu. */
 export interface SessionRoleChoice {
@@ -12,7 +12,10 @@ export interface SessionRoleChoice {
   actor: Tier1Actor;
 }
 
-const TIER1_ACTORS = new Set<Tier1Actor>(['operator', 'study', 'clinician', 'patient']);
+const TIER1_ACTORS = new Set<Tier1Actor>(['operator', 'study', 'clinician', 'patient', 'demo']);
+
+/** Session menu excludes bootstrap-only demo actor. */
+const SESSION_MENU_ACTORS = new Set<Tier1Actor>(['operator', 'study', 'clinician', 'patient']);
 
 const LEGACY_PERSONA_ACTOR: Record<string, Tier1Actor> = {
   'platform-admin': 'operator',
@@ -22,25 +25,30 @@ function isTier1Actor(value: string): value is Tier1Actor {
   return TIER1_ACTORS.has(value as Tier1Actor);
 }
 
-/** Map a tier-2 slug to tier-1 actor using catalog assigner_actor_prefixes. */
-export function tier1ActorForOrgRole(
-  orgRole: string,
-  prefixesByActor: Record<string, string[]>,
-): Tier1Actor | null {
-  for (const [actor, prefixes] of Object.entries(prefixesByActor)) {
-    if (!isTier1Actor(actor)) {
-      continue;
-    }
-    if (prefixes.some((prefix) => orgRole.startsWith(prefix))) {
-      return actor;
-    }
+/** Map a tier-2 slug to tier-1 actor from registry namespace (matches Cedar actor classes). */
+export function tier1ActorForOrgRole(orgRole: string): Tier1Actor | null {
+  if (orgRole.startsWith('patient.')) {
+    return 'patient';
+  }
+  if (orgRole.startsWith('site.')) {
+    return 'clinician';
+  }
+  if (orgRole.startsWith('platform.')) {
+    return 'operator';
+  }
+  if (
+    orgRole.startsWith('cro.') ||
+    orgRole.startsWith('sponsor.') ||
+    orgRole.startsWith('smo.')
+  ) {
+    return 'study';
   }
   return null;
 }
 
 /**
  * Build session menu rows from assigned org roles.
- * One row per assigned tier-2 role; tier-1 actor is derived from assigner_actor_prefixes.
+ * One row per assigned tier-2 role; tier-1 actor is derived from the slug namespace.
  */
 export function buildSessionRoleChoices(
   jwtActors: string[],
@@ -61,8 +69,8 @@ export function buildSessionRoleChoices(
     if (!label) {
       continue;
     }
-    const actor = tier1ActorForOrgRole(orgRole, catalog.assigner_actor_prefixes);
-    if (!actor || !jwtActors.includes(actor)) {
+    const actor = tier1ActorForOrgRole(orgRole);
+    if (!actor || !jwtActors.includes(actor) || !SESSION_MENU_ACTORS.has(actor)) {
       continue;
     }
     choices.push({ id: orgRole, label, orgRole, actor });

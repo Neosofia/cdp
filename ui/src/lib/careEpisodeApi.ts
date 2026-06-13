@@ -13,25 +13,26 @@ export interface CareEpisodeInviteResult {
   invite_token?: string;
 }
 
-export interface CareEpisodeSession {
+export interface CareEpisodeRecovery {
   user_uuid: string;
   display_code: string;
   display_name: string;
   surgery: string;
   procedure_date: string;
   days_post_op: number;
-  session_id: string;
+  recovery_id: string;
   risk_level: string | null;
+  risk_summary?: string | null;
 }
 
-export interface UpsertCareEpisodeSessionInput {
+export interface UpsertCareEpisodeRecoveryInput {
   patient_uuid: string;
   tenant_uuid: string;
   display_code: string;
   display_name: string;
   surgery: string;
   procedure_date: string;
-  session_id: string;
+  recovery_id: string;
   risk_level: string;
 }
 
@@ -87,23 +88,28 @@ export function isCareEpisodeServiceConfigured(): boolean {
   return Boolean(CARE_EPISODE_API);
 }
 
-export async function listCareEpisodeSessions(
+export async function listCareEpisodeRecoveries(
   token: string,
   activeActor: string,
   tenantUuid?: string | null,
   options?: { includeTenantFilter?: boolean },
-): Promise<CareEpisodeSession[]> {
+): Promise<CareEpisodeRecovery[]> {
   if (!CARE_EPISODE_API) return [];
   const params = new URLSearchParams();
   const includeTenantFilter = options?.includeTenantFilter ?? true;
   if (tenantUuid && includeTenantFilter) params.set('tenant_uuid', tenantUuid);
   const query = params.toString();
-  const res = await fetch(`${CARE_EPISODE_API}/api/v1/care-episodes/sessions${query ? `?${query}` : ''}`, {
-    headers: { Authorization: `Bearer ${token}`, 'X-Active-Actor': activeActor },
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${CARE_EPISODE_API}/api/v1/care-episodes/recoveries${query ? `?${query}` : ''}`, {
+      headers: { Authorization: `Bearer ${token}`, 'X-Active-Actor': activeActor },
+    });
+  } catch {
+    return [];
+  }
   if (!res.ok) return [];
   const body = (await res.json()) as {
-    items?: Array<CareEpisodeSession & { patient_uuid?: string }>;
+    items?: Array<CareEpisodeRecovery & { patient_uuid?: string }>;
   };
   return (body.items ?? []).map(item => ({
     user_uuid: item.user_uuid ?? item.patient_uuid ?? '',
@@ -112,8 +118,9 @@ export async function listCareEpisodeSessions(
     surgery: item.surgery,
     procedure_date: item.procedure_date,
     days_post_op: item.days_post_op,
-    session_id: item.session_id,
+    recovery_id: item.recovery_id,
     risk_level: item.risk_level,
+    risk_summary: item.risk_summary ?? null,
   }));
 }
 
@@ -202,13 +209,13 @@ export async function markCareEpisodeInboxMessageRead(
   return (await res.json()) as CareEpisodeInboxMessage;
 }
 
-export async function upsertCareEpisodeSession(
+export async function upsertCareEpisodeRecovery(
   token: string,
   activeActor: string,
-  input: UpsertCareEpisodeSessionInput,
+  input: UpsertCareEpisodeRecoveryInput,
 ): Promise<void> {
   if (!CARE_EPISODE_API) return;
-  const res = await fetch(`${CARE_EPISODE_API}/api/v1/care-episodes/sessions`, {
+  const res = await fetch(`${CARE_EPISODE_API}/api/v1/care-episodes/recoveries`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -219,7 +226,7 @@ export async function upsertCareEpisodeSession(
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
-    throw new Error(`Failed to upsert care episode session: HTTP ${res.status}${body ? ` ${body}` : ''}`);
+    throw new Error(`Failed to upsert care episode recovery: HTTP ${res.status}${body ? ` ${body}` : ''}`);
   }
 }
 
@@ -237,7 +244,7 @@ export async function upsertCareEpisodeRecords(
       'X-Active-Actor': activeActor,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ items }),
+    body: JSON.stringify({ items, changed_by_uuid: patientUuid }),
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
@@ -245,49 +252,62 @@ export async function upsertCareEpisodeRecords(
   }
 }
 
-export interface ClonePatientDemoResult {
-  patient_uuid: string;
-  cloned: boolean;
-  reason?: string;
-  records?: number;
-  appointments?: number;
-  messages?: number;
+export interface CareEpisodeAppointmentUpsertItem {
+  clinician_user_uuid: string;
+  clinician_display_name: string;
+  specialty: string;
+  scheduled_at: string;
+  status: string;
 }
 
-export interface ClonePatientDemoInput {
-  tenant_uuid: string;
-  display_name: string;
-  display_code: string;
+export interface CareEpisodeInboxMessageUpsertItem {
+  sender_user_uuid: string | null;
+  sender_display_name: string;
+  body: string;
+  sent_at: string;
+  read_at?: string | null;
 }
 
-/** Clone dashboard/profile demo rows from the seeded template patient. */
-export async function clonePatientDemoCareEpisode(
+export async function upsertCareEpisodeAppointments(
   token: string,
   activeActor: string,
   patientUuid: string,
-  input: ClonePatientDemoInput,
-): Promise<ClonePatientDemoResult | null> {
-  if (!CARE_EPISODE_API) return null;
-  const res = await fetch(`${CARE_EPISODE_API}/api/v1/care-episodes/${patientUuid}/clone-demo`, {
+  items: CareEpisodeAppointmentUpsertItem[],
+): Promise<void> {
+  if (!CARE_EPISODE_API) return;
+  const res = await fetch(`${CARE_EPISODE_API}/api/v1/care-episodes/${patientUuid}/appointments`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
       'X-Active-Actor': activeActor,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      tenant_uuid: input.tenant_uuid,
-      display_name: input.display_name,
-      display_code: input.display_code,
-      changed_by_uuid: patientUuid,
-    }),
+    body: JSON.stringify({ items, changed_by_uuid: patientUuid }),
   });
-  if (res.status === 403) {
-    return null;
-  }
   if (!res.ok) {
     const body = await res.text().catch(() => '');
-    throw new Error(`Failed to clone patient demo: HTTP ${res.status}${body ? ` ${body}` : ''}`);
+    throw new Error(`Failed to upsert care episode appointments: HTTP ${res.status}${body ? ` ${body}` : ''}`);
   }
-  return (await res.json()) as ClonePatientDemoResult;
+}
+
+export async function upsertCareEpisodeInboxMessages(
+  token: string,
+  activeActor: string,
+  patientUuid: string,
+  items: CareEpisodeInboxMessageUpsertItem[],
+): Promise<void> {
+  if (!CARE_EPISODE_API) return;
+  const res = await fetch(`${CARE_EPISODE_API}/api/v1/care-episodes/${patientUuid}/messages`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'X-Active-Actor': activeActor,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ items, changed_by_uuid: patientUuid }),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Failed to upsert care episode messages: HTTP ${res.status}${body ? ` ${body}` : ''}`);
+  }
 }

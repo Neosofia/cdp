@@ -6,7 +6,7 @@ directly with MIGRATION_DATABASE_URL (audit trigger disabled) so ``changed_at`` 
 seeded conversation times without a dedicated column or API backdoor.
 
 Environment variables:
-  SEED_BEARER_TOKEN        Required when seeding user or care-episode (not required for chat-only).
+  SEED_BEARER_TOKEN        Required (tenant claim or SEED_TENANT_UUID override for all services).
   SEED_ACTIVE_ACTOR        Optional. X-Active-Actor header (default: operator).
   SEED_TENANT_UUID         Optional override; default is the tenant claim on SEED_BEARER_TOKEN.
   USER_API_URL             Optional. Default: http://localhost:8018
@@ -16,12 +16,19 @@ Environment variables:
 
 Source chat env for DB access: ``set -a && source .chat.env && set +a``.
 
-Dashboard/profile demo for any operator patient actor is cloned from the catalog template
-patient (PAT-2847 / ``care-episode/src/data/demo_patient_template.json``) via
-``POST /api/v1/care-episodes/{uuid}/clone-demo`` — keep that template row seeded.
+Dashboard/profile demo for a signed-in human is copied from catalog template **DEMO-123**
+via the CDP UI ``bootstrapDemoWorkspace`` flow (requires WorkOS tier-1 ``demo`` **and**
+Authentication ``VALID_ACTORS`` including ``demo`` in the same environment). Keep that
+template row seeded. Demo humans also need WorkOS ``patient`` + ``clinician`` tier-1
+roles to use Patient/Clinician menus after bootstrap — see authentication ``OPERATIONS.md``
+(Demo workspace humans).
 
 Chat and care-episode dashboard DB writes delete existing rows for catalog patient UUIDs
 only (``demo_patients.json``); other users' data is left untouched.
+
+``demo_patients.json`` / ``demo_clinicians.json`` top-level ``tenant_uuid`` is documentation
+only (usually ``null``). Seed tenant is always ``resolve_seed_tenant_uuid()`` — never the
+catalog field.
 """
 from __future__ import annotations
 
@@ -45,7 +52,7 @@ from demo_seed_payload import (
     dashboard_inbox_messages,
 )
 from seed_migration_url import migration_database_url
-from seed_tenant import resolve_seed_tenant_uuid
+from seed_tenant import resolve_seed_tenant_uuid, warn_if_catalog_tenant_uuid_present
 
 ROOT = Path(__file__).resolve().parents[1]
 MONOREPO_ROOT = ROOT.parent
@@ -93,6 +100,60 @@ def _rehome_catalog_clinician_tenants(tenant_uuid: str) -> None:
             updated = cur.rowcount
         conn.commit()
     print(f"user: re-homed {updated} catalog clinician(s) to tenant {tenant_uuid}")
+
+
+def _rehome_catalog_demo_tenants(catalog: dict, tenant_uuid: str) -> None:
+    """Align existing catalog demo rows with the seeder's platform tenant."""
+    patient_uuids = _catalog_patient_uuids(catalog)
+    clinicians = _load_clinicians()
+    clinician_uuids = [clinician["uuid"] for clinician in clinicians["clinicians"]]
+    user_uuids = [*patient_uuids, *clinician_uuids]
+    if not user_uuids:
+        return
+
+    psycopg = _require_psycopg()
+    context_json = json.dumps({"tenant_uuid": tenant_uuid})
+
+    with psycopg.connect(migration_database_url("user")) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE users SET tenant_uuid = %s::uuid WHERE uuid = ANY(%s::uuid[])",
+                (tenant_uuid, user_uuids),
+            )
+            users_updated = cur.rowcount
+        conn.commit()
+
+    with psycopg.connect(migration_database_url("care-episode")) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE care_episode_recoveries
+                SET tenant_uuid = %s::uuid
+                WHERE patient_uuid = ANY(%s::uuid[])
+                """,
+                (tenant_uuid, patient_uuids),
+            )
+            recoveries_updated = cur.rowcount
+        conn.commit()
+
+    with psycopg.connect(migration_database_url("chat")) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE chat_interactions
+                SET context = COALESCE(context, '{}'::jsonb) || %s::jsonb
+                WHERE user_uuid = ANY(%s::uuid[])
+                """,
+                (context_json, patient_uuids),
+            )
+            interactions_updated = cur.rowcount
+        conn.commit()
+
+    print(
+        "rehome: aligned catalog demo rows to tenant "
+        f"{tenant_uuid} ({users_updated} users, {recoveries_updated} recoveries, "
+        f"{interactions_updated} chat interactions)",
+    )
 
 
 def _headers(*, required: bool = True) -> dict[str, str]:
@@ -280,7 +341,7 @@ def _seed_care_episode(
         persona = clinical_persona_code(patient)
         _request_json(
             "POST",
-            f"{api_url}/api/v1/care-episodes/sessions",
+            f"{api_url}/api/v1/care-episodes/recoveries",
             headers,
             {
                 "patient_uuid": patient_uuid,
@@ -289,7 +350,7 @@ def _seed_care_episode(
                 "display_name": f"{patient['first_name']} {patient['last_name']}",
                 "surgery": clinical["surgery"],
                 "procedure_date": clinical["procedureDate"],
-                "session_id": clinical["sessionId"],
+                "recovery_id": clinical["recoveryId"],
                 "risk_level": clinical["risk_level"],
             },
         )
@@ -409,16 +470,18 @@ def _seed_patient_dashboard_db(catalog: dict, now_utc: datetime) -> None:
     )
 
 
-def _seed_chat(catalog: dict, now_utc: datetime) -> None:
+def _seed_chat(catalog: dict, tenant_uuid: str, now_utc: datetime) -> None:
     psycopg = _require_psycopg()
     message_rows: list[tuple] = []
     interaction_rows: list[tuple] = []
+    interaction_context = json.dumps({"tenant_uuid": tenant_uuid})
 
     for patient in _catalog_patients(catalog):
         patient_uuid = patient["uuid"]
         interaction_rows.append(
             (
                 patient_uuid,
+                interaction_context,
                 CHAT_SEED_ACTOR_UUID,
                 CHAT_SEED_ACTOR_TYPE,
             )
@@ -444,11 +507,12 @@ def _seed_chat(catalog: dict, now_utc: datetime) -> None:
         INSERT INTO chat_interactions (
             chat_interaction_uuid,
             user_uuid,
+            context,
             changed_by_uuid,
             changed_by_type,
             change_type
         )
-        VALUES (uuidv7(), %s::uuid, %s::uuid, %s, 1)
+        VALUES (uuidv7(), %s::uuid, %s::jsonb, %s::uuid, %s, 1)
     """
 
     message_sql = """
@@ -511,12 +575,16 @@ def main() -> None:
     headers = _headers(required=bool(api_services))
     urls = _api_urls()
     catalog = _load_catalog()
+    warn_if_catalog_tenant_uuid_present(catalog, catalog_path=str(CATALOG_FILE))
+    clinicians = _load_clinicians()
+    warn_if_catalog_tenant_uuid_present(clinicians, catalog_path=str(CLINICIANS_FILE))
     now_utc = datetime.now(timezone.utc)
-    tenant_uuid = resolve_seed_tenant_uuid() if api_services else None
+    tenant_uuid = resolve_seed_tenant_uuid() if services else None
 
     print(f"Seeding services: {', '.join(sorted(services))}")
     if tenant_uuid:
         print(f"Seed tenant: {tenant_uuid}")
+        _rehome_catalog_demo_tenants(catalog, tenant_uuid)
     if "user" in services:
         _seed_users(catalog, urls["user"], headers, tenant_uuid)
     if "care-episode" in services:
@@ -524,7 +592,9 @@ def main() -> None:
             _seed_care_episode(catalog, urls["care-episode"], headers, tenant_uuid, now_utc)
         _seed_patient_dashboard_db(catalog, now_utc)
     if "chat" in services:
-        _seed_chat(catalog, now_utc)
+        if not tenant_uuid:
+            raise RuntimeError("SEED_BEARER_TOKEN is required to resolve tenant for chat seed")
+        _seed_chat(catalog, tenant_uuid, now_utc)
     print("Done.")
 
 

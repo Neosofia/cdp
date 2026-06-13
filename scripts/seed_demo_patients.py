@@ -4,6 +4,9 @@
 Reads care-episode/src/data/demo_patients.json and creates patient.self users with stable
 UUIDs. Re-running updates existing rows when the create endpoint supports uuid upsert.
 
+The catalog's top-level ``tenant_uuid`` (if any) is ignored — tenant comes from
+``USER_SEED_BEARER_TOKEN`` or ``USER_SEED_TENANT_UUID`` (see ``seed_tenant.py``).
+
 Environment:
 
   USER_API_URL              User service base URL (default http://localhost:8018)
@@ -25,7 +28,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-from seed_tenant import resolve_seed_tenant_uuid
+from seed_tenant import resolve_seed_tenant_uuid, warn_if_catalog_tenant_uuid_present
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA_FILE = ROOT.parent / "care-episode" / "src" / "data" / "demo_patients.json"
@@ -34,6 +37,7 @@ PATIENT_ROLE = "patient.self"
 
 def load_patients() -> tuple[str, list[dict]]:
     payload = json.loads(DATA_FILE.read_text(encoding="utf-8"))
+    warn_if_catalog_tenant_uuid_present(payload, catalog_path=str(DATA_FILE))
     tenant_uuid = resolve_seed_tenant_uuid(env_prefix="USER_SEED")
     return tenant_uuid, payload["patients"]
 

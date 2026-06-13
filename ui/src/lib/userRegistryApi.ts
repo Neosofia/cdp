@@ -17,29 +17,50 @@ function apiErrorMessage(body: unknown, status: number): string {
   return `HTTP ${status}`;
 }
 
-function userServiceHeaders(
-  token: string,
-  activeActor: string,
-  activeOrgRole?: string,
-): Record<string, string> {
-  const headers: Record<string, string> = {
+function userServiceHeaders(token: string, activeActor: string): Record<string, string> {
+  return {
     Authorization: `Bearer ${token}`,
     'X-Active-Actor': activeActor,
   };
-  if (activeOrgRole) {
-    headers['X-Active-Org-Role'] = activeOrgRole;
-  }
-  return headers;
 }
 
-/** Registry total from GET /api/v1/users (minimal page; uses response total). */
+export function tenantUsersListPath(tenantUuid: string, query = ''): string {
+  const suffix = query ? (query.startsWith('?') ? query : `?${query}`) : '';
+  return `${USER_API}/api/v1/tenants/${tenantUuid}/users${suffix}`;
+}
+
+/** Platform catalog (`GET /api/v1/users`) vs tenant catalog (`GET /api/v1/tenants/{id}/users`). */
+export function usesPlatformUserCatalog(activeActor: string): boolean {
+  return activeActor.toLowerCase() === 'operator';
+}
+
+export function usersListPath(
+  activeActor: string,
+  tenantUuid: string | null | undefined,
+  query = '',
+): string {
+  if (usesPlatformUserCatalog(activeActor)) {
+    const suffix = query ? (query.startsWith('?') ? query : `?${query}`) : '';
+    return `${USER_API}/api/v1/users${suffix}`;
+  }
+  const tenant = tenantUuid?.trim();
+  if (!tenant) {
+    throw new Error('tenant_uuid is required for tenant-scoped user list.');
+  }
+  return tenantUsersListPath(tenant, query);
+}
+
+/** Registry total from user list (minimal page; uses response total). */
 export async function fetchUserRegistryTotal(
   token: string,
   activeActor: string,
-  activeOrgRole?: string,
+  tenantUuid?: string | null,
 ): Promise<UserListSummary> {
-  const res = await fetch(`${USER_API}/api/v1/users?page=1&page_size=1`, {
-    headers: userServiceHeaders(token, activeActor, activeOrgRole),
+  const listUrl = tenantUuid
+    ? tenantUsersListPath(tenantUuid, 'page=1&page_size=1')
+    : `${USER_API}/api/v1/users?page=1&page_size=1`;
+  const res = await fetch(listUrl, {
+    headers: userServiceHeaders(token, activeActor),
   });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
@@ -54,8 +75,10 @@ export interface CreatePatientUserInput {
   last_name: string;
   email: string;
   display_code: string;
-  tenant_uuid?: string;
+  tenant_uuid: string;
 }
+
+const PATIENT_ENROLL_ROLE = 'patient.self';
 
 export interface RegistryUser {
   uuid: string;
@@ -77,10 +100,9 @@ export async function fetchRegistryUser(
   token: string,
   activeActor: string,
   userUuid: string,
-  activeOrgRole?: string,
 ): Promise<RegistryUser> {
   const res = await fetch(`${USER_API}/api/v1/users/${userUuid}`, {
-    headers: userServiceHeaders(token, activeActor, activeOrgRole),
+    headers: userServiceHeaders(token, activeActor),
   });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
@@ -94,12 +116,11 @@ export async function acceptTermsOfService(
   token: string,
   activeActor: string,
   userUuid: string,
-  activeOrgRole?: string,
 ): Promise<RegistryUser> {
   const res = await fetch(`${USER_API}/api/v1/users/${userUuid}`, {
     method: 'PATCH',
     headers: {
-      ...userServiceHeaders(token, activeActor, activeOrgRole),
+      ...userServiceHeaders(token, activeActor),
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({ tos_accepted: true }),
@@ -116,14 +137,37 @@ export async function acceptTermsOfService(
   return user;
 }
 
-export interface UpsertPatientUserInput {
-  uuid: string;
-  tenant_uuid: string;
+export interface PatientProfileInput {
   display_code: string;
   first_name: string;
   last_name: string;
   email: string;
+}
+
+export interface UserUpdateInput {
+  display_code?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  email?: string | null;
   roles?: string[];
+}
+
+/** User PATCH rejects JSON null for optional strings; empty string clears the field server-side. */
+function patchOptionalString(value: string | null | undefined): string {
+  return value ?? '';
+}
+
+export function buildUserUpdatePayload(input: UserUpdateInput): Record<string, unknown> {
+  const body: Record<string, unknown> = {
+    display_code: patchOptionalString(input.display_code),
+    first_name: patchOptionalString(input.first_name),
+    last_name: patchOptionalString(input.last_name),
+    email: patchOptionalString(input.email),
+  };
+  if (input.roles !== undefined) {
+    body.roles = input.roles;
+  }
+  return body;
 }
 
 export async function createPatientUser(
@@ -131,6 +175,11 @@ export async function createPatientUser(
   activeActor: string,
   input: CreatePatientUserInput,
 ): Promise<RegistryUser> {
+  const tenantUuid = input.tenant_uuid.trim();
+  if (!tenantUuid) {
+    throw new Error('tenant_uuid is required to create a patient user.');
+  }
+
   const res = await fetch(`${USER_API}/api/v1/users`, {
     method: 'POST',
     headers: {
@@ -139,8 +188,12 @@ export async function createPatientUser(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      ...input,
-      roles: ['patient.self'],
+      tenant_uuid: tenantUuid,
+      first_name: input.first_name,
+      last_name: input.last_name,
+      email: input.email,
+      display_code: input.display_code,
+      roles: [PATIENT_ENROLL_ROLE],
     }),
   });
 
@@ -156,7 +209,7 @@ export async function updatePatientUser(
   token: string,
   activeActor: string,
   userUuid: string,
-  input: Pick<UpsertPatientUserInput, 'display_code' | 'first_name' | 'last_name' | 'email'>,
+  input: PatientProfileInput,
 ): Promise<RegistryUser> {
   const res = await fetch(`${USER_API}/api/v1/users/${userUuid}`, {
     method: 'PATCH',
@@ -165,43 +218,7 @@ export async function updatePatientUser(
       'X-Active-Actor': activeActor,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      display_code: input.display_code,
-      first_name: input.first_name,
-      last_name: input.last_name,
-      email: input.email,
-    }),
-  });
-
-  const body = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const message = typeof body.message === 'string' ? body.message : `HTTP ${res.status}`;
-    throw new Error(message);
-  }
-  return body as RegistryUser;
-}
-
-export async function upsertPatientUser(
-  token: string,
-  activeActor: string,
-  input: UpsertPatientUserInput,
-): Promise<RegistryUser> {
-  const res = await fetch(`${USER_API}/api/v1/users`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'X-Active-Actor': activeActor,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      uuid: input.uuid,
-      tenant_uuid: input.tenant_uuid,
-      display_code: input.display_code,
-      first_name: input.first_name,
-      last_name: input.last_name,
-      email: input.email,
-      roles: input.roles ?? ['patient.self'],
-    }),
+    body: JSON.stringify(buildUserUpdatePayload(input)),
   });
 
   const body = await res.json().catch(() => ({}));

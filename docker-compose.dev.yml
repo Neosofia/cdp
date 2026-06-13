@@ -86,8 +86,6 @@ services:
     container_name: cdp-python-template
     env_file:
       - ./.template.env
-    environment:
-      PORT: "8900"
     ports:
       - "8900:8900"
     depends_on:
@@ -266,8 +264,6 @@ services:
       - /app/node_modules
     ports:
       - "5173:5173"
-    environment:
-      CI: "true"
     env_file:
       - ./ui/.env
 

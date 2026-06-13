@@ -2,65 +2,47 @@
 // Principal: ui::User with tenantType, roles (T2 from neosofia:tenant_type + neosofia:roles), actors (T1).
 // See ADR-0014: architecture/adrs/0014-tenant-types-and-org-roles.md
 
-// --- tenant.user.list ---
-
+// Directory roles — list and read share the same tenant org role set.
 permit (
     principal is ui::User,
     action == Action::"View",
-    resource == ui::Feature::"tenant-user:list"
+    resource is ui::Feature
 ) when {
-    principal.roles.contains("admin") ||
-    principal.roles.contains("audit") ||
-    principal.roles.contains("clinical-ops") ||
-    principal.roles.contains("systems") ||
-    principal.roles.contains("oversight") ||
-    principal.roles.contains("research") ||
-    principal.roles.contains("clinical") ||
-    principal.roles.contains("activation") ||
-    principal.roles.contains("readonly")
+    (resource == ui::Feature::"tenant-user:list" || resource == ui::Feature::"tenant-user:read") &&
+    principal.roles.containsAny([
+        "admin",
+        "audit",
+        "clinical-ops",
+        "systems",
+        "oversight",
+        "research",
+        "clinical",
+        "activation",
+        "readonly",
+    ])
 };
 
-// --- tenant.user.read ---
-
-permit (
-    principal is ui::User,
-    action == Action::"View",
-    resource == ui::Feature::"tenant-user:read"
-) when {
-    principal.roles.contains("admin") ||
-    principal.roles.contains("audit") ||
-    principal.roles.contains("clinical-ops") ||
-    principal.roles.contains("systems") ||
-    principal.roles.contains("oversight") ||
-    principal.roles.contains("research") ||
-    principal.roles.contains("clinical") ||
-    principal.roles.contains("activation") ||
-    principal.roles.contains("readonly")
-};
-
-// --- tenant.user.audit ---
-
+// Audit — admin, audit, and readonly only.
 permit (
     principal is ui::User,
     action == Action::"View",
     resource == ui::Feature::"tenant-user:audit"
 ) when {
-    principal.roles.contains("admin") ||
-    principal.roles.contains("audit") ||
-    principal.roles.contains("readonly")
+    principal.roles.containsAny(["admin", "audit", "readonly"])
 };
 
-// --- tenant.user.update-roles (mutation) ---
-
+// Role updates — privileged tenant org roles (no audit, oversight, or readonly).
 permit (
     principal is ui::User,
     action == Action::"View",
     resource == ui::Feature::"tenant-user:update-roles"
 ) when {
-    principal.roles.contains("admin") ||
-    principal.roles.contains("clinical-ops") ||
-    principal.roles.contains("systems") ||
-    principal.roles.contains("research") ||
-    principal.roles.contains("clinical") ||
-    principal.roles.contains("activation")
+    principal.roles.containsAny([
+        "admin",
+        "clinical-ops",
+        "systems",
+        "research",
+        "clinical",
+        "activation",
+    ])
 };

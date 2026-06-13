@@ -9,17 +9,17 @@ import {
   type CareEpisodeInboxMessage,
   type CareEpisodeRecord,
 } from '@/lib/careEpisodeApi';
-import type { ActivePatientSession } from '@/lib/demoPatients';
+import type { ActivePatientRecovery } from '@/lib/demoPatients';
 import {
-  activePatientBySessionId,
+  activePatientByRecoveryId,
   CHAT_ACTIVE_WINDOW_MS,
   CHAT_TODAY_WINDOW_MS,
   hasRecentChat,
   formatRelativeActivity,
-  highlightDashboardSessions,
-  paginatePatientSessions,
-  riskForSession,
-  sortPatientSessionsByRiskAndRecency,
+  highlightDashboardRecoveries,
+  paginatePatientRecoveries,
+  riskForRecovery,
+  sortPatientRecoveriesByRiskAndRecency,
   DEFAULT_CLINICIAN_LIST_FILTERS,
   type ClinicianListFilters,
 } from '@/lib/demoPatients';
@@ -45,22 +45,23 @@ import {
   formatServiceHealthPrimary,
   formatServiceHealthSecondary,
 } from '@/lib/serviceHealth';
+import RiskSummaryHint from '@/components/RiskSummaryHint';
 
 interface DashboardProps {
   activeActor: string;
   firstName?: string;
-  clinicianPatients?: ActivePatientSession[];
+  clinicianPatients?: ActivePatientRecovery[];
   clinicianError?: string | null;
   patientToken?: string;
   patientUuid?: string;
-  /** Bumped after clone-demo succeeds so the patient dashboard refetches care-episode data. */
+  /** Bumped after demo bootstrap succeeds so the patient dashboard refetches care-episode data. */
   patientDemoSeedVersion?: number;
-  /** True while clone-demo is running after switching to the patient role. */
+  /** True while demo workspace bootstrap is running. */
   patientDemoSeeding?: boolean;
   operatorToken?: string;
-  activeOrgRole?: string;
   onPatientGoToProfile?: () => void;
   onClinicianOpenPatients?: (patientUuid?: string | null, filters?: ClinicianListFilters) => void;
+  onClinicianRetry?: () => void;
   onOperatorOpenUsers?: () => void;
   onOperatorOpenServices?: () => void;
 }
@@ -116,6 +117,7 @@ interface ListItemProps {
   secondary: string;
   badge?: { label: string; color: 'green' | 'yellow' | 'red' | 'cyan' | 'purple' };
   meta?: string;
+  riskSummary?: string | null;
   onClick?: () => void;
 }
 
@@ -127,7 +129,7 @@ const BADGE_STYLE: Record<NonNullable<ListItemProps['badge']>['color'], React.CS
   purple: { borderColor: 'rgba(168,85,247,0.4)', color: '#a855f7', background: 'rgba(168,85,247,0.08)' },
 };
 
-function ListItem({ primary, secondary, badge, meta, onClick }: ListItemProps) {
+function ListItem({ primary, secondary, badge, meta, riskSummary, onClick }: ListItemProps) {
   const Tag = onClick ? 'button' : 'div';
   return (
     <Tag
@@ -142,6 +144,7 @@ function ListItem({ primary, secondary, badge, meta, onClick }: ListItemProps) {
       </div>
       <div className="flex items-center gap-3">
         {meta && <span className="text-xs text-slate-500">{meta}</span>}
+        <RiskSummaryHint summary={riskSummary} />
         {badge && (
           <Badge variant="outline" className="text-[10px] font-semibold" style={BADGE_STYLE[badge.color]}>
             {badge.label}
@@ -219,23 +222,25 @@ function ClinicianDashboard({
   patients,
   error,
   onOpenPatients,
+  onRetry,
 }: {
-  patients: ActivePatientSession[];
+  patients: ActivePatientRecovery[];
   error?: string | null;
   onOpenPatients?: (patientUuid?: string | null, filters?: ClinicianListFilters) => void;
+  onRetry?: () => void;
 }) {
   const [activePatientsPage, setActivePatientsPage] = useState(1);
   const nowMs = Date.now();
   const openList = (filters: ClinicianListFilters = DEFAULT_CLINICIAN_LIST_FILTERS) => onOpenPatients?.(null, filters);
-  const openPatient = (patient: ActivePatientSession) => onOpenPatients?.(patient.patientUuid);
+  const openPatient = (patient: ActivePatientRecovery) => onOpenPatients?.(patient.patientUuid);
 
   const sortedPatients = useMemo(
-    () => sortPatientSessionsByRiskAndRecency(patients),
+    () => sortPatientRecoveriesByRiskAndRecency(patients),
     [patients],
   );
 
   const pagedActivePatients = useMemo(
-    () => paginatePatientSessions(sortedPatients, activePatientsPage, 10),
+    () => paginatePatientRecoveries(sortedPatients, activePatientsPage, 10),
     [sortedPatients, activePatientsPage],
   );
   useEffect(() => {
@@ -246,14 +251,14 @@ function ClinicianDashboard({
     patient: p,
     secondary: `${p.surgery} · Day ${p.daysPostOp} post-op`,
     meta: formatRelativeActivity(p.lastChatAt, nowMs),
-    risk: riskForSession(p),
-    riskColor: (riskForSession(p) === 'High' ? 'red' : riskForSession(p) === 'Medium' ? 'yellow' : 'green') as 'red' | 'yellow' | 'green',
+    risk: riskForRecovery(p),
+    riskColor: (riskForRecovery(p) === 'High' ? 'red' : riskForRecovery(p) === 'Medium' ? 'yellow' : 'green') as 'red' | 'yellow' | 'green',
   }));
 
-  const activeChatSessions = highlightDashboardSessions(
+  const activeChatSessions = highlightDashboardRecoveries(
     patients.filter((p) => hasRecentChat(p, nowMs, CHAT_ACTIVE_WINDOW_MS)),
   ).map(p => ({
-    id: p.sessionId,
+    id: p.recoveryId,
     patient: p.displayName,
     started: formatRelativeActivity(p.lastChatAt, nowMs),
     status: 'Active' as const,
@@ -261,8 +266,8 @@ function ClinicianDashboard({
     patientUuid: p.patientUuid,
   }));
 
-  const highRiskCount = patients.filter(p => riskForSession(p) === 'High').length;
-  const mediumRiskCount = patients.filter(p => riskForSession(p) === 'Medium').length;
+  const highRiskCount = patients.filter(p => riskForRecovery(p) === 'High').length;
+  const mediumRiskCount = patients.filter(p => riskForRecovery(p) === 'Medium').length;
   const chatsTodayCount = patients.filter((p) => hasRecentChat(p, nowMs, CHAT_TODAY_WINDOW_MS)).length;
   const activePatients30MinCount = patients.filter((p) => hasRecentChat(p, nowMs, CHAT_ACTIVE_WINDOW_MS)).length;
 
@@ -271,10 +276,19 @@ function ClinicianDashboard({
       <DemoBanner />
       {error ? (
         <div
-          className="rounded-xl px-4 py-2.5 mb-4 text-sm"
+          className="rounded-xl px-4 py-2.5 mb-4 text-sm flex flex-wrap items-center justify-between gap-3"
           style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.22)', color: 'rgba(252,165,165,0.95)' }}
         >
-          Clinician data failed to load: {error}
+          <span>Clinician data failed to load: {error}</span>
+          {onRetry ? (
+            <button
+              type="button"
+              onClick={onRetry}
+              className="text-xs font-semibold uppercase tracking-wide text-cyan-300 hover:text-cyan-200"
+            >
+              Retry
+            </button>
+          ) : null}
         </div>
       ) : null}
 
@@ -333,6 +347,7 @@ function ClinicianDashboard({
                   secondary={secondary}
                   badge={{ label: `${risk} risk`, color: riskColor }}
                   meta={meta}
+                  riskSummary={patient.riskSummary}
                   onClick={() => openPatient(patient)}
                 />
               ))}
@@ -354,7 +369,7 @@ function ClinicianDashboard({
                 badge={{ label: s.status, color: s.sc }}
                 meta={s.started}
                 onClick={() => {
-                  const active = activePatientBySessionId(patients, s.id);
+                  const active = activePatientByRecoveryId(patients, s.id);
                   if (active) onOpenPatients?.(active.patientUuid);
                 }}
               />
@@ -383,13 +398,11 @@ const LEVEL_COLOR = {
 function AdminDashboard({
   operatorToken,
   activeActor,
-  activeOrgRole,
   onOpenUsers,
   onOpenServices,
 }: {
   operatorToken?: string;
   activeActor: string;
-  activeOrgRole?: string;
   onOpenUsers?: () => void;
   onOpenServices?: () => void;
 }) {
@@ -398,7 +411,7 @@ function AdminDashboard({
     total: userTotal,
     loading: usersLoading,
     error: usersError,
-  } = useUserRegistryStats(operatorToken, activeActor, activeOrgRole);
+  } = useUserRegistryStats(operatorToken, activeActor);
   const {
     rotationDueCount,
     auditEvents,
@@ -875,7 +888,9 @@ function StudyDashboard() {
     >
       <UserGroupIcon className="h-10 w-10 mx-auto mb-3" style={{ color: 'rgba(34,211,238,0.4)' }} />
       <p className="text-slate-400 text-sm">
-        Study operations home. Use <strong className="text-white">Users</strong> in the menu to manage people in your organization.
+        Study operations home. Open <strong className="text-white">Users</strong> in the menu to
+        browse people in your organization (read-only until role management is enabled for study
+        operators).
       </p>
     </div>
   );
@@ -893,11 +908,11 @@ export default function Dashboard({
   patientDemoSeedVersion = 0,
   patientDemoSeeding = false,
   operatorToken,
-  activeOrgRole,
   clinicianPatients = [],
   clinicianError,
   onPatientGoToProfile,
   onClinicianOpenPatients,
+  onClinicianRetry,
   onOperatorOpenUsers,
   onOperatorOpenServices,
 }: DashboardProps) {
@@ -909,6 +924,7 @@ export default function Dashboard({
         patients={clinicianPatients}
         error={clinicianError}
         onOpenPatients={onClinicianOpenPatients}
+        onRetry={onClinicianRetry}
       />
     );
   }
@@ -917,7 +933,6 @@ export default function Dashboard({
       <AdminDashboard
         operatorToken={operatorToken}
         activeActor={activeActor}
-        activeOrgRole={activeOrgRole}
         onOpenUsers={onOperatorOpenUsers}
         onOpenServices={onOperatorOpenServices}
       />

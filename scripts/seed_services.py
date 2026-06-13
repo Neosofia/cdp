@@ -6,6 +6,19 @@ environment or cdp/.authentication.env:
 
   set -a && source .authentication.env && set +a
   python scripts/seed_services.py
+
+**base_url values below are for local Docker Compose** (`docker-compose.dev.yml` /
+`docker-compose.local.yml` hostnames and spec ports).
+
+On Railway and similar PaaS, override `base_url` when seeding the auth DB: use each
+service's **public HTTPS URL** (no trailing slash), not `http://<slug>.railway.internal:…`.
+Registry `base_url` is what callers use for outbound HTTP (login-time User provisioning,
+care-episode → chat proxy, etc.). Internal hostnames often fail (Talisman redirects, mesh
+reachability). See `cdp/INSTALLATION_PLAN.md` (user row HTTPS precedent) and
+`infrastructure/public-cloud/OPERATIONS.md` (browser vs JWKS planes).
+
+`JWT_JWKS_URI` on consumers may still point at the private mesh; that is separate from
+registry `base_url`.
 """
 from __future__ import annotations
 
@@ -19,6 +32,7 @@ from psycopg.rows import dict_row
 
 from seed_migration_url import migration_database_url
 
+# Local Compose only — cloud/Railway: public HTTPS base_url per slug (see module docstring).
 SERVICES_TO_SEED = [
     {
         "name": "Capabilities Service",
@@ -28,7 +42,7 @@ SERVICES_TO_SEED = [
     {
         "name": "User Service",
         "slug": "user",
-        "base_url": "http://user:8018",
+        "base_url": "http://user:8018",  # cloud: https://<user-public-host>
     },
     {
         "name": "Care Episode Service",
@@ -38,7 +52,7 @@ SERVICES_TO_SEED = [
     {
         "name": "Chat Service",
         "slug": "chat",
-        "base_url": "http://chat:8001",
+        "base_url": "http://chat:8001",  # cloud: https://<chat-public-host>
     },
     {
         "name": "Python Template",

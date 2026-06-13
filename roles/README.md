@@ -1,6 +1,6 @@
 # CDP clinical role catalog
 
-[`user-catalog.overlay.json`](user-catalog.overlay.json) is the **clinical platform vocabulary**: human-readable org-role labels, tenant types, Tier-1 assigner prefixes, and job-function ids for pickers.
+[`user-catalog.overlay.json`](user-catalog.overlay.json) is the **clinical platform vocabulary**: human-readable org-role labels, tenant types, and job-function ids for pickers.
 
 ## Authority by consumer
 
@@ -13,7 +13,8 @@ After editing `user-catalog.overlay.json` here, sync into the UI bundle:
 ```bash
 cp roles/user-catalog.overlay.json ui/src/data/user-catalog.overlay.json
 ```
-| **User service** | Optional deploy overlay via `ROLE_CATALOG_OVERLAY` so registry APIs and Cedar assignment stay aligned with CDP (see [user OPERATIONS](https://github.com/Neosofia/user/blob/main/OPERATIONS.md)). |
+| **User service** | Optional deploy overlay via `ROLE_CATALOG_OVERLAY` so registry APIs and Cedar assignment stay aligned with CDP (see [user OPERATIONS](https://github.com/Neosofia/user/blob/main/OPERATIONS.md)). Role **assignment rules** live in Cedar policy, not overlay JSON. |
+| **Authentication service** | `VALID_TENANT_TYPES` env var (comma-separated org kinds for JWT mint). |
 | **Other services** | Mount the same JSON when a service needs matching labels or prefixes; CDP remains the authoring repo. |
 
 - **Base vocabulary (tables and `default.json`):** [user/roles/README.md](https://github.com/Neosofia/user/blob/main/roles/README.md)
@@ -22,4 +23,4 @@ cp roles/user-catalog.overlay.json ui/src/data/user-catalog.overlay.json
 
 Edit labels here first; copy or reference this path from service overlays. Job-function entries extend pickers only — they do not replace Tier-2 Cedar roles.
 
-**`default_roles_by_actor`** (CDP overlay only): on login provision, the User service adds each listed Tier-2 slug when the principal has that Tier-1 actor in the IdP payload but no role yet under that actor's assigner prefixes. Additive only — existing assignments are never removed.
+**`default_roles_by_actor`** (CDP overlay): UI-only defaults for enroll forms and demos (`clinicalRoleCatalog.ts`). Not applied on Authentication login provision.

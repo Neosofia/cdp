@@ -1,4 +1,4 @@
-import { createCareEpisodeInvite, upsertCareEpisodeSession } from '@/lib/careEpisodeApi';
+import { createCareEpisodeInvite, upsertCareEpisodeRecovery } from '@/lib/careEpisodeApi';
 import {
   displayNameForUser,
   registerPostCareEnrollment,
@@ -12,7 +12,8 @@ export interface NewPatientFields {
   last_name: string;
   email: string;
   display_code: string;
-  tenant_uuid?: string;
+  tenant_uuid: string;
+  roles: string[];
 }
 
 export interface ExistingPatientProfile {
@@ -40,7 +41,7 @@ export interface PostCareEnrollmentResult {
   demoOnlyEpisode: boolean;
 }
 
-function sessionIdForPatient(displayCode: string, patientUuid: string): string {
+function recoveryIdForPatient(displayCode: string, patientUuid: string): string {
   const code = displayCode.trim() || patientUuid.slice(0, 8).toUpperCase();
   return `EP-${code}`;
 }
@@ -64,7 +65,7 @@ function clinicalFromEnrollment(
     surgery: input.procedure.trim(),
     procedureDate,
     daysPostOp: daysPostOpFromDate(procedureDate),
-    sessionId: sessionIdForPatient(displayCode, patientUuid),
+    recoveryId: recoveryIdForPatient(displayCode, patientUuid),
     riskLevel: 'Low',
   };
 }
@@ -103,7 +104,7 @@ export async function enrollPatientInPostCare(
 
   const displayCode = patient.display_code?.trim() || patient.uuid.slice(0, 8).toUpperCase();
   const displayName = displayNameForUser(patient);
-  const sessionId = sessionIdForPatient(displayCode, patient.uuid);
+  const recoveryId = recoveryIdForPatient(displayCode, patient.uuid);
   const tenantUuid = resolveTenantUuid(input, patient);
   let episodeUuid: string | null = null;
   let demoOnlyEpisode = true;
@@ -121,14 +122,14 @@ export async function enrollPatientInPostCare(
     }
 
     if (tenantUuid) {
-      await upsertCareEpisodeSession(token, activeActor, {
+      await upsertCareEpisodeRecovery(token, activeActor, {
         patient_uuid: patient.uuid,
         tenant_uuid: tenantUuid,
         display_code: displayCode,
         display_name: displayName,
         surgery: input.procedure.trim(),
         procedure_date: input.procedure_date.trim(),
-        session_id: sessionId,
+        recovery_id: recoveryId,
         risk_level: 'low',
       });
       demoOnlyEpisode = false;

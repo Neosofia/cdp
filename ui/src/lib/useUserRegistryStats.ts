@@ -3,11 +3,7 @@ import { fetchUserRegistryTotal } from '@/lib/userRegistryApi';
 
 const AUTO_REFRESH_MS = 60_000;
 
-export function useUserRegistryStats(
-  token: string | undefined,
-  activeActor: string,
-  activeOrgRole?: string,
-) {
+export function useUserRegistryStats(token: string | undefined, activeActor: string) {
   const [total, setTotal] = useState<number | null>(null);
   const [loading, setLoading] = useState(Boolean(token));
   const [error, setError] = useState<string | null>(null);
@@ -22,7 +18,7 @@ export function useUserRegistryStats(
     setLoading(true);
     setError(null);
     try {
-      const summary = await fetchUserRegistryTotal(token, activeActor, activeOrgRole);
+      const summary = await fetchUserRegistryTotal(token, activeActor);
       setTotal(summary.total);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load user count');
@@ -30,7 +26,7 @@ export function useUserRegistryStats(
     } finally {
       setLoading(false);
     }
-  }, [token, activeActor, activeOrgRole]);
+  }, [token, activeActor]);
 
   useEffect(() => {
     void refresh();

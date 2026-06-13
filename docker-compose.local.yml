@@ -170,10 +170,6 @@ services:
     container_name: cdp-python-template
     env_file:
       - ./.template.env
-    environment:
-      PORT: "8900"
-      APP_DATABASE_URL: postgresql+psycopg://app:local-dev-only@127.0.0.1:5432/python_template
-      MIGRATION_DATABASE_URL: postgresql+psycopg://template:local-dev-only@127.0.0.1:5432/python_template
     volumes:
       - ../templates/python/service/policies:/app/policies:ro
     ports:
@@ -224,6 +220,7 @@ services:
       - ./.user.env
     volumes:
       - ./roles/user-catalog.overlay.json:/app/roles/cdp-overlay.json:ro
+      - ../user/policies:/app/policies:ro
     ports:
       - "8018:8018"
     depends_on:
@@ -347,14 +344,6 @@ services:
     build:
       context: ./ui
       dockerfile: Dockerfile
-      args:
-        VITE_AUTH_BASE_URL: http://localhost:8014
-        VITE_AUTH_API_URL: http://localhost:8014
-        VITE_CAPABILITIES_API_URL: http://localhost:8019
-        VITE_USER_API_URL: http://localhost:8018
-        VITE_CHAT_API_URL: http://localhost:8001
-        VITE_CARE_EPISODE_API_URL: http://localhost:8015
-        VITE_TEMPLATE_API_URL: http://localhost:8900
     image: cdp-ui:local
     container_name: cdp-ui
     depends_on:

@@ -20,6 +20,11 @@ import {
 import PlatformRolePicker from '@/components/PlatformRolePicker';
 import { roleCatalogForUi, type RoleCatalogSnapshot } from '@/lib/roleCatalogApi';
 import {
+  buildUserUpdatePayload,
+  usersListPath,
+  usesPlatformUserCatalog,
+} from '@/lib/userRegistryApi';
+import {
   USER_FIELD_LABEL_CLASS,
   USER_INPUT_CLASS,
   USER_PRIMARY_BUTTON_CLASS,
@@ -76,8 +81,6 @@ interface AuditResponse {
 interface Props {
   token: string;
   activeActor: string;
-  /** Selected tier-2 org role (e.g. cro.clinical-ops) for study-scoped API calls. */
-  activeOrgRole?: string;
   /** All Tier-1 JWT roles (operator, clinician, patient) for role assignment. */
   sessionActors: string[];
   roleCatalog?: RoleCatalogSnapshot | null;
@@ -85,6 +88,8 @@ interface Props {
   /** Refetch session profile + role catalog after the signed-in user updates their own roles. */
   onSelfRolesUpdated?: () => void;
   sessionTenantUuid?: string | null;
+  /** Capabilities entitlements for the active Tier-1 actor (ui:tenant:user:*). */
+  entitlements?: Record<string, boolean>;
 }
 
 function displayName(user: UserRecord): string {
@@ -92,16 +97,47 @@ function displayName(user: UserRecord): string {
   return name || user.email || user.idp_id;
 }
 
+function rolesOutsideNamespace(roles: string[], namespacePrefix: string): string[] {
+  const prefix = `${namespacePrefix}.`;
+  return roles.filter((role) => !role.startsWith(prefix));
+}
+
+function rolesInNamespace(roles: string[], namespacePrefix: string): string[] {
+  const prefix = `${namespacePrefix}.`;
+  return roles.filter((role) => role.startsWith(prefix));
+}
+
 export default function UserManagement({
   token,
   activeActor,
-  activeOrgRole = '',
   sessionActors,
   roleCatalog: roleCatalogSnapshot,
   profileUuid,
   onSelfRolesUpdated,
   sessionTenantUuid,
+  entitlements = {},
 }: Props) {
+  const usePlatformCatalog = usesPlatformUserCatalog(activeActor);
+  const canUpdateRoles =
+    activeActor === 'operator' && Boolean(entitlements['ui:tenant:user:update-roles']);
+  const canViewAudit = Boolean(entitlements['ui:tenant:user:audit']);
+  const showRowActions = canUpdateRoles || canViewAudit;
+
+  const canEditUser = useCallback(
+    (user: UserRecord) =>
+      canUpdateRoles &&
+      Boolean(sessionTenantUuid) &&
+      user.tenant_uuid === sessionTenantUuid,
+    [canUpdateRoles, sessionTenantUuid],
+  );
+
+  const canAuditUser = useCallback(
+    (user: UserRecord) =>
+      canViewAudit &&
+      Boolean(sessionTenantUuid) &&
+      user.tenant_uuid === sessionTenantUuid,
+    [canViewAudit, sessionTenantUuid],
+  );
   const [items, setItems] = useState<UserRecord[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -137,18 +173,12 @@ export default function UserManagement({
   }, [search]);
 
   const authHeaders = useCallback(
-    () => {
-      const headers: Record<string, string> = {
-        Authorization: `Bearer ${token}`,
-        'X-Active-Actor': activeActor,
-        'Content-Type': 'application/json',
-      };
-      if (activeOrgRole) {
-        headers['X-Active-Org-Role'] = activeOrgRole;
-      }
-      return headers;
-    },
-    [token, activeActor, activeOrgRole],
+    () => ({
+      Authorization: `Bearer ${token}`,
+      'X-Active-Actor': activeActor,
+      'Content-Type': 'application/json',
+    }),
+    [token, activeActor],
   );
 
   useEffect(() => {
@@ -159,12 +189,15 @@ export default function UserManagement({
   }, [roleCatalogSnapshot]);
 
   const fetchRoles = useCallback(async () => {
+    if (!canUpdateRoles) {
+      return;
+    }
     const res = await fetch(`${USER_API}/api/v1/roles`, { headers: authHeaders() });
     if (!res.ok) return;
     const data = roleCatalogForUi((await res.json()) as RoleCatalogSnapshot);
     setAssignableRoles(data.roles ?? []);
     setRoleDefinitions(data.role_definitions ?? []);
-  }, [authHeaders]);
+  }, [authHeaders, canUpdateRoles]);
 
   const resolveTenantName = useCallback(
     async (tenantUuid: string) => {
@@ -184,9 +217,13 @@ export default function UserManagement({
     setLoading(true);
     setListError(null);
     try {
+      if (!usePlatformCatalog && !sessionTenantUuid) {
+        throw new Error('Missing tenant context. Sign in again or switch organization role.');
+      }
       const params = new URLSearchParams({ page: String(page), page_size: String(PAGE_SIZE) });
       if (debouncedSearch) params.set('q', debouncedSearch);
-      const res = await fetch(`${USER_API}/api/v1/users?${params}`, { headers: authHeaders() });
+      const listUrl = usersListPath(activeActor, sessionTenantUuid, params.toString());
+      const res = await fetch(listUrl, { headers: authHeaders() });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.message ?? `HTTP ${res.status}`);
@@ -204,7 +241,7 @@ export default function UserManagement({
     } finally {
       setLoading(false);
     }
-  }, [authHeaders, page, debouncedSearch]);
+  }, [authHeaders, page, debouncedSearch, activeActor, sessionTenantUuid, usePlatformCatalog]);
 
   useEffect(() => {
     fetchRoles();
@@ -225,25 +262,30 @@ export default function UserManagement({
   }, [items, resolveTenantName]);
 
   const openEdit = (user: UserRecord) => {
+    if (!canEditUser(user)) {
+      return;
+    }
     setEditUser({ ...user, roles: [...user.roles] });
     setEditError(null);
   };
 
   const submitEdit = async () => {
-    if (!editUser) return;
+    if (!editUser || !canEditUser(editUser)) return;
     setEditSaving(true);
     setEditError(null);
     try {
+      const foreignRoles = rolesOutsideNamespace(editUser.roles, 'platform');
+      const payload = buildUserUpdatePayload({
+        first_name: editUser.first_name,
+        last_name: editUser.last_name,
+        email: editUser.email,
+        display_code: editUser.display_code,
+        roles: foreignRoles.length === 0 ? rolesInNamespace(editUser.roles, 'platform') : undefined,
+      });
       const res = await fetch(`${USER_API}/api/v1/users/${editUser.uuid}`, {
         method: 'PATCH',
         headers: authHeaders(),
-        body: JSON.stringify({
-          first_name: editUser.first_name,
-          last_name: editUser.last_name,
-          email: editUser.email,
-          display_code: editUser.display_code,
-          roles: editUser.roles,
-        }),
+        body: JSON.stringify(payload),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.message ?? `HTTP ${res.status}`);
@@ -286,6 +328,9 @@ export default function UserManagement({
   };
 
   const openAudits = (user: UserRecord) => {
+    if (!canAuditUser(user)) {
+      return;
+    }
     setAuditPage(1);
     void loadAudits(user, 1, true);
   };
@@ -297,16 +342,33 @@ export default function UserManagement({
   };
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const listTitle = usePlatformCatalog ? 'Platform users' : 'Organization users';
+  const listSubtitle = (() => {
+    if (canUpdateRoles) {
+      return usePlatformCatalog
+        ? 'Cross-tenant registry view. Edit and role assignment apply only within your tenant.'
+        : 'Edit users in your organization.';
+    }
+    if (canViewAudit) {
+      return usePlatformCatalog
+        ? 'Read-only registry view. Audit history is available for users in your tenant.'
+        : 'Read-only directory. Open audit history per user when available.';
+    }
+    return 'Read-only directory of people in your organization.';
+  })();
+  const editForeignRoles = editUser ? rolesOutsideNamespace(editUser.roles, 'platform') : [];
+  const editPlatformRoles = editUser ? rolesInNamespace(editUser.roles, 'platform') : [];
+  const editRolesLocked = editForeignRoles.length > 0;
 
   return (
     <div className="space-y-4">
       <Card className="border-slate-800 bg-slate-950/80">
         <CardHeader>
           <CardTitle className="text-cyan-300 font-mono uppercase tracking-wider text-sm">
-            Platform users
+            {listTitle}
           </CardTitle>
           <p className="text-xs text-slate-500 mt-1">
-            Registry rows are provisioned on login (Stage 3). Edit existing users below.
+            {listSubtitle}
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -329,19 +391,19 @@ export default function UserManagement({
                   <th className="px-3 py-2">Email</th>
                   <th className="px-3 py-2">Roles</th>
                   <th className="px-3 py-2">Tenant</th>
-                  <th className="px-3 py-2" />
+                  {showRowActions ? <th className="px-3 py-2" /> : null}
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={6} className="px-3 py-6 text-center text-slate-500">
+                    <td colSpan={showRowActions ? 6 : 5} className="px-3 py-6 text-center text-slate-500">
                       Loading…
                     </td>
                   </tr>
                 ) : items.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-3 py-6 text-center text-slate-500">
+                    <td colSpan={showRowActions ? 6 : 5} className="px-3 py-6 text-center text-slate-500">
                       Users appear after first login
                     </td>
                   </tr>
@@ -359,28 +421,34 @@ export default function UserManagement({
                       <td className="px-3 py-2 text-slate-400">
                         {tenantNames[user.tenant_uuid] ?? `${user.tenant_uuid.slice(0, 8)}…`}
                       </td>
-                      <td className="px-3 py-2">
-                        <div className="flex items-center justify-end gap-1">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon-sm"
-                            title="Audit history"
-                            onClick={() => openAudits(user)}
-                          >
-                            <ClockIcon className="size-4" />
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon-sm"
-                            title="Edit user"
-                            onClick={() => openEdit(user)}
-                          >
-                            <PencilSquareIcon className="size-4" />
-                          </Button>
-                        </div>
-                      </td>
+                      {showRowActions ? (
+                        <td className="px-3 py-2">
+                          <div className="flex items-center justify-end gap-1">
+                            {canAuditUser(user) ? (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon-sm"
+                                title="Audit history"
+                                onClick={() => openAudits(user)}
+                              >
+                                <ClockIcon className="size-4" />
+                              </Button>
+                            ) : null}
+                            {canEditUser(user) ? (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon-sm"
+                                title="Edit user"
+                                onClick={() => openEdit(user)}
+                              >
+                                <PencilSquareIcon className="size-4" />
+                              </Button>
+                            ) : null}
+                          </div>
+                        </td>
+                      ) : null}
                     </tr>
                   ))
                 )}
@@ -499,19 +567,32 @@ export default function UserManagement({
               </div>
               <div>
                 <label className={USER_FIELD_LABEL_CLASS}>Platform roles</label>
-                <p className="text-xs text-slate-500 mb-2">
-                  Assignable under your Tier-1 roles (
-                  {sessionActors.length > 0 ? sessionActors.join(', ') : 'none on JWT'})
-                </p>
-                <PlatformRolePicker
-                  roleCatalog={assignableRoles}
-                  roleDefinitions={roleDefinitions}
-                  selected={editUser.roles}
-                  onChange={(roles) =>
-                    setEditUser((u) => (u ? { ...u, roles } : u))
-                  }
-                  assignerActors={sessionActors}
-                />
+                {editRolesLocked ? (
+                  <>
+                    <p className="text-xs text-amber-400/90 mb-2">
+                      This user has organization roles outside the platform namespace. Profile
+                      fields can be updated; role assignment is not available from this screen.
+                    </p>
+                    <p className="text-sm text-slate-300 font-mono">{editUser.roles.join(', ') || '—'}</p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-xs text-slate-500 mb-2">
+                      Assignable platform roles under your Tier-1 roles (
+                      {sessionActors.length > 0 ? sessionActors.join(', ') : 'none on JWT'})
+                    </p>
+                    <PlatformRolePicker
+                      roleCatalog={assignableRoles}
+                      roleDefinitions={roleDefinitions}
+                      selected={editPlatformRoles}
+                      onChange={(roles) =>
+                        setEditUser((u) => (u ? { ...u, roles } : u))
+                      }
+                      assignerActors={sessionActors}
+                      roleNamespacePrefix="platform"
+                    />
+                  </>
+                )}
               </div>
               {editError && <p className="text-sm text-red-400">{editError}</p>}
               <div className="flex items-center gap-3 pt-2">

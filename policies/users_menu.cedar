@@ -1,4 +1,4 @@
-// Top-level Users nav for study Tier-1 (CRO / sponsor / SMO operators).
+// Show the Users navigation menu to study-tier operators (CRO, sponsor, SMO).
 permit (
     principal is ui::User,
     action == Action::"View",

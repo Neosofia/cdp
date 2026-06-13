@@ -80,9 +80,14 @@ export async function fetchLastChatActivityForUser(
     return null;
   }
 
-  const res = await fetch(`${CHAT_API}/api/v1/users/${userUuid}/last-activity`, {
-    headers: { Authorization: `Bearer ${token}`, 'X-Active-Actor': activeActor },
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${CHAT_API}/api/v1/users/${userUuid}/last-activity`, {
+      headers: { Authorization: `Bearer ${token}`, 'X-Active-Actor': activeActor },
+    });
+  } catch {
+    return null;
+  }
 
   if (!res.ok) {
     return null;
@@ -102,16 +107,22 @@ export async function fetchLastChatActivityByPatient(
     return byPatient;
   }
 
-  const results = await Promise.all(
-    sessions.map(async session => {
-      const lastMessageAt = await fetchLastChatActivityForUser(
-        token,
-        activeActor,
-        session.user_uuid,
-      );
-      return [session.user_uuid, lastMessageAt] as const;
-    }),
-  );
+  const CHAT_ACTIVITY_CONCURRENCY = 4;
+  const results: Array<readonly [string, string | null]> = [];
+  for (let index = 0; index < sessions.length; index += CHAT_ACTIVITY_CONCURRENCY) {
+    const batch = sessions.slice(index, index + CHAT_ACTIVITY_CONCURRENCY);
+    const batchResults = await Promise.all(
+      batch.map(async session => {
+        const lastMessageAt = await fetchLastChatActivityForUser(
+          token,
+          activeActor,
+          session.user_uuid,
+        );
+        return [session.user_uuid, lastMessageAt] as const;
+      }),
+    );
+    results.push(...batchResults);
+  }
 
   for (const [userUuid, lastMessageAt] of results) {
     byPatient.set(userUuid, lastMessageAt);

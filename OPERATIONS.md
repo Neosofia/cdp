@@ -6,6 +6,10 @@ This guide is for system administrators, software engineers, and testers wishing
 
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running
 
+## Greenfield Step 0 (new environments)
+
+Before expecting **Admin → Users** or operator registry APIs to work, complete [INSTALLATION_PLAN — Greenfield Step 0](INSTALLATION_PLAN.md#greenfield-step-0--assign-platform-registry-roles): one admin login (creates registry row with **`roles: []`**), SQL assignment of tier-2 roles on user Postgres, admin re-login, verify JWT `neosofia:roles`. Demo catalog users are seeded separately via [`scripts/seed_demo_platform.py`](scripts/seed_demo_platform.py); that script does not replace Step 0 for your real platform admin.
+
 ## Local env setup
 
 Before starting the services, a set of environment variable files must be generated in order to operate correctly. To promote Separation of Concerns (SoC) and adhere to Twelve-Factor App principles, all configuration is managed via `.env` files rather than hardcoded in the `docker-compose.dev.yml`.

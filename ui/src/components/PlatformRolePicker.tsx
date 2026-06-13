@@ -27,6 +27,8 @@ interface PlatformRolePickerProps {
   onChange: (roles: string[]) => void;
   /** All actor classes on the assigner's JWT (not only the UI active actor). */
   assignerActors: string[];
+  /** When set, only roles in this slug namespace (e.g. `platform`) are assignable. */
+  roleNamespacePrefix?: string;
 }
 
 export default function PlatformRolePicker({
@@ -35,8 +37,17 @@ export default function PlatformRolePicker({
   selected,
   onChange,
   assignerActors,
+  roleNamespacePrefix,
 }: PlatformRolePickerProps) {
   const [filter, setFilter] = useState('');
+
+  const assignableCatalog = useMemo(() => {
+    if (!roleNamespacePrefix) {
+      return roleCatalog;
+    }
+    const prefix = `${roleNamespacePrefix}.`;
+    return roleCatalog.filter((role) => role.startsWith(prefix));
+  }, [roleCatalog, roleNamespacePrefix]);
 
   const labelFor = useMemo(() => {
     const byId = new Map((roleDefinitions ?? []).map((def) => [def.id, def.label]));
@@ -51,7 +62,7 @@ export default function PlatformRolePicker({
       labelFor(role).toLowerCase().includes(q);
 
     const byBranch = new Map<string, string[]>();
-    for (const role of roleCatalog.filter(matches)) {
+    for (const role of assignableCatalog.filter(matches)) {
       const branch = role.split('.')[0] || 'platform';
       byBranch.set(branch, [...(byBranch.get(branch) ?? []), role]);
     }
@@ -63,9 +74,9 @@ export default function PlatformRolePicker({
         label: formatGroupLabel(branch),
         roles: roles.sort((a, b) => a.localeCompare(b)),
       }));
-  }, [roleCatalog, filter, labelFor]);
+  }, [assignableCatalog, filter, labelFor]);
 
-  if (roleCatalog.length === 0) {
+  if (assignableCatalog.length === 0) {
     return (
       <p className="text-sm text-slate-500 rounded-md border border-slate-800 bg-slate-900/50 px-3 py-2">
         Role catalog unavailable. Check user API and sign-in.
@@ -148,7 +159,7 @@ export default function PlatformRolePicker({
         )}
       </div>
       <p className="text-[11px] text-slate-500">
-        {selected.length} selected · {roleCatalog.length} assignable (
+        {selected.length} selected · {assignableCatalog.length} assignable (
         {assignerActors.length > 0 ? assignerActors.join(', ') : 'no actors on JWT'})
       </p>
     </div>

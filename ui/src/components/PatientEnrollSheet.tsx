@@ -123,13 +123,19 @@ export default function PatientEnrollSheet({
     };
 
     if (mode === 'new') {
+      if (!tenantUuid) {
+        setError('Tenant context is required to enroll a new patient.');
+        setSaving(false);
+        return;
+      }
       input.newPatient = {
         ...newPatient,
         first_name: newPatient.first_name.trim(),
         last_name: newPatient.last_name.trim(),
         email: newPatient.email.trim(),
         display_code: newPatient.display_code.trim(),
-        ...(tenantUuid ? { tenant_uuid: tenantUuid } : {}),
+        tenant_uuid: tenantUuid,
+        roles: ['patient.self'],
       };
     } else {
       const selected = existingPatients.find((patient) => patient.uuid === existingPatientUuid);
@@ -158,7 +164,8 @@ export default function PatientEnrollSheet({
     mode === 'existing'
       ? Boolean(existingPatientUuid)
       : Boolean(
-        newPatient.first_name.trim()
+        tenantUuid
+          && newPatient.first_name.trim()
           && newPatient.last_name.trim()
           && newPatient.email.trim()
           && newPatient.display_code.trim(),
@@ -226,6 +233,8 @@ export default function PatientEnrollSheet({
               </select>
             ) : (
               <div className="space-y-3">
+                <input type="hidden" name="tenant_uuid" value={tenantUuid ?? ''} readOnly />
+                <input type="hidden" name="roles" value="patient.self" readOnly />
                 <Input
                   className={USER_INPUT_CLASS}
                   placeholder="Display code (e.g. PAT-4821)"

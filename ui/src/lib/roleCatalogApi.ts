@@ -11,9 +11,6 @@ export interface RoleCatalogSnapshot {
   roles: string[];
   role_definitions: RoleDefinition[];
   tenant_types: Record<string, string[]>;
-  /** All tier-1 actors → org-role namespace prefixes (for tier-2 → tier-1 rollup). */
-  assigner_actor_prefixes: Record<string, string[]>;
-  assigner_actors: string[];
 }
 
 export async function fetchRoleCatalog(
@@ -39,19 +36,18 @@ export function roleLabelMap(catalog: RoleCatalogSnapshot | null): Map<string, s
   return new Map(catalog.role_definitions.map((def) => [def.id, def.label]));
 }
 
-/** Pretty tier-2 label for the clinician org role on a registry user (e.g. site.research → Site Research). */
+/** Pretty tier-2 label for the site org role on a registry user (e.g. site.research → Site Research). */
 export function clinicianRoleLabelForUserRoles(
   roles: string[],
   catalog: RoleCatalogSnapshot,
 ): string {
-  const prefixes = catalog.assigner_actor_prefixes?.clinician ?? ['site.'];
   const labels = roleLabelMap(catalog);
   const orderIndex = new Map(catalog.role_definitions.map((def, index) => [def.id, index]));
-  const clinicianRoles = roles
-    .filter(role => prefixes.some(prefix => role.startsWith(prefix)))
+  const siteRoles = roles
+    .filter((role) => role.startsWith('site.'))
     .sort((a, b) => (orderIndex.get(a) ?? 999) - (orderIndex.get(b) ?? 999));
-  const roleId = clinicianRoles[0];
+  const roleId = siteRoles[0];
   return roleId ? (labels.get(roleId) ?? '') : '';
 }
 
-export { cdpClinicalRoleCatalog, roleCatalogForUi } from '@/lib/clinicalRoleCatalog';
+export { cdpClinicalRoleCatalog, defaultRoleForActor, defaultRolesByActor, roleCatalogForUi } from '@/lib/clinicalRoleCatalog';

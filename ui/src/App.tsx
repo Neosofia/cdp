@@ -40,8 +40,12 @@ import {
 } from '@/lib/appNavigation';
 import { useAppRoute } from '@/lib/useAppRoute';
 import { usePatientRegistry } from '@/lib/usePatientRegistry';
-import { upsertCareEpisodeSession } from '@/lib/careEpisodeApi';
-import { ensurePatientDemoContext } from '@/lib/ensurePatientDemoContext';
+import { upsertCareEpisodeRecovery } from '@/lib/careEpisodeApi';
+import {
+  bootstrapDemoWorkspace,
+  profileHasDemoRoles,
+  sessionHasDemoActor,
+} from '@/lib/bootstrapDemoWorkspace';
 import { acceptTermsOfService, updatePatientUser } from '@/lib/userRegistryApi';
 import AppFooter from '@/components/AppFooter';
 import SplashPage from '@/components/SplashPage';
@@ -163,7 +167,7 @@ function jwtTier1Roles(
   const raw = profile?.actors?.length ? profile.actors : decoded['neosofia:actors'] ?? [];
   const allowed =
     catalogActorClasses ??
-    new Set(['operator', 'study', 'clinician', 'patient']);
+    new Set(['operator', 'study', 'clinician', 'patient', 'demo']);
   const seen = new Set<string>();
   const tier1: string[] = [];
   for (const role of raw) {
@@ -232,15 +236,17 @@ export default function App() {
     clinicianListFilters,
   } = route;
   const patientContextSyncRef = useRef<string | null>(null);
-  const patientContextSyncInFlightRef = useRef<string | null>(null);
+  const demoBootstrapAttemptRef = useRef<string | null>(null);
   const [patientDemoSeedVersion, setPatientDemoSeedVersion] = useState(0);
-  const [patientDemoSeeding, setPatientDemoSeeding] = useState(false);
+  const [demoBootstrapRunning, setDemoBootstrapRunning] = useState(false);
+  const [demoBootstrapError, setDemoBootstrapError] = useState<string | null>(null);
+  const [demoReLoginRequired, setDemoReLoginRequired] = useState(false);
   // True only when the active role's capability map is loaded (skip route guards until then).
   const entitlementsReady =
     Boolean(tokenInfo && activeActor && Object.hasOwn(entitlementsByRole, activeActor));
 
   const catalogActorClasses = useMemo(
-    () => new Set(Object.keys(roleCatalog?.assigner_actor_prefixes ?? {})),
+    () => new Set(roleCatalog?.actor_classes ?? []),
     [roleCatalog],
   );
 
@@ -324,7 +330,7 @@ export default function App() {
         (selectedSection || (isDashboard ? dashboardTitleForActor(activeActor) : 'Dashboard')));
   const pageSubtitle =
     clinicianPatient && selectedSection === 'Clinician'
-      ? `${clinicianPatient.displayCode} · ${clinicianPatient.surgery} · Day ${clinicianPatient.daysPostOp} post-op · Session ${clinicianPatient.sessionId}`
+      ? `${clinicianPatient.displayCode} · ${clinicianPatient.surgery} · Day ${clinicianPatient.daysPostOp} post-op · Recovery ${clinicianPatient.recoveryId}`
       : null;
   const showPageHeading = !isClinicianPatientList;
 
@@ -422,59 +428,77 @@ export default function App() {
     }
   };
 
-  const ensurePatientContext = useCallback(
-    async (token: string, actor: string) => {
-      if (actor !== 'patient') {
-        return;
-      }
-      const patientUuid = profile?.uuid || String(tokenInfo?.decoded?.sub ?? '');
-      const tenantUuid =
-        profile?.tenant_uuid ||
-        (typeof tokenInfo?.decoded?.['neosofia:tenant_uuid'] === 'string'
-          ? tokenInfo.decoded['neosofia:tenant_uuid']
-          : '');
-      if (!patientUuid || !tenantUuid) {
-        return;
-      }
+  const runDemoBootstrap = useCallback(async (token: string) => {
+    if (!profile || !sessionHasDemoActor(sessionActors)) {
+      return;
+    }
+    const userUuid = profile.uuid || String(tokenInfo?.decoded?.sub ?? '');
+    const tenantUuid =
+      profile.tenant_uuid ||
+      (typeof tokenInfo?.decoded?.['neosofia:tenant_uuid'] === 'string'
+        ? tokenInfo.decoded['neosofia:tenant_uuid']
+        : '');
+    if (!userUuid || !tenantUuid) {
+      return;
+    }
 
-      const syncKey = `${patientUuid}:${tenantUuid}:${actor}`;
+    const attemptKey = `${userUuid}:${tenantUuid}`;
+    if (demoBootstrapAttemptRef.current === attemptKey) {
+      return;
+    }
+    if (profileHasDemoRoles(profile.roles) && patientContextSyncRef.current === attemptKey) {
+      return;
+    }
 
-      const displayName =
-        `${profile?.first_name ?? ''} ${profile?.last_name ?? ''}`.trim() ||
-        profile?.email ||
-        'Demo Patient';
-      const displayCode = profile?.display_code?.trim() || `PAT-${patientUuid.slice(-6).toUpperCase()}`;
+    demoBootstrapAttemptRef.current = attemptKey;
+    setDemoBootstrapRunning(true);
+    setDemoBootstrapError(null);
 
-      if (patientContextSyncRef.current === syncKey) {
-        return;
+    const displayName =
+      `${profile.first_name ?? ''} ${profile.last_name ?? ''}`.trim() ||
+      profile.email ||
+      'Demo Patient';
+    const displayCode = profile.display_code?.trim() || `PAT-${userUuid.slice(-6).toUpperCase()}`;
+
+    try {
+      const result = await bootstrapDemoWorkspace({
+        token,
+        userUuid,
+        tenantUuid,
+        displayName,
+        displayCode,
+        currentRoles: profile.roles,
+      });
+
+      patientContextSyncRef.current = attemptKey;
+      setPatientDemoSeedVersion((version) => version + 1);
+      setDemoReLoginRequired(result.requiresReLogin);
+
+      const userRes = await fetch(`${USER_API}/api/v1/users/${userUuid}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'X-Active-Actor': 'demo',
+        },
+      });
+      if (userRes.ok) {
+        const registry = (await userRes.json()) as UserRegistryRecord;
+        setProfile((prev) =>
+          prev
+            ? {
+                ...prev,
+                roles: registry.roles,
+                display_code: registry.display_code,
+              }
+            : prev,
+        );
       }
-      if (patientContextSyncInFlightRef.current === syncKey) {
-        return;
-      }
-      patientContextSyncInFlightRef.current = syncKey;
-
-      setPatientDemoSeeding(true);
-      try {
-        const ok = await ensurePatientDemoContext(token, sessionActors, {
-          patientUuid,
-          tenantUuid,
-          displayName,
-          displayCode,
-        });
-
-        if (ok) {
-          patientContextSyncRef.current = syncKey;
-          setPatientDemoSeedVersion((version) => version + 1);
-        }
-      } finally {
-        if (patientContextSyncInFlightRef.current === syncKey) {
-          patientContextSyncInFlightRef.current = null;
-        }
-        setPatientDemoSeeding(false);
-      }
-    },
-    [profile, sessionActors, tokenInfo],
-  );
+    } catch (err) {
+      demoBootstrapAttemptRef.current = null;
+      setDemoBootstrapError(err instanceof Error ? err.message : 'Demo bootstrap failed');
+    } finally {
+      setDemoBootstrapRunning(false);
+    }
+  }, [profile, sessionActors, tokenInfo]);
 
   const handleSessionRoleChange = (choice: SessionRoleChoice) => {
     setActiveActor(choice.actor);
@@ -782,11 +806,14 @@ export default function App() {
   ]);
 
   useEffect(() => {
-    if (!tokenInfo?.raw || activeActor !== 'patient') {
+    if (!tokenInfo?.raw || Boolean(profile && !profile.tos_accepted)) {
       return;
     }
-    void ensurePatientContext(tokenInfo.raw, activeActor);
-  }, [activeActor, ensurePatientContext, tokenInfo]);
+    if (!sessionHasDemoActor(sessionActors)) {
+      return;
+    }
+    void runDemoBootstrap(tokenInfo.raw);
+  }, [tokenInfo, sessionActors, profile, runDemoBootstrap]);
 
   const clearLocalSession = useCallback(() => {
     if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
@@ -829,12 +856,7 @@ export default function App() {
     setTosAccepting(true);
     setTosError(null);
     try {
-      const updated = await acceptTermsOfService(
-        tokenInfo.raw,
-        actorForPatch,
-        userId,
-        activeOrgRole || undefined,
-      );
+      const updated = await acceptTermsOfService(tokenInfo.raw, actorForPatch, userId);
       const nextProfile: UserProfile = {
         ...(profile ?? {
           uuid: userId,
@@ -1196,9 +1218,41 @@ export default function App() {
         </div>
       </header>
 
+      {(demoBootstrapRunning || demoBootstrapError || demoReLoginRequired) && (
+        <div
+          className="fixed top-16 z-40 w-full border-b border-cyan-500/20"
+          style={{ background: 'rgba(5,5,15,0.96)' }}
+        >
+          <div className="max-w-7xl mx-auto px-4 md:px-6 py-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="text-sm text-slate-300">
+              {demoBootstrapRunning && 'Setting up your demo workspace…'}
+              {!demoBootstrapRunning && demoBootstrapError && (
+                <span className="text-red-300">Demo setup failed: {demoBootstrapError}</span>
+              )}
+              {!demoBootstrapRunning && !demoBootstrapError && demoReLoginRequired && (
+                <span>
+                  Demo workspace is ready. Sign out and sign back in so your session roles refresh before using Patient or Clinician views.
+                </span>
+              )}
+            </div>
+            {!demoBootstrapRunning && demoReLoginRequired && !demoBootstrapError && (
+              <Button
+                type="button"
+                onClick={() => beginLogin()}
+                className="shrink-0 rounded-lg text-xs font-bold uppercase tracking-wider"
+                style={{ background: 'linear-gradient(135deg, #22d3ee 0%, #a855f7 100%)' }}
+              >
+                Sign in again
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+
       <main
         className={cn(
-          'relative z-10 flex-1 min-h-0 flex flex-col max-w-7xl mx-auto w-full px-4 md:px-8 pt-20',
+          'relative z-10 flex-1 min-h-0 flex flex-col max-w-7xl mx-auto w-full px-4 md:px-8',
+          demoBootstrapRunning || demoBootstrapError || demoReLoginRequired ? 'pt-32' : 'pt-20',
           fillViewport ? 'overflow-hidden pb-4' : 'overflow-y-auto pb-8',
         )}
       >
@@ -1366,7 +1420,6 @@ export default function App() {
                 <UserManagement
                   token={tokenInfo.raw}
                   activeActor={activeActor}
-                  activeOrgRole={activeOrgRole}
                   sessionActors={sessionActors}
                   roleCatalog={roleCatalog}
                   profileUuid={profile?.uuid}
@@ -1379,6 +1432,7 @@ export default function App() {
                       ? tokenInfo.decoded['neosofia:tenant_uuid']
                       : null)
                   }
+                  entitlements={activeRoleEntitlements}
                 />
               </div>
             ) : selectedSection === 'Patient' && selectedAction === 'Chat' ? (
@@ -1421,6 +1475,7 @@ export default function App() {
                 selfUuid={profile?.uuid}
                 loading={patientsLoading}
                 error={patientsError}
+                onRetry={reload}
                 selectedPatientUuid={clinicianPatientUuid}
                 listFilters={clinicianListFilters}
                 onListFiltersChange={(filters) => navigateClinicianPatients(null, filters)}
@@ -1446,14 +1501,14 @@ export default function App() {
                     throw new Error(`User registry: ${detail}`);
                   }
                   try {
-                    await upsertCareEpisodeSession(tokenInfo.raw, activeActor, {
+                    await upsertCareEpisodeRecovery(tokenInfo.raw, activeActor, {
                       patient_uuid: input.patient_uuid,
                       tenant_uuid: tenantUuid,
                       display_code: input.display_code,
                       display_name: `${input.first_name} ${input.last_name}`.trim(),
                       surgery: input.surgery,
                       procedure_date: input.procedure_date,
-                      session_id: input.session_id,
+                      recovery_id: input.recovery_id,
                       risk_level: input.risk_level,
                     });
                   } catch (err) {
@@ -1514,11 +1569,11 @@ export default function App() {
                   patientToken={tokenInfo.raw}
                   patientUuid={profile?.uuid}
                   patientDemoSeedVersion={patientDemoSeedVersion}
-                  patientDemoSeeding={patientDemoSeeding}
+                  patientDemoSeeding={demoBootstrapRunning}
                   operatorToken={tokenInfo.raw}
-                  activeOrgRole={activeOrgRole}
                   clinicianPatients={registryPatients}
                   clinicianError={patientsError}
+                  onClinicianRetry={reload}
                   onPatientGoToProfile={() => navigatePatient('Profile')}
                   onClinicianOpenPatients={navigateClinicianPatients}
                   onOperatorOpenUsers={() => handleMenuAction('Admin', 'Users')}

@@ -27,6 +27,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { cn } from '@/lib/utils';
 import PatientRecordsPanel from '@/components/PatientRecordsPanel';
 import PatientEnrollSheet from '@/components/PatientEnrollSheet';
+import RiskSummaryHint from '@/components/RiskSummaryHint';
 import ProcedurePicker from '@/components/ProcedurePicker';
 import SpawnDatePicker from '@/components/SpawnDatePicker';
 import { procedureById, procedureIdForSurgeryName } from '@/lib/procedureCatalog';
@@ -58,14 +59,14 @@ import {
 import {
   applyClinicianListFilters,
   DEFAULT_CLINICIAN_LIST_FILTERS,
-  filterPatientSessions,
+  filterPatientRecoveries,
   formatRelativeActivity,
-  paginatePatientSessions,
+  paginatePatientRecoveries,
   PATIENT_LIST_PAGE_SIZE,
-  riskForSession,
-  sortPatientSessionsByRiskAndRecency,
+  riskForRecovery,
+  sortPatientRecoveriesByRiskAndRecency,
   registryUsersNotYetEnrolled,
-  type ActivePatientSession,
+  type ActivePatientRecovery,
   type ClinicianActivityFilter,
   type ClinicianListFilters,
   type ClinicianRiskFilter,
@@ -80,7 +81,7 @@ const CARD_STYLE = {
 };
 
 interface Props {
-  patients: ActivePatientSession[];
+  patients: ActivePatientRecovery[];
   registryUsers: RegistryPatientUser[];
   token: string;
   activeActor: string;
@@ -90,6 +91,7 @@ interface Props {
   selfUuid?: string | null;
   loading?: boolean;
   error?: string | null;
+  onRetry?: () => void;
   listFilters?: ClinicianListFilters;
   onListFiltersChange?: (filters: ClinicianListFilters) => void;
   selectedPatientUuid?: string | null;
@@ -108,7 +110,7 @@ export interface EditEnrollmentInput {
   display_name: string;
   surgery: string;
   procedure_date: string;
-  session_id: string;
+  recovery_id: string;
   risk_level: string;
   tenant_uuid: string;
 }
@@ -239,20 +241,22 @@ function PatientList({
   selfUuid,
   loading,
   error,
+  onRetry,
   listFilters,
   onListFiltersChange,
   onSelect,
   onEdit,
   onEnroll,
 }: {
-  patients: ActivePatientSession[];
+  patients: ActivePatientRecovery[];
   selfUuid?: string | null;
   loading?: boolean;
   error?: string | null;
+  onRetry?: () => void;
   listFilters: ClinicianListFilters;
   onListFiltersChange: (filters: ClinicianListFilters) => void;
   onSelect: (uuid: string) => void;
-  onEdit: (patient: ActivePatientSession) => void;
+  onEdit: (patient: ActivePatientRecovery) => void;
   onEnroll: () => void;
 }) {
   const [search, setSearch] = useState('');
@@ -275,12 +279,12 @@ function PatientList({
 
   const filtered = useMemo(() => {
     const byFilter = applyClinicianListFilters(patients, listFilters, nowMs);
-    const searched = filterPatientSessions(byFilter, debouncedSearch);
-    return sortPatientSessionsByRiskAndRecency(searched);
+    const searched = filterPatientRecoveries(byFilter, debouncedSearch);
+    return sortPatientRecoveriesByRiskAndRecency(searched);
   }, [patients, listFilters, nowMs, debouncedSearch]);
 
   const { items: pagePatients, total, totalPages, page: safePage } = useMemo(
-    () => paginatePatientSessions(filtered, page, PATIENT_LIST_PAGE_SIZE),
+    () => paginatePatientRecoveries(filtered, page, PATIENT_LIST_PAGE_SIZE),
     [filtered, page],
   );
 
@@ -335,9 +339,21 @@ function PatientList({
           </div>
         </div>
         {error ? (
-          <p className="px-6 py-3 text-xs text-amber-400/90 border-b shrink-0" style={{ borderColor: 'rgba(34,211,238,0.08)' }}>
-            Could not load patients. {error}
-          </p>
+          <div
+            className="px-6 py-3 text-xs text-amber-400/90 border-b shrink-0 flex items-center justify-between gap-3"
+            style={{ borderColor: 'rgba(34,211,238,0.08)' }}
+          >
+            <span>Could not load patients. {error}</span>
+            {onRetry ? (
+              <button
+                type="button"
+                onClick={onRetry}
+                className="font-semibold uppercase tracking-wide text-cyan-300 hover:text-cyan-200"
+              >
+                Retry
+              </button>
+            ) : null}
+          </div>
         ) : null}
         {loading ? (
           <p className="px-6 py-4 text-sm text-slate-500">Loading patients from user service…</p>
@@ -386,18 +402,19 @@ function PatientList({
                   <SignalIcon className="h-4 w-4 shrink-0 text-green-400" />
                   <span className="truncate">{formatRelativeActivity(p.lastChatAt, nowMs)}</span>
                 </div>
-                <div className="w-[5.5rem] shrink-0 flex justify-center">
+                <div className="w-[6.5rem] shrink-0 flex items-center justify-center gap-1">
                   <Badge
                     variant="outline"
                     className="text-[10px] whitespace-nowrap"
-                    style={riskForSession(p) === 'High'
+                    style={riskForRecovery(p) === 'High'
                       ? { borderColor: 'rgba(239,68,68,0.4)', color: '#ef4444', background: 'rgba(239,68,68,0.08)' }
-                      : riskForSession(p) === 'Medium'
+                      : riskForRecovery(p) === 'Medium'
                         ? { borderColor: 'rgba(234,179,8,0.4)', color: '#eab308', background: 'rgba(234,179,8,0.08)' }
                         : { borderColor: 'rgba(34,197,94,0.4)', color: '#22c55e', background: 'rgba(34,197,94,0.08)' }}
                   >
-                    {riskForSession(p)} risk
+                    {riskForRecovery(p)} risk
                   </Badge>
+                  <RiskSummaryHint summary={p.riskSummary} />
                 </div>
                 <div className="w-8 shrink-0 flex justify-end">
                   <Button
@@ -473,7 +490,7 @@ function TranscriptPanel({
   composeError,
   sending,
 }: {
-  patient: ActivePatientSession;
+  patient: ActivePatientRecovery;
   messages: PatientTranscriptLine[];
   interactions: ChatInteraction[];
   activeInteractionUuid: string | null;
@@ -699,14 +716,14 @@ function SessionDetail({
   onEdit,
   saveNotice,
 }: {
-  patient: ActivePatientSession;
+  patient: ActivePatientRecovery;
   token: string;
   activeActor: string;
   clinicianDisplayName?: string;
   clinicianRoleLabel?: string;
   clinicianUuid?: string | null;
   onBack: () => void;
-  onEdit: (patient: ActivePatientSession) => void;
+  onEdit: (patient: ActivePatientRecovery) => void;
   saveNotice?: string | null;
 }) {
   const [interactions, setInteractions] = useState<ChatInteraction[]>([]);
@@ -944,6 +961,7 @@ export default function ClinicianActivePatients({
   selfUuid,
   loading,
   error,
+  onRetry,
   listFilters,
   onListFiltersChange,
   selectedPatientUuid,
@@ -954,14 +972,14 @@ export default function ClinicianActivePatients({
 }: Props) {
   const [enrollOpen, setEnrollOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
-  const [editingPatient, setEditingPatient] = useState<ActivePatientSession | null>(null);
+  const [editingPatient, setEditingPatient] = useState<ActivePatientRecovery | null>(null);
   const [editDisplayCode, setEditDisplayCode] = useState('');
   const [editFirstName, setEditFirstName] = useState('');
   const [editLastName, setEditLastName] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [editSelectedProcedureId, setEditSelectedProcedureId] = useState<string | null>(null);
   const [editProcedureDate, setEditProcedureDate] = useState('');
-  const [editSessionId, setEditSessionId] = useState('');
+  const [editRecoveryId, setEditRecoveryId] = useState('');
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
   const [saveNotice, setSaveNotice] = useState<string | null>(null);
@@ -977,7 +995,7 @@ export default function ClinicianActivePatients({
     [registryUsers, patients],
   );
 
-  const openEditSheet = (patientToEdit: ActivePatientSession) => {
+  const openEditSheet = (patientToEdit: ActivePatientRecovery) => {
     const matchedUser = registryUsers.find((user) => user.uuid === patientToEdit.patientUuid);
     const [fallbackFirstName = '', ...rest] = patientToEdit.displayName.trim().split(/\s+/);
     const fallbackLastName = rest.join(' ');
@@ -988,7 +1006,7 @@ export default function ClinicianActivePatients({
     setEditEmail((matchedUser?.email ?? '').trim());
     setEditSelectedProcedureId(procedureIdForSurgeryName(patientToEdit.surgery ?? ''));
     setEditProcedureDate(patientToEdit.procedureDate ?? new Date().toISOString().slice(0, 10));
-    setEditSessionId(patientToEdit.sessionId ?? '');
+    setEditRecoveryId(patientToEdit.recoveryId ?? '');
     setEditError(null);
     setEditOpen(true);
   };
@@ -1004,8 +1022,8 @@ export default function ClinicianActivePatients({
   const submitEdit = async () => {
     if (!editingPatient) return;
     const procedureEntry = editSelectedProcedureId ? procedureById(editSelectedProcedureId) : undefined;
-    if (!editDisplayCode.trim() || !editFirstName.trim() || !editLastName.trim() || !editSessionId.trim() || !editProcedureDate.trim()) {
-      setEditError('First name, last name, display code, procedure date, and session ID are required.');
+    if (!editDisplayCode.trim() || !editFirstName.trim() || !editLastName.trim() || !editRecoveryId.trim() || !editProcedureDate.trim()) {
+      setEditError('First name, last name, display code, procedure date, and recovery ID are required.');
       return;
     }
     if (!procedureEntry) {
@@ -1029,7 +1047,7 @@ export default function ClinicianActivePatients({
         display_name: `${editFirstName.trim()} ${editLastName.trim()}`.trim(),
         surgery: procedureEntry.name,
         procedure_date: editProcedureDate.trim(),
-        session_id: editSessionId.trim(),
+        recovery_id: editRecoveryId.trim(),
         risk_level: editingPatient.riskLevel.toLowerCase(),
         tenant_uuid: matchedUser?.tenant_uuid ?? '',
       });
@@ -1064,6 +1082,7 @@ export default function ClinicianActivePatients({
           selfUuid={selfUuid}
           loading={loading}
           error={error}
+          onRetry={onRetry}
           listFilters={listFilters ?? DEFAULT_CLINICIAN_LIST_FILTERS}
           onListFiltersChange={onListFiltersChange ?? (() => {})}
           onSelect={onSelectPatient}
@@ -1113,8 +1132,8 @@ export default function ClinicianActivePatients({
               <SpawnDatePicker value={editProcedureDate} onChange={setEditProcedureDate} />
             </div>
             <div>
-              <label className={USER_FIELD_LABEL_CLASS}>Session ID</label>
-              <Input value={editSessionId ?? ''} onChange={(event) => setEditSessionId(event.target.value)} className={USER_INPUT_CLASS} />
+              <label className={USER_FIELD_LABEL_CLASS}>Recovery ID</label>
+              <Input value={editRecoveryId ?? ''} onChange={(event) => setEditRecoveryId(event.target.value)} className={USER_INPUT_CLASS} />
             </div>
             {editError ? <p className="text-sm text-red-400">{editError}</p> : null}
             <div className="flex items-center gap-3 pt-2">

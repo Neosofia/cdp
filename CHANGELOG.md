@@ -3,6 +3,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Documentation: **Greenfield Step 0** for manual tier-2 role assignment on new environments. Login provision never auto-assigns tier-2 roles; CDP **`default_roles_by_actor`** is UI-only ([roles/README.md](roles/README.md)).
+
 ## [2026.06.11] - 2026-06-11
 
 **Pinned services:** chat **v0.4.0**; other backend pins unchanged from **2026.06.10**.
@@ -51,7 +55,7 @@
 ### Fixed
 
 - Login-time User registry provisioning on cloud stacks when Authentication pointed at an HTTP internal User URL (Talisman redirect); operators must register an HTTPS `base_url` for `user`.
-- Default tier-2 roles on first login when the user service loads the CDP role catalog overlay from **cdp-user-policies v0.2.1** (`ROLE_CATALOG_OVERLAY=/app/policies/cdp-overlay.json`).
+- Role catalog overlay from **cdp-user-policies v0.2.1** (`ROLE_CATALOG_OVERLAY=/app/policies/cdp-overlay.json`) supplies UI labels and Cedar validation; it does **not** auto-assign tier-2 roles on login (see INSTALLATION_PLAN Step 0).
 
 ## [2026.06.05] - 2026-06-05
 
@@ -59,7 +63,7 @@
 
 ### Added
 
-- Role catalog **default_roles_by_actor** maps each tier-1 actor (patient, clinician, study, operator) to a default tier-2 org role for demo and first-login provisioning.
+- Role catalog **default_roles_by_actor** maps each tier-1 actor (patient, clinician, study, operator) to a default tier-2 org role for **UI enroll forms and demo seeds** (not applied on Authentication login provision).
 - Patient dashboard loads appointments, inbox, and records from care-episode when switching to the **patient** role.
 
 ### Changed

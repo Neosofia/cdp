@@ -1,5 +1,6 @@
-# CDP User service Cedar overrides — policy-only image for the user service Dockerfile.
-# Same pattern as policies/Dockerfile (cdp-ui-policies) and sql-template → authentication.
+# CDP User service bundle — role-catalog overlay for the user service image.
+# Cedar policies live in the user repo (user/policies/policy.cedar); this image ships
+# only the CDP role-catalog overlay consumed at ROLE_CATALOG_OVERLAY.
 #
 # Build from the CDP repo root:
 #   docker build -f policies/service-overrides/user/Dockerfile \
@@ -9,8 +10,6 @@
 
 FROM scratch
 
-COPY policies/service-overrides/user/ /policies/
-# Clinical role catalog for User service login-time default_roles_by_actor (ADR-0014).
 COPY roles/user-catalog.overlay.json /policies/cdp-overlay.json
 
 LABEL org.opencontainers.image.title="cdp-user-policies"
