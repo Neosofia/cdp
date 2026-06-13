@@ -62,6 +62,15 @@ export function needsDemoBootstrap(sessionActors: string[], roles: string[] | un
   return sessionHasDemoActor(sessionActors) && !profileHasDemoRoles(roles);
 }
 
+/** Add demo tier-2 roles without removing existing slugs (e.g. platform.admin). */
+export function mergeDemoTier2Roles(currentRoles: string[] | undefined): string[] {
+  const merged = new Set(currentRoles ?? []);
+  for (const role of DEMO_TIER2_ROLES) {
+    merged.add(role);
+  }
+  return [...merged];
+}
+
 async function resolveTemplatePatientUuid(
   token: string,
   tenantUuid: string,
@@ -86,11 +95,15 @@ async function resolveTemplatePatientUuid(
   return match.uuid;
 }
 
-async function assignDemoRoles(token: string, userUuid: string): Promise<RegistryUser> {
+async function assignDemoRoles(
+  token: string,
+  userUuid: string,
+  currentRoles: string[] | undefined,
+): Promise<RegistryUser> {
   const res = await fetch(`${USER_API}/api/v1/users/${userUuid}`, {
     method: 'PATCH',
     headers: headers(token, DEMO_ACTOR),
-    body: JSON.stringify(buildUserUpdatePayload({ roles: [...DEMO_TIER2_ROLES] })),
+    body: JSON.stringify(buildUserUpdatePayload({ roles: mergeDemoTier2Roles(currentRoles) })),
   });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
@@ -201,7 +214,7 @@ export async function bootstrapDemoWorkspace(
   let rolesAssigned = profileHasDemoRoles(currentRoles);
   let rolesWerePatched = false;
   if (!rolesAssigned) {
-    await assignDemoRoles(token, userUuid);
+    await assignDemoRoles(token, userUuid, currentRoles);
     rolesAssigned = true;
     rolesWerePatched = true;
   }
