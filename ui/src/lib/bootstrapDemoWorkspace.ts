@@ -199,16 +199,22 @@ export async function bootstrapDemoWorkspace(
   const { token, userUuid, tenantUuid, displayName, displayCode, currentRoles } = input;
 
   let rolesAssigned = profileHasDemoRoles(currentRoles);
+  let rolesWerePatched = false;
   if (!rolesAssigned) {
     await assignDemoRoles(token, userUuid);
     rolesAssigned = true;
+    rolesWerePatched = true;
   }
 
   const existing = await listCareEpisodeRecoveries(token, 'demo', tenantUuid, {
     includeTenantFilter: true,
   });
   if (existing.some((row) => row.user_uuid === userUuid)) {
-    return { rolesAssigned, careEpisodeSeeded: false, requiresReLogin: true };
+    return {
+      rolesAssigned,
+      careEpisodeSeeded: false,
+      requiresReLogin: rolesWerePatched,
+    };
   }
 
   const templateUuid = await resolveTemplatePatientUuid(token, tenantUuid);

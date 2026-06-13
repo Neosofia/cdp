@@ -59,6 +59,8 @@ import {
   AUTH_BASE,
   LOGOUT_FLAG,
   beginLogin,
+  beginReLogin,
+  consumePendingRelogin,
   clearAuthCallbackQuery,
   hasLoggedOutLocally,
   isAuthCallbackLanding,
@@ -832,6 +834,13 @@ export default function App() {
     sessionStorage.clear();
   }, []);
 
+  const handleSignInAgain = () => {
+    setDemoReLoginRequired(false);
+    demoBootstrapAttemptRef.current = null;
+    clearLocalSession();
+    beginReLogin();
+  };
+
   const handleLogout = async () => {
     clearLocalSession();
     localStorage.setItem(LOGOUT_FLAG, '1');
@@ -900,6 +909,11 @@ export default function App() {
       const fromAuthCallback = isAuthCallbackLanding();
       if (fromAuthCallback) {
         clearAuthCallbackQuery();
+      }
+
+      if (consumePendingRelogin()) {
+        beginLogin();
+        return;
       }
 
       // Keep LOGOUT_FLAG until beginLogin() — prevents silent re-auth on reload.
@@ -1238,7 +1252,7 @@ export default function App() {
             {!demoBootstrapRunning && demoReLoginRequired && !demoBootstrapError && (
               <Button
                 type="button"
-                onClick={() => beginLogin()}
+                onClick={handleSignInAgain}
                 className="shrink-0 rounded-lg text-xs font-bold uppercase tracking-wider"
                 style={{ background: 'linear-gradient(135deg, #22d3ee 0%, #a855f7 100%)' }}
               >

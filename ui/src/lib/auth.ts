@@ -2,6 +2,8 @@ import { notifyAppLocationChanged } from '@/lib/appNavigation';
 
 export const AUTH_BASE = import.meta.env.VITE_AUTH_BASE_URL ?? 'http://localhost:8014';
 export const LOGOUT_FLAG = 'cdp-ui-just-logged-out';
+export const LOCAL_AUTH_KEY = 'cdp-ui-auth';
+const PENDING_RELOGIN_KEY = 'cdp-ui-pending-relogin';
 
 /** True until the user explicitly starts login (survives reloads). */
 export function hasLoggedOutLocally(): boolean {
@@ -11,6 +13,23 @@ export function hasLoggedOutLocally(): boolean {
 export function beginLogin() {
   localStorage.removeItem(LOGOUT_FLAG);
   window.location.href = `${AUTH_BASE}/login`;
+}
+
+/** Revoke IdP session, then start a fresh login so JWT roles reprovision from the user registry. */
+export function beginReLogin() {
+  localStorage.removeItem(LOCAL_AUTH_KEY);
+  localStorage.removeItem(LOGOUT_FLAG);
+  sessionStorage.setItem(PENDING_RELOGIN_KEY, '1');
+  window.location.href = `${AUTH_BASE}/logout`;
+}
+
+/** After logout redirect, auto-chain to /login once. */
+export function consumePendingRelogin(): boolean {
+  if (sessionStorage.getItem(PENDING_RELOGIN_KEY) !== '1') {
+    return false;
+  }
+  sessionStorage.removeItem(PENDING_RELOGIN_KEY);
+  return true;
 }
 
 export function isAuthCallbackLanding(): boolean {
