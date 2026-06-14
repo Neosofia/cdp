@@ -46,6 +46,9 @@ export function roleCatalogForUi(remote: RoleCatalogSnapshot | null): RoleCatalo
     ...clinical,
     roles: remote.roles?.length ? remote.roles : clinical.roles,
     actor_classes: remote.actor_classes?.length ? remote.actor_classes : clinical.actor_classes,
+    tenant_types: Object.keys(remote.tenant_types ?? {}).length
+      ? remote.tenant_types
+      : clinical.tenant_types,
   };
 }
 

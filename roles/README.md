@@ -1,6 +1,6 @@
 # CDP clinical role catalog
 
-[`user-catalog.overlay.json`](user-catalog.overlay.json) is the **clinical platform vocabulary**: human-readable org-role labels, tenant types, and job-function ids for pickers.
+[`user-catalog.overlay.json`](user-catalog.overlay.json) is the **clinical platform vocabulary**: human-readable org-role labels, assignable slugs per tenant type (full tier-2 slugs), and job-function ids for pickers.
 
 ## Authority by consumer
 
