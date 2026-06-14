@@ -1,5 +1,5 @@
 # CDP User service bundle — role-catalog overlay for the user service image.
-# Cedar policies live in the user repo (user/policies/policy.cedar); this image ships
+# Cedar policies live in the user repo (user/policies/*.cedar); this image ships
 # only the CDP role-catalog overlay consumed at ROLE_CATALOG_OVERLAY.
 #
 # Build from the CDP repo root:

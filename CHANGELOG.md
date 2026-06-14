@@ -1,11 +1,15 @@
 # Changelog
 
+## [2026.06.14] - 2026-06-14
 
-## [Unreleased]
+**Pinned services:** authentication **v0.37.0**; user **v0.8.0**; chat **v0.6.0**; care-episode **v0.7.0**; capabilities **v0.7.0**; **cdp-user-policies v0.3.0**.
 
 ### Changed
 
-- Documentation: **Greenfield Step 0** for manual tier-2 role assignment on new environments. Login provision never auto-assigns tier-2 roles; CDP **`default_roles_by_actor`** is UI-only ([roles/README.md](roles/README.md)).
+- Platform stack pins **authorization-in-the-middle/v0.7.1** across JWT-consuming services.
+- Role catalog overlay uses decoupled tenant-type assignment index (full role slugs per org kind).
+- `docker-compose.dev.yml` pins the full backend stack on new GHCR release images.
+- Documentation: **Greenfield Step 0** for manual tier-2 role assignment on new environments ([roles/README.md](roles/README.md)).
 
 ## [2026.06.11] - 2026-06-11
 

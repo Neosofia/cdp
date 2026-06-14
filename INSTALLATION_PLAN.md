@@ -34,6 +34,33 @@ Run once per new environment **before** platform admin UI or `GET /api/v1/users`
 
 ---
 
+## CDP UI 2026.06.14 (authorization middleware v0.7.1)
+
+**Build:** CDP UI **2026.06.14**; **authentication v0.37.0**; **user v0.8.0**; **chat v0.6.0**; **care-episode v0.7.0**; **capabilities v0.7.0**; **cdp-user-policies v0.3.0**.
+
+**Prerequisites:**
+
+- Publish **cdp-user-policies/v0.3.0** before rebuilding **user v0.8.0**.
+- Deploy all five backend services; migrations to head on authentication, user, chat, and care-episode databases.
+
+**Deploy:**
+
+1. Pull `ghcr.io/neosofia/authentication:v0.37.0`, `ghcr.io/neosofia/user:v0.8.0`, `ghcr.io/neosofia/chat:v0.6.0`, `ghcr.io/neosofia/care-episode:v0.7.0`, and `ghcr.io/neosofia/capabilities:v0.7.0`.
+2. Deploy CDP UI **2026.06.14** after backend images are live.
+
+**Post-deploy verification:**
+
+1. `GET /health` on each service reports the pinned semver (**0.37.0**, **0.8.0**, **0.6.0**, **0.7.0**, **0.7.0**).
+2. Platform operator can list registered users and care episodes without **403** when the active session role is entitled.
+3. Patient **Care assistant** and clinician patient chat flows work end-to-end.
+
+**Evidence:**
+
+- Platform health dashboard all services healthy.
+- `GET /health` JSON version fields for authentication, user, chat, care-episode, and capabilities.
+
+---
+
 ## CDP UI 2026.06.11 (chat v0.4.0 client)
 
 **Build:** CDP UI **2026.06.11**; compose pin **chat v0.4.0**
