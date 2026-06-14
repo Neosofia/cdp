@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# Copy User service Cedar policies for local inspection / volume mounts.
-# Production: user image COPY policies/ from user repo; cdp-policies adds user/role-catalog.json.
+# Copy merged User service Cedar policies for local inspection / volume mounts.
+# Production: user image COPY base policies/ from user repo; product bundle adds cedar/ + role-catalog.json.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 USER_POLICIES="${USER_POLICIES:-$ROOT/../user/policies}"
+PRODUCT_CEDAR="${PRODUCT_CEDAR:-$ROOT/policies/user/cedar}"
 OUT="${OUT:-$ROOT/policies-packed/user}"
 
 if [[ ! -d "$USER_POLICIES" ]]; then
@@ -19,6 +20,11 @@ shopt -s nullglob
 for file in "$USER_POLICIES"/*.cedar; do
   cp "$file" "$OUT/"
 done
+if [[ -d "$PRODUCT_CEDAR" ]]; then
+  for file in "$PRODUCT_CEDAR"/*.cedar; do
+    cp "$file" "$OUT/"
+  done
+fi
 shopt -u nullglob
 
 count="$(find "$OUT" -maxdepth 1 -name '*.cedar' | wc -l | tr -d ' ')"

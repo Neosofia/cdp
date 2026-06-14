@@ -1,7 +1,7 @@
 {
   "tenant_types": {
     "platform": {
-      "roles": ["platform.admin", "platform.audit"]
+      "roles": ["platform.admin", "platform.audit", "patient.self", "site.clinical"]
     },
     "cro": {
       "roles": [

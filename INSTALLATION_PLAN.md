@@ -34,6 +34,29 @@ Run once per new environment **before** platform admin UI or `GET /api/v1/users`
 
 ---
 
+## cdp-policies v0.2.0 / user v0.8.1
+
+**Build:** **cdp-policies v0.2.0**; **user v0.8.1** (other backend pins unchanged from **2026.06.14**).
+
+**Prerequisites:**
+
+- Publish **cdp-policies/v0.2.0** (adds `policies/user/cedar/` — platform, site, sponsor Cedar moved from user repo).
+- Rebuild **user** with `USER_PRODUCT_POLICIES_IMAGE=ghcr.io/neosofia/cdp-policies:v0.2.0` (Dockerfile default).
+
+**Deploy:**
+
+1. Pull `ghcr.io/neosofia/cdp-policies:v0.2.0` (capabilities unchanged on v0.1.0 unless repinned).
+2. Deploy **user v0.8.1**.
+
+**Post-deploy verification:**
+
+1. `GET /health` on user reports **0.8.1**.
+2. Platform admin list/patch, site clinician roster, and sponsor clinical-ops list authorize as before.
+
+**Evidence:** Health version **0.8.1**; authorized user API responses for platform, site, and sponsor principals.
+
+---
+
 ## CDP UI 2026.06.14 (authorization middleware v0.7.1)
 
 **Build:** CDP UI **2026.06.14**; **authentication v0.37.0**; **user v0.8.0**; **chat v0.6.0**; **care-episode v0.7.0**; **capabilities v0.7.0**; **cdp-policies v0.1.0**.

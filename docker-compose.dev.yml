@@ -120,6 +120,7 @@ services:
       - ./.user.env
     volumes:
       - ./policies/user/role-catalog.json:/app/policies/role-catalog.json:ro
+      - ./policies/user/cedar:/app/policies/cdp:ro
     command: ["python", "-m", "alembic", "upgrade", "head"]
     depends_on:
       user-postgres:
@@ -133,6 +134,7 @@ services:
       - ./.user.env
     volumes:
       - ./policies/user/role-catalog.json:/app/policies/role-catalog.json:ro
+      - ./policies/user/cedar:/app/policies/cdp:ro
     ports:
       - "8018:8018"
     depends_on:

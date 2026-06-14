@@ -2,6 +2,15 @@
 
 ## [2026.06.14] - 2026-06-14
 
+**Pinned services:** authentication **v0.37.0**; user **v0.8.1**; chat **v0.6.0**; care-episode **v0.7.0**; capabilities **v0.7.0**; **cdp-policies v0.2.0**.
+
+### Changed
+
+- **cdp-policies v0.2.0:** CDP product user Cedar (`platform.admin`, `site.clinical`, `sponsor.clinical-ops`, `demo`) moved from user repo to `policies/user/cedar/`. Demo platform tenant roles added to `role-catalog.json`.
+- User service build arg **`USER_PRODUCT_POLICIES_IMAGE`** (default `cdp-policies:v0.2.0`); copies product Cedar and role catalog at build. Non-CDP products can override with their own bundle image.
+
+## [2026.06.14-policies-v0.1] - 2026-06-14
+
 **Pinned services:** authentication **v0.37.0**; user **v0.8.0**; chat **v0.6.0**; care-episode **v0.7.0**; capabilities **v0.7.0**; **cdp-policies v0.1.0**.
 
 ### Changed

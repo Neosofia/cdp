@@ -62,15 +62,19 @@ See [ADR 0012: UI Capabilities Control Plane](architecture/adrs/0012-ui-capabili
 
 ## User service policy bundle
 
-CDP owns the user role catalog under `policies/user/role-catalog.json`. The **user** service loads Cedar from its own repo at `/app/policies`; CDP adds product vocabulary at image build time. CDP **never** builds, wraps, or deploys the user service image.
+CDP owns product user policies under `policies/user/` (`role-catalog.json` and `cedar/*.cedar`). The **user** service loads generic Cedar from its own repo at `/app/policies`; CDP adds product vocabulary and tenant rules at image build time. CDP **never** builds, wraps, or deploys the user service image.
 
 **Production (same `cdp-policies` image as capabilities):**
 
 1. Publish **`cdp-policies/vX.Y.Z`** (same tag as capabilities).
-2. User service Dockerfile pins that tag and copies `/policies/user/role-catalog.json` → `/app/policies/role-catalog.json` (`ROLE_CATALOG_OVERLAY`).
+2. User service Dockerfile pins that tag via `USER_PRODUCT_POLICIES_IMAGE` (default) and copies:
+   - `/policies/user/role-catalog.json` → `/app/policies/role-catalog.json` (`ROLE_CATALOG_OVERLAY`)
+   - `/policies/user/cedar/` → `/app/policies/`
 3. Tag `user/v*` from [`Neosofia/user`](https://github.com/Neosofia/user) and deploy **`ghcr.io/neosofia/user`** for CDP stacks.
 
-**Local development:** `docker-compose.local.yml` builds `cdp-policies:local` and passes it to capabilities and user image builds. Optional: `./scripts/repack_user_service_policies.sh` writes `policies-packed/user/` for inspection.
+Non-CDP deployments: publish a bundle with the same `/policies/user/` layout and pass `USER_PRODUCT_POLICIES_IMAGE` at user image build.
+
+**Local development:** `docker-compose.local.yml` builds `cdp-policies:local` and passes it to capabilities and user image builds. Volume-mount `./policies/user/cedar` over `/app/policies/` cedar files when overriding base policies from the user repo. Optional: `./scripts/repack_user_service_policies.sh` writes `policies-packed/user/` for inspection.
 
 ## Public cloud staging
 
@@ -85,7 +89,7 @@ That document explains why local JWKS (`http://authentication:8014/...` in `.cap
 | Component | Notes |
 |-----------|-------|
 | **UI policy bundle** | `cdp-policies` GHCR image pinned in capabilities Dockerfile (`/policies/capabilities`) |
-| **User service** | Deploy `ghcr.io/neosofia/user:vX.Y.Z` (Dockerfile pins `cdp-policies` for role catalog); Railway root = **user** repo |
+| **User service** | Deploy `ghcr.io/neosofia/user:vX.Y.Z` (Dockerfile pins `USER_PRODUCT_POLICIES_IMAGE` for role catalog and product Cedar); Railway root = **user** repo |
 | **UI build args** | `VITE_AUTH_BASE_URL`, `VITE_AUTH_API_URL`, `VITE_CAPABILITIES_API_URL`, `VITE_USER_API_URL`, `VITE_CHAT_API_URL`, `VITE_CARE_EPISODE_API_URL` — public HTTPS URLs (no trailing slash) |
 | **Capabilities CORS** | `FRONTEND_URL` = public CDP UI origin |
 | **Authentication** | `JWT_WEB_AUDIENCE` must include `capabilities`, `user`, `chat`, and `care-episode`; explicit `PORT` for private JWKS refs |

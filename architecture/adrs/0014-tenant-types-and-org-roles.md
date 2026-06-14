@@ -16,11 +16,11 @@ Enterprise customers organise by **org kind** (platform, CRO, sponsor, site, SMO
 
 3. **User registry is the source of truth for `roles[]`.** Authentication mirrors `roles[]` into `users.roles` for JWT embedding only. Token mint reads the Authentication database and does not call User on the critical path. The mirror updates on best-effort provision after login.
 
-4. **Cedar is the source of truth for authorization.** Service and CDP UI policy files define who may do what. The role catalog (`policies/user/role-catalog.json` for CDP; `user/roles/default.json` for the platform base) validates assignments and powers pickers; it does not generate Cedar and does not hold a parallel permission matrix.
+4. **Cedar is the source of truth for authorization.** Service and CDP UI policy files define who may do what. The role catalog (`policies/user/role-catalog.json` for CDP) validates assignments and powers pickers; it does not generate Cedar and does not hold a parallel permission matrix.
 
 5. **Job functions stay in the catalog for UX only.** Fine-grained titles (for example `clinical.function.staff-nurse`) are not Cedar dimensions. Future job-level scope uses overrides on roles, not new policy axes.
 
-6. **v1 tenant types and role enums** live in the User service catalog with CDP labels in `policies/user/role-catalog.json`. Human-readable tables: [user/roles/README.md](https://github.com/Neosofia/user/blob/main/roles/README.md). Machine source: `user/roles/default.json`; CDP role catalog: [policies/user/role-catalog.json](https://github.com/Neosofia/cdp/blob/main/policies/user/role-catalog.json). `tenants.type` has no default.
+6. **v1 tenant types and role enums** live in the product role catalog (`policies/user/role-catalog.json`). Human-readable tables: [policies/README.md](../policies/README.md). The user service merges `ROLE_CATALOG_OVERLAY` at runtime; it ships no base role vocabulary. `tenants.type` has no default.
 
 Registry obligations and operator-facing behavior are in [spec 018](https://github.com/Neosofia/cdp/blob/main/specs/018-user-service.md). Field names and service policy depth are in [openapi.json](https://github.com/Neosofia/user/blob/main/openapi.json) and [SECURITY.md](https://github.com/Neosofia/user/blob/main/SECURITY.md).
 

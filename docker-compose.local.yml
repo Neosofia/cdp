@@ -53,7 +53,7 @@ x-user-local: &user_local
     dockerfile: Dockerfile
     target: runtime
     args:
-      CDP_POLICIES_IMAGE: cdp-policies:local
+      USER_PRODUCT_POLICIES_IMAGE: cdp-policies:local
   image: neosofia/user:local
 
 x-template-local: &template_local
@@ -222,8 +222,9 @@ services:
     env_file:
       - ./.user.env
     volumes:
-      - ./policies/user/role-catalog.json:/app/policies/role-catalog.json:ro
       - ../user/policies:/app/policies:ro
+      - ./policies/user/cedar:/app/policies/cdp:ro
+      - ./policies/user/role-catalog.json:/app/policies/role-catalog.json:ro
     ports:
       - "8018:8018"
     depends_on:

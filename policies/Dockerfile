@@ -7,7 +7,7 @@
 #
 # Layout in the image:
 #   /policies/capabilities/   → capabilities service (CAPABILITIES_POLICIES_DIR)
-#   /policies/user/           → user service (ROLE_CATALOG_OVERLAY)
+#   /policies/user/           → user service (ROLE_CATALOG_OVERLAY + product Cedar)
 
 FROM scratch
 
