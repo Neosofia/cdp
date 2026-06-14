@@ -1,0 +1,39 @@
+# Build and push the CDP platform policy bundle to GHCR.
+#
+# Triggered by:
+#   - Push of a SemVer tag (cdp-policies/vMAJOR.MINOR.PATCH)
+#   - Manual dispatch
+#
+# Produces:
+#   ghcr.io/neosofia/cdp-policies:<git-sha>
+#   ghcr.io/neosofia/cdp-policies:vMAJOR.MINOR.PATCH
+#
+# Tagging convention: cdp-policies/vMAJOR.MINOR.PATCH
+#   git tag -a cdp-policies/v0.1.0 -m "cdp policies v0.1.0" && git push origin cdp-policies/v0.1.0
+#
+# Consumers:
+#   capabilities — COPY /policies/capabilities → /app/policies
+#   user         — COPY /policies/user/role-catalog.json → /app/policies/role-catalog.json
+
+name: cdp-policies-build-push
+
+on:
+  push:
+    tags:
+      - 'cdp-policies/*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-push:
+    name: Build & Push to GHCR
+    uses: Neosofia/platform-workflows/.github/workflows/_build-push.yml@main
+    with:
+      image_name: ghcr.io/${{ github.repository_owner }}/cdp-policies
+      context: policies
+      file: Dockerfile
+      tag_prefix: cdp-policies
+      cache_scope: cdp-policies

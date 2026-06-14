@@ -2,14 +2,18 @@
 
 ## [2026.06.14] - 2026-06-14
 
-**Pinned services:** authentication **v0.37.0**; user **v0.8.0**; chat **v0.6.0**; care-episode **v0.7.0**; capabilities **v0.7.0**; **cdp-user-policies v0.3.0**.
+**Pinned services:** authentication **v0.37.0**; user **v0.8.0**; chat **v0.6.0**; care-episode **v0.7.0**; capabilities **v0.7.0**; **cdp-policies v0.1.0**.
 
 ### Changed
 
 - Platform stack pins **authorization-in-the-middle/v0.7.1** across JWT-consuming services.
-- Role catalog overlay uses decoupled tenant-type assignment index (full role slugs per org kind).
+- Unified platform policy bundle: **`cdp-policies`** image (`policies/capabilities/` for menu/feature Cedar + entitlements; `policies/user/role-catalog.json` for role labels).
+- Capabilities Cedar organized under `policies/capabilities/menu/` and `policies/capabilities/features/`.
+- Single `policies/Dockerfile` replaces separate `cdp-ui-policies` and `cdp-user-policies` images/workflows.
+- Role catalog lives in `policies/user/role-catalog.json` (labels and UI vocabulary; base slugs in user `default.json`).
 - `docker-compose.dev.yml` pins the full backend stack on new GHCR release images.
-- Documentation: **Greenfield Step 0** for manual tier-2 role assignment on new environments ([roles/README.md](roles/README.md)).
+- Documentation: **Greenfield Step 0** for manual tier-2 role assignment on new environments ([policies/README.md](policies/README.md)).
+- Consolidated role catalog under `policies/`; removed top-level `roles/` directory.
 
 ## [2026.06.11] - 2026-06-11
 
@@ -59,7 +63,7 @@
 ### Fixed
 
 - Login-time User registry provisioning on cloud stacks when Authentication pointed at an HTTP internal User URL (Talisman redirect); operators must register an HTTPS `base_url` for `user`.
-- Role catalog overlay from **cdp-user-policies v0.2.1** (`ROLE_CATALOG_OVERLAY=/app/policies/cdp-overlay.json`) supplies UI labels and Cedar validation; it does **not** auto-assign tier-2 roles on login (see INSTALLATION_PLAN Step 0).
+- Role catalog overlay from **cdp-user-policies v0.2.1** (`ROLE_CATALOG_OVERLAY=/app/policies/role-catalog.json`) supplies UI labels; it does **not** auto-assign tier-2 roles on login (see INSTALLATION_PLAN Step 0).
 
 ## [2026.06.05] - 2026-06-05
 

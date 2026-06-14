@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Copy User service Cedar policies for local inspection / volume mounts.
-# Production: user image COPY policies/ from user repo; cdp-user-policies adds cdp-overlay.json only.
+# Production: user image COPY policies/ from user repo; cdp-policies adds user/role-catalog.json.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

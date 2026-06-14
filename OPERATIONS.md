@@ -43,37 +43,34 @@ After generation, fill in these required values manually in `.authentication.env
 
 ## UI policy bundle (capabilities)
 
-CDP owns the UI entitlement policy bundle in `policies/`. The capabilities service loads this bundle at runtime from `/app/policies`; it ships no product-specific Cedar rules in its own repository.
+CDP owns the UI entitlement policy bundle under `policies/capabilities/`. The capabilities service loads this bundle at runtime from `/app/policies`; it ships no product-specific Cedar rules in its own repository.
 
 **Production (sql-template pattern):**
 
-1. CDP publishes a policy-only image: `ghcr.io/neosofia/cdp-ui-policies:vX.Y.Z`  
-   Tag: `cdp-ui-policies/vX.Y.Z` → triggers `.github/workflows/cdp-ui-policies-build-push.yml`
-2. Capabilities Dockerfile pins that tag (`COPY --from=ghcr.io/neosofia/cdp-ui-policies:vX.Y.Z`).
+1. CDP publishes the platform policy image: `ghcr.io/neosofia/cdp-policies:vX.Y.Z`  
+   Tag: `cdp-policies/vX.Y.Z` → triggers `.github/workflows/cdp-policies-build-push.yml`
+2. Capabilities Dockerfile pins that tag and copies `/policies/capabilities` → `/app/policies`.
 3. Bump the pinned tag / redeploy capabilities when the policy bundle version changes.
 
-**One-time GHCR setup (same as `sql-template` → authentication):** after the first publish, open the [`cdp-ui-policies` package settings](https://github.com/Neosofia/packages/container/cdp-ui-policies/settings) and add the `capabilities` repository under **Manage Actions access → Add repository**.
+**One-time GHCR setup (same as `sql-template` → authentication):** after the first publish, open the [`cdp-policies` package settings](https://github.com/Neosofia/packages/container/cdp-policies/settings) and add the `capabilities` and `user` repositories under **Manage Actions access → Add repository**.
 
-**Local development:** volume-mount `cdp/policies/` over `/app/policies` (see `docker-compose.dev.yml`). No policy image required.
+**Local development:** volume-mount `cdp/policies/capabilities/` over `/app/policies` (see `docker-compose.dev.yml`). No policy image required.
 
-The bundle includes `entitlements.json` and `*.cedar` files. The UI calls `GET /api/v1/capabilities/ui`.
+The bundle includes `entitlements.json`, `menu/*.cedar`, and `features/*.cedar`. The UI calls `GET /api/v1/capabilities/ui`.
 
 See [ADR 0012: UI Capabilities Control Plane](architecture/adrs/0012-ui-capabilities-control-plane.md).
 
-## User service policy overrides
+## User service policy bundle
 
-CDP owns product Cedar for the user service under `policies/service-overrides/user/`. The **user** service loads policies from `/app/policies` at runtime; it ships no CDP-specific rules in its own repository. CDP **never** builds, wraps, or deploys the user service image.
+CDP owns the user role catalog under `policies/user/role-catalog.json`. The **user** service loads Cedar from its own repo at `/app/policies`; CDP adds product vocabulary at image build time. CDP **never** builds, wraps, or deploys the user service image.
 
-**Production (same pattern as `cdp-ui-policies` → capabilities):**
+**Production (same `cdp-policies` image as capabilities):**
 
-1. CDP publishes a policy-only image: `ghcr.io/neosofia/cdp-user-policies:vX.Y.Z`  
-   Tag: `cdp-user-policies/vX.Y.Z` → `.github/workflows/cdp-user-policies-build-push.yml`
-2. User service Dockerfile pins that tag (`COPY --from=ghcr.io/neosofia/cdp-user-policies:vX.Y.Z` on top of platform `policies/`).
+1. Publish **`cdp-policies/vX.Y.Z`** (same tag as capabilities).
+2. User service Dockerfile pins that tag and copies `/policies/user/role-catalog.json` → `/app/policies/role-catalog.json` (`ROLE_CATALOG_OVERLAY`).
 3. Tag `user/v*` from [`Neosofia/user`](https://github.com/Neosofia/user) and deploy **`ghcr.io/neosofia/user`** for CDP stacks.
 
-**One-time GHCR setup:** after the first `cdp-user-policies` publish, open [`cdp-user-policies` package settings](https://github.com/orgs/Neosofia/packages/container/cdp-user-policies/settings) and add the **`user`** repository under **Manage Actions access → Add repository** (so `user` CI can pull the bundle at build time).
-
-**Local development:** `docker-compose.local.yml` builds all platform services from sibling repos (no GHCR application images). It builds `cdp-user-policies:local` from this directory and passes it to the user image build. Optional: `./scripts/repack_user_service_policies.sh` writes `policies-packed/user/` for inspection or volume-mounting.
+**Local development:** `docker-compose.local.yml` builds `cdp-policies:local` and passes it to capabilities and user image builds. Optional: `./scripts/repack_user_service_policies.sh` writes `policies-packed/user/` for inspection.
 
 ## Public cloud staging
 
@@ -87,8 +84,8 @@ That document explains why local JWKS (`http://authentication:8014/...` in `.cap
 
 | Component | Notes |
 |-----------|-------|
-| **UI policy bundle** | `cdp-ui-policies` GHCR image pinned in capabilities Dockerfile |
-| **User service** | Deploy `ghcr.io/neosofia/user:vX.Y.Z` (Dockerfile pins `cdp-user-policies`); Railway root = **user** repo |
+| **UI policy bundle** | `cdp-policies` GHCR image pinned in capabilities Dockerfile (`/policies/capabilities`) |
+| **User service** | Deploy `ghcr.io/neosofia/user:vX.Y.Z` (Dockerfile pins `cdp-policies` for role catalog); Railway root = **user** repo |
 | **UI build args** | `VITE_AUTH_BASE_URL`, `VITE_AUTH_API_URL`, `VITE_CAPABILITIES_API_URL`, `VITE_USER_API_URL`, `VITE_CHAT_API_URL`, `VITE_CARE_EPISODE_API_URL` — public HTTPS URLs (no trailing slash) |
 | **Capabilities CORS** | `FRONTEND_URL` = public CDP UI origin |
 | **Authentication** | `JWT_WEB_AUDIENCE` must include `capabilities`, `user`, `chat`, and `care-episode`; explicit `PORT` for private JWKS refs |
@@ -119,7 +116,7 @@ Then access the platform at localhost:5173 (UI). Default API ports (8000 + spec 
 When working across platform services, build everything from sibling repos instead of GHCR:
 
 ```bash
-docker compose -f docker-compose.local.yml build cdp-user-policies
+docker compose -f docker-compose.local.yml build cdp-policies
 docker compose -f docker-compose.local.yml up -d --build
 ./scripts/compose-logs-json.sh docker-compose.local.yml
 ```

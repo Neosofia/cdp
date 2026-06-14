@@ -72,13 +72,13 @@ The catalog groups assignable roles by **organisation type** (platform operator,
 | Site management org | Admin, activation, read-only |
 | Patient-facing org | Self-service; advocate / caregiver |
 
-The authoritative list, assigner rules (which actor classes may grant which types), and deploy-time overlays live in the User service role catalog. See [user/roles/README.md](https://github.com/Neosofia/user/blob/main/roles/README.md) and [user/roles/default.json](https://github.com/Neosofia/user/blob/main/roles/default.json).
+The authoritative list, assigner rules (which actor classes may grant which types), and deploy-time product vocabulary live in the User service role catalog. CDP labels and UI vocabulary: [policies/user/role-catalog.json](../policies/user/role-catalog.json) ([policies/README.md](../policies/README.md)). Platform base: [user/roles/default.json](https://github.com/Neosofia/user/blob/main/roles/default.json).
 
 ## Further reading
 
 - Platform baseline: [000-platform-baseline.md](https://github.com/Neosofia/cdp/blob/main/specs/000-platform-baseline.md)
 - Tenant types and roles: [ADR-0014](https://github.com/Neosofia/cdp/blob/main/architecture/adrs/0014-tenant-types-and-org-roles.md)
-- Role catalog vocabulary (tables): [user/roles/README.md](https://github.com/Neosofia/user/blob/main/roles/README.md)
+- Role catalog vocabulary: [user/roles/README.md](https://github.com/Neosofia/user/blob/main/roles/README.md) (platform base); CDP product catalog: [policies/README.md](../policies/README.md)
 - Authentication service spec: [014-authentication-service.md](https://github.com/Neosofia/cdp/blob/main/specs/014-authentication-service.md)
 - Platform operational metrics: [011-operational-metrics.md](https://github.com/Neosofia/cdp/blob/main/specs/011-operational-metrics.md)
 - API contract: [openapi.json](https://github.com/Neosofia/user/blob/main/openapi.json)

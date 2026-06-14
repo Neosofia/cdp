@@ -68,7 +68,7 @@ services:
     env_file:
       - ./.capabilities.env
     volumes:
-      - ./policies:/app/policies:ro
+      - ./policies/capabilities:/app/policies:ro
     ports:
       - "8019:8019"
     depends_on:
@@ -119,7 +119,7 @@ services:
     env_file:
       - ./.user.env
     volumes:
-      - ./roles/user-catalog.overlay.json:/app/roles/cdp-overlay.json:ro
+      - ./policies/user/role-catalog.json:/app/policies/role-catalog.json:ro
     command: ["python", "-m", "alembic", "upgrade", "head"]
     depends_on:
       user-postgres:
@@ -132,7 +132,7 @@ services:
     env_file:
       - ./.user.env
     volumes:
-      - ./roles/user-catalog.overlay.json:/app/roles/cdp-overlay.json:ro
+      - ./policies/user/role-catalog.json:/app/policies/role-catalog.json:ro
     ports:
       - "8018:8018"
     depends_on:
@@ -245,8 +245,8 @@ services:
 
   ui:
     build:
-      context: ./ui
-      dockerfile: Dockerfile.dev
+      context: .
+      dockerfile: ui/Dockerfile.dev
     container_name: cdp-ui
     depends_on:
       authentication:
@@ -261,6 +261,7 @@ services:
         condition: service_healthy
     volumes:
       - ./ui:/app
+      - ./policies/user/role-catalog.json:/app/policies/user/role-catalog.json:ro
       - /app/node_modules
     ports:
       - "5173:5173"

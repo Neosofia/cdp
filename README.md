@@ -26,9 +26,9 @@ For operators and release managers, [CHANGELOG.md](CHANGELOG.md) records user-vi
 
 **Versioning:** CDP UI displays **CalVer** `YYYY.MM.DD` in the footer (`ui/src/lib/uiVersion.ts`). Backend services expose **semver** on `GET /health` as `"version"`.
 
-### CDP UI and roles
+### CDP UI and policies
 
-For frontend contributors, [ui/README.md](ui/README.md) covers the reference clinician and patient web apps. For CDP-specific platform role overlays on the User service catalog, see [roles/README.md](roles/README.md).
+For frontend contributors, [ui/README.md](ui/README.md) covers the reference clinician and patient web apps. CDP policy artifacts (Cedar, role catalog) live in [policies/README.md](policies/README.md).
 
 ### Platform portfolio
 

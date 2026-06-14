@@ -4,7 +4,7 @@ Per-version deploy steps for operators. User-visible changes: [CHANGELOG.md](CHA
 
 ## Greenfield Step 0 — assign platform registry roles
 
-Run once per new environment **before** platform admin UI or `GET /api/v1/users` will work. Login provision creates identity only; **`roles` stays `[]`** until tier-2 slugs are assigned. Tier-1 WorkOS **`operator`** does **not** imply **`platform.admin`**. CDP `default_roles_by_actor` is UI-only and is **not** applied on login ([roles/README.md](roles/README.md)).
+Run once per new environment **before** platform admin UI or `GET /api/v1/users` will work. Login provision creates identity only; **`roles` stays `[]`** until tier-2 slugs are assigned. Tier-1 WorkOS **`operator`** does **not** imply **`platform.admin`**. CDP `default_roles_by_actor` is UI-only and is **not** applied on login ([policies/README.md](policies/README.md)).
 
 **Prerequisites**
 
@@ -36,11 +36,11 @@ Run once per new environment **before** platform admin UI or `GET /api/v1/users`
 
 ## CDP UI 2026.06.14 (authorization middleware v0.7.1)
 
-**Build:** CDP UI **2026.06.14**; **authentication v0.37.0**; **user v0.8.0**; **chat v0.6.0**; **care-episode v0.7.0**; **capabilities v0.7.0**; **cdp-user-policies v0.3.0**.
+**Build:** CDP UI **2026.06.14**; **authentication v0.37.0**; **user v0.8.0**; **chat v0.6.0**; **care-episode v0.7.0**; **capabilities v0.7.0**; **cdp-policies v0.1.0**.
 
 **Prerequisites:**
 
-- Publish **cdp-user-policies/v0.3.0** before rebuilding **user v0.8.0**.
+- Publish **cdp-policies/v0.1.0** before rebuilding **capabilities** and **user** (both pin `CDP_POLICIES_IMAGE`).
 - Deploy all five backend services; migrations to head on authentication, user, chat, and care-episode databases.
 
 **Deploy:**
@@ -149,7 +149,7 @@ Run once per new environment **before** platform admin UI or `GET /api/v1/users`
 
 **Pre-deploy:**
 
-- Set `ROLE_CATALOG_OVERLAY=/app/policies/cdp-overlay.json` on the user service (cloud).
+- Set `ROLE_CATALOG_OVERLAY=/app/policies/role-catalog.json` on the user service (cloud).
 - Optional: set `USER_SERVICE_BASE_URL` on authentication to the same HTTPS user URL for future migration `005` runs.
 
 **Deploy:**

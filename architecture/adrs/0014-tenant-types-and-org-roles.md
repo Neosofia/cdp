@@ -16,11 +16,11 @@ Enterprise customers organise by **org kind** (platform, CRO, sponsor, site, SMO
 
 3. **User registry is the source of truth for `roles[]`.** Authentication mirrors `roles[]` into `users.roles` for JWT embedding only. Token mint reads the Authentication database and does not call User on the critical path. The mirror updates on best-effort provision after login.
 
-4. **Cedar is the source of truth for authorization.** Service and CDP UI policy files define who may do what. The role catalog (`roles/*.json`, optional product overlay) validates assignments and powers pickers; it does not generate Cedar and does not hold a parallel permission matrix.
+4. **Cedar is the source of truth for authorization.** Service and CDP UI policy files define who may do what. The role catalog (`policies/user/role-catalog.json` for CDP; `user/roles/default.json` for the platform base) validates assignments and powers pickers; it does not generate Cedar and does not hold a parallel permission matrix.
 
 5. **Job functions stay in the catalog for UX only.** Fine-grained titles (for example `clinical.function.staff-nurse`) are not Cedar dimensions. Future job-level scope uses overrides on roles, not new policy axes.
 
-6. **v1 tenant types and role enums** live in the User service catalog and deploy-time overlay. Human-readable tables: [user/roles/README.md](https://github.com/Neosofia/user/blob/main/roles/README.md). Machine source: `user/roles/default.json`; CDP overlay: [roles/user-catalog.overlay.json](https://github.com/Neosofia/cdp/blob/main/roles/user-catalog.overlay.json). `tenants.type` has no default.
+6. **v1 tenant types and role enums** live in the User service catalog with CDP labels in `policies/user/role-catalog.json`. Human-readable tables: [user/roles/README.md](https://github.com/Neosofia/user/blob/main/roles/README.md). Machine source: `user/roles/default.json`; CDP role catalog: [policies/user/role-catalog.json](https://github.com/Neosofia/cdp/blob/main/policies/user/role-catalog.json). `tenants.type` has no default.
 
 Registry obligations and operator-facing behavior are in [spec 018](https://github.com/Neosofia/cdp/blob/main/specs/018-user-service.md). Field names and service policy depth are in [openapi.json](https://github.com/Neosofia/user/blob/main/openapi.json) and [SECURITY.md](https://github.com/Neosofia/user/blob/main/SECURITY.md).
 
@@ -35,7 +35,7 @@ Registry obligations and operator-facing behavior are in [spec 018](https://gith
 
 - Authentication owns `tenants.type` and the `users.roles` mirror; User owns registry `roles[]`.
 - Human JWTs use `neosofia:actors`, `neosofia:tenant_type` (when set), and `neosofia:roles` (short names). Capabilities and User API evaluation both consume those facts; UI menu gating remains a separate concern ([ADR-0012](0012-ui-capabilities-control-plane.md)).
-- Adding a tenant type or role requires catalog overlay (and usually Cedar) changes; products do not fork the User service for vocabulary alone.
+- Adding a tenant type or role requires catalog changes (and usually Cedar) in `policies/` or the user service; products do not fork the User service for vocabulary alone.
 - Superseding this model requires a new ADR; do not revive flat `platform_roles` or job-function Cedar checks without an explicit decision.
 
 ## Status

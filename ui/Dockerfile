@@ -5,10 +5,11 @@ RUN npm install -g pnpm
 
 WORKDIR /app
 
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY ui/package.json ui/pnpm-lock.yaml ui/pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 
-COPY . .
+COPY ui/ .
+COPY policies/user/role-catalog.json ./policies/user/role-catalog.json
 
 # Defaults match ui/.env.sample; override at build time if needed.
 ARG VITE_AUTH_BASE_URL=http://localhost:8014

@@ -1,15 +1,19 @@
-# UI policy bundle image consumed by the capabilities service at build time.
-# Same pattern as ghcr.io/neosofia/sql-template for authentication audit SQL.
+# CDP platform policy bundle — capabilities UI Cedar + user role catalog.
 #
-# Build from the CDP repo:
-#   docker build -f policies/Dockerfile -t cdp-ui-policies:local policies
+# Build from the policies directory:
+#   docker build -f Dockerfile -t cdp-policies:local .
 #
-# Release tag convention: cdp-ui-policies/vMAJOR.MINOR.PATCH
+# Release tag convention: cdp-policies/vMAJOR.MINOR.PATCH
+#
+# Layout in the image:
+#   /policies/capabilities/   → capabilities service (CAPABILITIES_POLICIES_DIR)
+#   /policies/user/           → user service (ROLE_CATALOG_OVERLAY)
 
 FROM scratch
 
-COPY . /policies/
+COPY capabilities /policies/capabilities
+COPY user /policies/user
 
-LABEL org.opencontainers.image.title="cdp-ui-policies"
-LABEL org.opencontainers.image.description="CDP UI Cedar policy bundle for the capabilities service"
+LABEL org.opencontainers.image.title="cdp-policies"
+LABEL org.opencontainers.image.description="CDP platform policy bundle for capabilities and user services"
 LABEL org.opencontainers.image.source="https://github.com/Neosofia/cdp"
