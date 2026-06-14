@@ -34,6 +34,6 @@ jobs:
     with:
       image_name: ghcr.io/${{ github.repository_owner }}/cdp-policies
       context: policies
-      file: Dockerfile
+      file: policies/Dockerfile
       tag_prefix: cdp-policies
       cache_scope: cdp-policies
