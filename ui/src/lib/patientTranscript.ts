@@ -50,10 +50,5 @@ export async function listPatientChatInteractions(
   activeActor: string,
   patientUuid: string,
 ): Promise<ChatInteraction[]> {
-  try {
-    return await listChatInteractions(token, activeActor, patientUuid);
-  } catch (error) {
-    console.warn('Failed to list chat interactions for clinician transcript', error);
-    return [];
-  }
+  return await listChatInteractions(token, activeActor, patientUuid);
 }

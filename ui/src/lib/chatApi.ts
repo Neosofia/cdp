@@ -368,7 +368,9 @@ export async function listChatMessages(
     },
   );
 
-  if (!res.ok) return [];
+  if (!res.ok) {
+    throw new Error(`Chat API returned ${res.status}`);
+  }
   const body = (await res.json()) as { items?: ChatMessage[] };
   return sortChatMessagesBySentAt(body.items ?? []);
 }
