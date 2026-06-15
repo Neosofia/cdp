@@ -54,8 +54,8 @@ ALICE_TRANSCRIPT_LINES: list[tuple[str, str]] = [
     ("assistant", "Humor from clinicians may reflect stress. Focus on the treatment plan they provide. Do you have a return-to-OR time scheduled?"),
     ("patient", "OR tomorrow 6 AM. They said quick snip which feels on the nose."),
     ("assistant", "Wishing you a smooth procedure. After correction, continue incision care per discharge instructions."),
-    ("patient", "Please tell the next AI not to tell people gas pains sound like scissors. Lesson learned."),
-    ("assistant", "Feedback noted. A human clinician is joining this session - please stand by."),
+    ("patient", "Still having sharp pain when I breathe and I am scared something was left inside after what they saw on the X-ray."),
+    ("assistant", "A human clinician is joining this session - please stand by."),
 ]
 
 SHORT_TRANSCRIPTS: dict[str, list[tuple[str, str]]] = {
@@ -92,8 +92,8 @@ SHORT_TRANSCRIPTS: dict[str, list[tuple[str, str]]] = {
     "PAT-3102": [
         ("patient", "Incision tenderness when I sit up - ok on day 5?"),
         ("assistant", "Some pulling is normal. Use a pillow for support and watch for fever or heavy bleeding."),
-        ("patient", "Can I climb stairs?"),
-        ("assistant", "One step at a time with support is usually fine if you feel steady."),
+        ("patient", "Since this morning the incision feels warm and I measured 101°F - should I go to the ER or wait?"),
+        ("assistant", "Fever with a warm incision needs same-day clinician review. I am flagging this for your care team."),
     ],
     "PAT-3120": [
         ("patient", "Shoulder sling off for sleep?"),
@@ -104,20 +104,20 @@ SHORT_TRANSCRIPTS: dict[str, list[tuple[str, str]]] = {
     "PAT-3144": [
         ("patient", "Light spotting after hysteroscopy - how long is normal?"),
         ("assistant", "Light spotting for a few days can be expected. Report heavy bleeding or fever."),
-        ("patient", "When can I return to work?"),
-        ("assistant", "Many patients resume desk work in 1-2 days; follow discharge instructions."),
+        ("patient", "Spotting turned heavier - I am soaking through a pad every hour since lunch."),
+        ("assistant", "That amount of bleeding is more than expected. Your team should review this today."),
     ],
     "PAT-3166": [
         ("patient", "Minimal cramping after polypectomy - ok?"),
         ("assistant", "Mild cramping is common. Clear liquids today unless told otherwise."),
-        ("patient", "Still bloated this evening."),
-        ("assistant", "Gas discomfort often resolves within 24 hours. Walk briefly if you feel up to it."),
+        ("patient", "Cramps are worse tonight and I feel dizzy when I stand up."),
+        ("assistant", "Worsening cramps with dizziness should be reviewed soon. I am alerting your care team."),
     ],
     "PAT-3188": [
         ("patient", "Difficulty swallowing liquids on day 4 - should I worry?"),
         ("assistant", "Some dysphagia is expected early. Pureed diet and small sips; call if worsening."),
-        ("patient", "Can I lie flat yet?"),
-        ("assistant", "Elevate the head of the bed 30-45 degrees for now per your reflux surgery plan."),
+        ("patient", "Swallowing is getting harder - I coughed while drinking water twice today."),
+        ("assistant", "Worsening dysphagia with coughing on liquids needs clinician follow-up soon."),
     ],
     "PAT-3210": [
         ("patient", "Hip flex items: ice schedule?"),

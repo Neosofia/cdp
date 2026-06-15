@@ -1,13 +1,19 @@
 import type { ReactNode } from 'react';
+import ThemeToggle from '@/components/ThemeToggle';
 import { cn } from '@/lib/utils';
 
 type SpawnBrandHeaderProps = {
   className?: string;
   /** Trailing header actions (e.g. Login on splash). */
   trailing?: ReactNode;
+  showThemeToggle?: boolean;
 };
 
-export default function SpawnBrandHeader({ className, trailing }: SpawnBrandHeaderProps) {
+export default function SpawnBrandHeader({
+  className,
+  trailing,
+  showThemeToggle = true,
+}: SpawnBrandHeaderProps) {
   return (
     <header
       className={cn(
@@ -40,7 +46,17 @@ export default function SpawnBrandHeader({ className, trailing }: SpawnBrandHead
           Clinical Data Platform
         </span>
       </a>
-      {trailing ? <div className="flex items-center gap-3">{trailing}</div> : null}
+      {showThemeToggle || trailing ? (
+        <div className="flex items-center gap-3">
+          {showThemeToggle ? (
+            <ThemeToggle
+              alwaysShowLabel
+              className="border-cyan-400/60 bg-cyan-500/15 text-cyan-100 hover:bg-cyan-500/25"
+            />
+          ) : null}
+          {trailing}
+        </div>
+      ) : null}
     </header>
   );
 }

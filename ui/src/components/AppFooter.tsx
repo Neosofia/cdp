@@ -7,9 +7,11 @@ type AppFooterProps = {
   className?: string;
   /** Extra trailing line after copyright (splash ticker area). */
   tagline?: string;
+  /** Use full viewport width (splash pages). */
+  fullWidth?: boolean;
 };
 
-export default function AppFooter({ className, tagline }: AppFooterProps) {
+export default function AppFooter({ className, tagline, fullWidth = false }: AppFooterProps) {
   const { mode, isCorporate } = useUiTheme();
 
   return (
@@ -21,7 +23,12 @@ export default function AppFooter({ className, tagline }: AppFooterProps) {
         className,
       )}
     >
-      <div className="mx-auto w-full max-w-7xl px-4 text-center md:px-8">
+      <div
+        className={cn(
+          'w-full text-center',
+          fullWidth ? 'px-6 md:px-10' : 'mx-auto max-w-7xl px-4 md:px-8',
+        )}
+      >
         {PLATFORM_FOOTER[mode]}
       <span className={isCorporate ? 'text-slate-500' : 'text-slate-700'}> · </span>
       UI {getUiVersion()}

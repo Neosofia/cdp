@@ -80,6 +80,7 @@ export default function PatientRecordsPanel({
       className={cn(
         'gap-0 py-0 flex flex-col',
         !embedded && 'col-span-2',
+        embedded && 'min-h-0 flex-1 overflow-hidden',
         pv.cardClass,
       )}
       style={pv.cardStyle}
@@ -97,7 +98,12 @@ export default function PatientRecordsPanel({
           Health records
         </CardTitle>
       </CardHeader>
-      <CardContent className={cn('flex flex-col', embedded ? 'p-3' : 'p-6')}>
+      <CardContent
+        className={cn(
+          'flex flex-col',
+          embedded ? 'min-h-0 flex-1 overflow-hidden p-3' : 'p-6',
+        )}
+      >
         <div className={cn('shrink-0 space-y-3', embedded ? '' : 'mb-4')}>
           <div className="flex flex-col sm:flex-row gap-2">
             <div className="relative flex-1">
@@ -127,7 +133,12 @@ export default function PatientRecordsPanel({
           </p>
         </div>
 
-        <div className="space-y-3">
+        <div
+          className={cn(
+            'space-y-3',
+            embedded && 'min-h-0 flex-1 overflow-y-auto overscroll-y-contain',
+          )}
+        >
           {selected && embedded && (
             <div className={cn('p-3 text-xs space-y-2', pv.detailPanelClass)} style={pv.detailPanelStyle}>
               <div className="flex items-start justify-between gap-2">

@@ -277,7 +277,7 @@ function PatientList({
 
   return (
     <Card
-      className={cn('gap-0 py-0 flex flex-col', pv.cardClass)}
+      className={cn('gap-0 py-0 flex flex-col overflow-visible', pv.cardClass)}
       {...(pv.cardStyle ? { style: pv.cardStyle } : {})}
     >
       <CardHeader className={cn('py-4 shrink-0', pv.headerClass)} style={pv.headerStyle}>
@@ -536,7 +536,7 @@ function TranscriptPanel({
 
   return (
     <Card
-      className={cn('gap-0 py-0 flex flex-col', pv.cardClass)}
+      className={cn('gap-0 py-0 flex min-h-0 flex-1 flex-col overflow-hidden', pv.cardClass)}
       {...(pv.cardStyle ? { style: pv.cardStyle } : {})}
     >
       <CardHeader className={cn('py-3 shrink-0', pv.headerClass)} style={pv.headerStyle}>
@@ -579,8 +579,14 @@ function TranscriptPanel({
           </Button>
         </div>
       </CardHeader>
-      <CardContent className="flex flex-col p-0">
-        <div ref={scrollRef} className="space-y-3 px-3 py-3 pb-6">
+      <CardContent className="flex min-h-0 flex-1 flex-col overflow-hidden p-0">
+        <div
+          ref={scrollRef}
+          className={cn(
+            'min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-y-contain px-3 py-3 pb-6',
+            pv.chatScrollClass,
+          )}
+        >
           {loading && messages.length === 0 ? (
             <p className={cn('text-sm text-center py-8', pv.mutedText)}>Loading chat transcript…</p>
           ) : null}
@@ -816,11 +822,7 @@ function SessionDetail({
     setSelectedRecordId(record?.id ?? null);
   };
 
-  const activeInteractionIndex = interactions.findIndex(
-    interaction => interaction.chat_interaction_uuid === activeInteractionUuid,
-  );
-  const canCompose =
-    Boolean(activeInteractionUuid && clinicianUuid) && activeInteractionIndex === 0;
+  const canCompose = Boolean(activeInteractionUuid && clinicianUuid);
 
   const handleSendClinicianMessage = async (content: string) => {
     if (!activeInteractionUuid || !clinicianUuid) {
@@ -859,7 +861,7 @@ function SessionDetail({
   };
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
       {saveNotice ? (
         <p
           role="status"
@@ -889,8 +891,8 @@ function SessionDetail({
           <PencilSquareIcon className="h-4 w-4" />
         </Button>
       </div>
-      <div className="grid gap-4 lg:grid-cols-2">
-        <div>
+      <div className="grid min-h-0 flex-1 gap-4 overflow-hidden lg:grid-cols-2">
+        <div className="flex min-h-0 flex-col overflow-hidden">
           <TranscriptPanel
             patient={patient}
             messages={transcript}
@@ -907,7 +909,7 @@ function SessionDetail({
             sending={sendingReply}
           />
         </div>
-        <div>
+        <div className="flex min-h-0 flex-col overflow-hidden">
           <PatientRecordsPanel
             records={patientRecords}
             embedded
@@ -1035,7 +1037,7 @@ export default function ClinicianActivePatients({
     : null;
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className={cn('flex flex-col gap-3', patient && 'min-h-0 flex-1 overflow-hidden')}>
       {patient ? (
         <SessionDetail
           patient={patient}

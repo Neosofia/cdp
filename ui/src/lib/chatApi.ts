@@ -97,37 +97,52 @@ export async function fetchLastChatActivityForUser(
   return body.last_message_at;
 }
 
-export async function fetchLastChatActivityByPatient(
+export async function fetchTenantLastChatActivity(
   token: string,
   activeActor: string,
-  sessions: ChatSessionRef[],
+  tenantUuid: string,
 ): Promise<Map<string, string | null>> {
   const byPatient = new Map<string, string | null>();
-  if (!CHAT_API || sessions.length === 0) {
+  if (!CHAT_API || !tenantUuid) {
     return byPatient;
   }
 
-  const CHAT_ACTIVITY_CONCURRENCY = 4;
-  const results: Array<readonly [string, string | null]> = [];
-  for (let index = 0; index < sessions.length; index += CHAT_ACTIVITY_CONCURRENCY) {
-    const batch = sessions.slice(index, index + CHAT_ACTIVITY_CONCURRENCY);
-    const batchResults = await Promise.all(
-      batch.map(async session => {
-        const lastMessageAt = await fetchLastChatActivityForUser(
-          token,
-          activeActor,
-          session.user_uuid,
-        );
-        return [session.user_uuid, lastMessageAt] as const;
-      }),
-    );
-    results.push(...batchResults);
+  let res: Response;
+  try {
+    res = await fetch(`${CHAT_API}/api/v1/tenants/${tenantUuid}/last-activity`, {
+      headers: { Authorization: `Bearer ${token}`, 'X-Active-Actor': activeActor },
+    });
+  } catch {
+    return byPatient;
   }
 
-  for (const [userUuid, lastMessageAt] of results) {
-    byPatient.set(userUuid, lastMessageAt);
+  if (!res.ok) {
+    return byPatient;
+  }
+
+  const body = (await res.json()) as { items?: LastChatActivity[] };
+  for (const item of body.items ?? []) {
+    byPatient.set(item.user_uuid, item.last_message_at);
   }
   return byPatient;
+}
+
+export async function fetchLastChatActivityByPatient(
+  token: string,
+  activeActor: string,
+  tenantUuid: string,
+  sessions: ChatSessionRef[],
+): Promise<Map<string, string | null>> {
+  if (!CHAT_API || sessions.length === 0 || !tenantUuid) {
+    return new Map();
+  }
+
+  const byPatient = await fetchTenantLastChatActivity(token, activeActor, tenantUuid);
+  const scoped = new Map<string, string | null>();
+  for (const session of sessions) {
+    scoped.set(session.user_uuid, byPatient.get(session.user_uuid) ?? null);
+  }
+  return scoped;
 }
 
 export function sortChatMessagesBySentAt(messages: ChatMessage[]): ChatMessage[] {

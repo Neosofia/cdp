@@ -153,7 +153,7 @@ export function highlightDashboardRecoveries(all: ActivePatientRecovery[]): Acti
     .slice(0, 4);
 }
 
-export const PATIENT_LIST_PAGE_SIZE = 10;
+export const PATIENT_LIST_PAGE_SIZE = 8;
 
 export function filterPatientRecoveries(
   sessions: ActivePatientRecovery[],

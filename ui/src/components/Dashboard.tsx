@@ -18,6 +18,7 @@ import {
   formatRelativeActivity,
   highlightDashboardRecoveries,
   paginatePatientRecoveries,
+  PATIENT_LIST_PAGE_SIZE,
   riskForRecovery,
   sortPatientRecoveriesByRiskAndRecency,
   DEFAULT_CLINICIAN_LIST_FILTERS,
@@ -260,7 +261,7 @@ function SectionCard({
   return (
     <Card
       className={cn(
-        'gap-0 py-0 self-start w-full',
+        'gap-0 py-0 self-start w-full overflow-visible',
         isCorporate && 'border border-slate-300 bg-white text-slate-900 shadow-sm ring-0',
       )}
       style={
@@ -381,7 +382,7 @@ function ClinicianDashboard({
   );
 
   const pagedActivePatients = useMemo(
-    () => paginatePatientRecoveries(sortedPatients, activePatientsPage, 10),
+    () => paginatePatientRecoveries(sortedPatients, activePatientsPage, PATIENT_LIST_PAGE_SIZE),
     [sortedPatients, activePatientsPage],
   );
   useEffect(() => {

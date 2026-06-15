@@ -1,5 +1,24 @@
 # Changelog
 
+## [2026.06.16] - 2026-06-16
+
+**Pinned services:** authentication **v0.37.0**; user **v0.8.2**; chat **v0.6.2**; care-episode **v0.7.1**; capabilities **v0.7.1**; **cdp-policies v0.2.0**.
+
+### Added
+
+- Demo seed **risk summary replay** — after SQL chat seed, replays each catalog patient's final turn through the care-episode completion proxy with clinician auth, prior transcript summary, and catalog risk-level reset.
+- `SplashPageHeader` shared header for splash and terms flows.
+
+### Changed
+
+- CDP UI release id is **2026.06.16**; compose dev pin **care-episode v0.7.1** and **user v0.8.2**.
+- Clinician roster uses tenant-scoped user list and chat last-activity; risk summary tooltip renders below the icon (no clip under card headers).
+
+### Fixed
+
+- Demo workspace bootstrap filters catalog recoveries to the session tenant and completes personal recovery create (care-episode **v0.7.1**).
+- Demo seed transcripts end with clinically meaningful patient lines so risk agent scores medium/high catalog patients appropriately.
+
 ## [2026.06.15] - 2026-06-15
 
 **Pinned services:** authentication **v0.37.0**; user **v0.8.1**; chat **v0.6.2**; care-episode **v0.7.0**; capabilities **v0.7.1**; **cdp-policies v0.2.0**.

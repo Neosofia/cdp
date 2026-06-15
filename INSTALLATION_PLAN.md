@@ -34,6 +34,32 @@ Run once per new environment **before** platform admin UI or `GET /api/v1/users`
 
 ---
 
+## CDP UI 2026.06.16 / care-episode v0.7.1 / user v0.8.2
+
+**Build:** CDP UI **2026.06.16**; **authentication v0.37.0**; **user v0.8.2**; **chat v0.6.2**; **care-episode v0.7.1**; **capabilities v0.7.1**; **cdp-policies v0.2.0**.
+
+**Prerequisites:**
+
+- Publish **care-episode/v0.7.1** and **user/v0.8.2** before redeploying staging.
+- Chat and care-episode inference env configured for demo risk-summary seed (`SEED_RISK_SUMMARIES=1`, default).
+
+**Deploy:**
+
+1. Deploy **care-episode v0.7.1** and **user v0.8.2**.
+2. Deploy CDP UI **2026.06.16** after backend services are healthy.
+
+**Post-deploy verification:**
+
+1. `GET /health` on care-episode reports **0.7.1** and user **0.8.2**.
+2. CDP footer reports **UI 2026.06.16**.
+3. Clinician dashboard lists catalog patients with last-chat timestamps and risk summary icons (mix of low/medium/high after seed).
+4. Demo workspace bootstrap completes without 403 on recovery create.
+5. Re-run `scripts/seed_demo_platform.py` on staging with operator/clinician JWT; confirm `risk-summaries: 12 ok`.
+
+**Evidence:** Health JSON version fields; clinician roster screenshot; seed script output.
+
+---
+
 ## CDP UI 2026.06.15 / capabilities v0.7.1 / chat v0.6.2
 
 **Build:** CDP UI **2026.06.15**; **authentication v0.37.0**; **user v0.8.1**; **chat v0.6.2**; **care-episode v0.7.0**; **capabilities v0.7.1**; **cdp-policies v0.2.0**.

@@ -16,6 +16,7 @@ export default function RiskSummaryHint({ summary }: RiskSummaryHintProps) {
   return (
     <span
       className="relative inline-flex group/summary shrink-0"
+      tabIndex={0}
       onClick={(event) => event.stopPropagation()}
       onMouseDown={(event) => event.stopPropagation()}
     >
@@ -31,7 +32,7 @@ export default function RiskSummaryHint({ summary }: RiskSummaryHintProps) {
       <span
         role="tooltip"
         className={cn(
-          'pointer-events-none absolute bottom-full right-0 z-50 mb-2 hidden w-72 max-w-[min(18rem,calc(100vw-2rem))] rounded-lg border p-3 text-xs leading-relaxed shadow-lg group-hover/summary:block',
+          'pointer-events-none absolute top-full right-0 z-[100] mt-2 hidden w-72 max-w-[min(18rem,calc(100vw-2rem))] rounded-lg border p-3 text-xs leading-relaxed shadow-lg group-hover/summary:block group-focus-within/summary:block',
           isCorporate ? 'border-slate-300 bg-white text-slate-800' : 'text-slate-200',
         )}
         style={

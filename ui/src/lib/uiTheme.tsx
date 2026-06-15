@@ -22,10 +22,13 @@ const UiThemeContext = createContext<{
 
 function readStoredMode(): UiThemeMode {
   if (typeof window === 'undefined') {
-    return 'spawn';
+    return 'corporate';
   }
   const stored = localStorage.getItem(STORAGE_KEY);
-  return stored === 'corporate' ? 'corporate' : 'spawn';
+  if (stored === 'spawn' || stored === 'corporate') {
+    return stored;
+  }
+  return 'corporate';
 }
 
 function applyDocumentTheme(mode: UiThemeMode) {

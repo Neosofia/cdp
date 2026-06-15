@@ -88,6 +88,7 @@ function recoveryFromCareEpisode(
 async function hydrateLastChatAt(
   token: string,
   activeActor: string,
+  tenantUuid: string,
   sessions: ActivePatientRecovery[],
 ): Promise<ActivePatientRecovery[]> {
   let lastByPatient = new Map<string, string | null>();
@@ -95,6 +96,7 @@ async function hydrateLastChatAt(
     lastByPatient = await fetchLastChatActivityByPatient(
       token,
       activeActor,
+      tenantUuid,
       sessions.map(session => ({
         user_uuid: session.patientUuid,
       })),
@@ -200,7 +202,7 @@ export function usePatientRegistry(
 
         const roster = [...mergedByUuid.values()];
         const hydrated = sortPatientRecoveriesByRiskAndRecency(
-          await hydrateLastChatAt(token, activeActor, roster),
+          await hydrateLastChatAt(token, activeActor, tenantUuid, roster),
         );
 
         if (!cancelled) {

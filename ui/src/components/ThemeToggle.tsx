@@ -6,9 +6,15 @@ type ThemeToggleProps = {
   className?: string;
   /** Compact header button (default) or full-width profile menu row. */
   variant?: 'button' | 'menuItem';
+  /** Always show the mode label (splash headers). */
+  alwaysShowLabel?: boolean;
 };
 
-export default function ThemeToggle({ className, variant = 'button' }: ThemeToggleProps) {
+export default function ThemeToggle({
+  className,
+  variant = 'button',
+  alwaysShowLabel = false,
+}: ThemeToggleProps) {
   const { isCorporate, toggleMode } = useUiTheme();
 
   const label = isCorporate ? 'Switch to Spawn mode' : 'Switch to Corporate mode';
@@ -44,6 +50,7 @@ export default function ThemeToggle({ className, variant = 'button' }: ThemeTogg
       onClick={toggleMode}
       className={cn(
         'inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors focus-visible:outline-none focus-visible:ring-2',
+        alwaysShowLabel && 'justify-center',
         isCorporate
           ? 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50 focus-visible:ring-slate-400/40'
           : 'border-slate-700/80 bg-slate-900/40 text-slate-300 hover:bg-slate-800/60 focus-visible:ring-cyan-500/40',
@@ -55,12 +62,12 @@ export default function ThemeToggle({ className, variant = 'button' }: ThemeTogg
       {isCorporate ? (
         <>
           <MoonIcon className="size-4" aria-hidden="true" />
-          <span className="hidden sm:inline">Spawn</span>
+          <span className={alwaysShowLabel ? undefined : 'hidden sm:inline'}>Spawn</span>
         </>
       ) : (
         <>
           <SunIcon className="size-4" aria-hidden="true" />
-          <span className="hidden sm:inline">Corporate</span>
+          <span className={alwaysShowLabel ? undefined : 'hidden sm:inline'}>Corporate</span>
         </>
       )}
     </button>

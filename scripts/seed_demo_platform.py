@@ -3,11 +3,16 @@
 
 User and care-episode data are created via HTTP APIs. Chat demo messages are inserted
 directly with MIGRATION_DATABASE_URL (audit trigger disabled) so ``changed_at`` reflects
-seeded conversation times without a dedicated column or API backdoor.
+seeded conversation times without a dedicated column or API backdoor. After SQL chat seed,
+the final transcript turn is trimmed and replayed once per catalog patient through the
+care-episode chat completion proxy (``X-Active-Actor: clinician``) so ``interaction_risk_states``
+summaries are produced by the live risk agent. Requires chat and care-episode inference env
+and a JWT whose ``neosofia:actors`` includes ``clinician``.
 
 Environment variables:
   SEED_BEARER_TOKEN        Required (tenant claim or SEED_TENANT_UUID override for all services).
   SEED_ACTIVE_ACTOR        Optional. X-Active-Actor header (default: operator).
+  SEED_RISK_SUMMARIES      Optional. Set to 0/false to skip post-chat risk replay (default: on).
   SEED_TENANT_UUID         Optional override; default is the tenant claim on SEED_BEARER_TOKEN.
   USER_API_URL             Optional. Default: http://localhost:8018
   CARE_EPISODE_API_URL     Optional. Default: http://localhost:8015
@@ -156,16 +161,25 @@ def _rehome_catalog_demo_tenants(catalog: dict, tenant_uuid: str) -> None:
     )
 
 
-def _headers(*, required: bool = True) -> dict[str, str]:
+def _headers(*, required: bool = True, active_actor: str | None = None) -> dict[str, str]:
     token = os.getenv("SEED_BEARER_TOKEN", "").strip()
     if not token and required:
         raise RuntimeError("SEED_BEARER_TOKEN is required")
-    actor = os.getenv("SEED_ACTIVE_ACTOR", "operator").strip() or "operator"
+    actor = active_actor or os.getenv("SEED_ACTIVE_ACTOR", "operator").strip() or "operator"
     return {
         "Authorization": f"Bearer {token}",
         "X-Active-Actor": actor,
         "Content-Type": "application/json",
     }
+
+
+def _clinician_headers() -> dict[str, str]:
+    return _headers(required=True, active_actor="clinician")
+
+
+def _seed_risk_summaries_enabled() -> bool:
+    raw = os.getenv("SEED_RISK_SUMMARIES", "1").strip().lower()
+    return raw not in {"0", "false", "no", "off"}
 
 
 def _request_json(method: str, url: str, headers: dict[str, str], body: dict | None = None) -> tuple[int, dict]:
@@ -274,6 +288,36 @@ def _transcript_lines_for(patient: dict) -> list[tuple[str, str]]:
     if persona == ALICE_DISPLAY_CODE:
         return list(ALICE_TRANSCRIPT_LINES)
     return list(SHORT_TRANSCRIPTS.get(persona, SHORT_TRANSCRIPTS["PAT-2912"]))
+
+
+def _last_patient_message_content(patient: dict) -> str:
+    for role, content in reversed(_transcript_lines_for(patient)):
+        if role == "patient":
+            return content
+    display_code = patient.get("display_code", patient["uuid"])
+    raise ValueError(f"{display_code}: transcript has no patient message")
+
+
+def _synthetic_prior_summary_for_risk(patient: dict) -> str:
+    """Rolling summary from seeded transcript (risk agent does not read chat message rows)."""
+    patient_lines = [content for role, content in _transcript_lines_for(patient) if role == "patient"]
+    if len(patient_lines) <= 1:
+        return ""
+    excerpts: list[str] = []
+    for message in patient_lines[:-1]:
+        text = " ".join(message.split())
+        if len(text) > 180:
+            text = f"{text[:177]}..."
+        excerpts.append(text)
+    tail = excerpts[-8:]
+    return f"Earlier patient messages in this thread: {' | '.join(tail)}"
+
+
+def _final_turn_trim_count(patient: dict) -> int:
+    lines = _transcript_lines_for(patient)
+    if not lines:
+        return 0
+    return 2 if lines[-1][0] == "assistant" else 1
 
 
 def _assert_patient_assistant_alternation(lines: list[tuple[str, str]], display_code: str) -> None:
@@ -566,6 +610,175 @@ def _seed_chat(catalog: dict, tenant_uuid: str, now_utc: datetime) -> None:
     )
 
 
+def _trim_final_transcript_turn(cur, patient_uuid: str, patient: dict) -> int:
+    delete_count = _final_turn_trim_count(patient)
+    if delete_count <= 0:
+        return 0
+    cur.execute(
+        """
+        DELETE FROM messages
+        WHERE message_uuid IN (
+            SELECT m.message_uuid
+            FROM messages AS m
+            JOIN chat_interactions AS ci
+              ON ci.chat_interaction_uuid = m.chat_interaction_uuid
+            WHERE ci.user_uuid = %s::uuid
+            ORDER BY m.changed_at DESC, m.message_uuid DESC
+            LIMIT %s
+        )
+        """,
+        (patient_uuid, delete_count),
+    )
+    return cur.rowcount
+
+
+def _reset_catalog_recovery_risk_levels(cur, patients: list[dict]) -> int:
+    updated = 0
+    for patient in patients:
+        risk_level = str(patient.get("clinical", {}).get("risk_level") or "low").strip().lower()
+        if risk_level not in {"low", "medium", "high"}:
+            risk_level = "low"
+        cur.execute(
+            """
+            UPDATE care_episode_recoveries
+            SET risk_level = %s
+            WHERE patient_uuid = %s::uuid
+            """,
+            (risk_level, patient["uuid"]),
+        )
+        updated += cur.rowcount
+    return updated
+
+
+def _seed_prior_risk_summaries(
+    cur,
+    patients: list[dict],
+    interaction_uuids: dict[str, str],
+) -> int:
+    seeded = 0
+    for patient in patients:
+        patient_uuid = patient["uuid"]
+        interaction_uuid = interaction_uuids.get(patient_uuid)
+        summary = _synthetic_prior_summary_for_risk(patient)
+        if not interaction_uuid or not summary:
+            continue
+        cur.execute(
+            """
+            INSERT INTO interaction_risk_states (
+                chat_interaction_uuid,
+                patient_uuid,
+                summary,
+                changed_by_uuid,
+                changed_by_type,
+                change_type
+            )
+            VALUES (%s::uuid, %s::uuid, %s, %s::uuid, %s, 1)
+            ON CONFLICT (chat_interaction_uuid) DO UPDATE
+            SET summary = EXCLUDED.summary
+            """,
+            (
+                interaction_uuid,
+                patient_uuid,
+                summary,
+                CHAT_SEED_ACTOR_UUID,
+                CHAT_SEED_ACTOR_TYPE,
+            ),
+        )
+        seeded += 1
+    return seeded
+
+
+def _latest_chat_interaction_uuids(cur, patient_uuids: list[str]) -> dict[str, str]:
+    if not patient_uuids:
+        return {}
+    cur.execute(
+        """
+        SELECT DISTINCT ON (user_uuid)
+            user_uuid::text,
+            chat_interaction_uuid::text
+        FROM chat_interactions
+        WHERE user_uuid = ANY(%s::uuid[])
+        ORDER BY user_uuid, changed_at DESC
+        """,
+        (patient_uuids,),
+    )
+    return {row[0]: row[1] for row in cur.fetchall()}
+
+
+def _seed_risk_summaries(catalog: dict, api_url: str, headers: dict[str, str]) -> None:
+    """Replay the last patient turn via care-episode so risk summaries are persisted."""
+    psycopg = _require_psycopg()
+    patients = _catalog_patients(catalog)
+    patient_uuids = _catalog_patient_uuids(catalog)
+    trimmed_messages = 0
+
+    with psycopg.connect(migration_database_url("chat")) as conn:
+        with conn.cursor() as cur:
+            cur.execute("SET session_replication_role = replica")
+            for patient in patients:
+                trimmed_messages += _trim_final_transcript_turn(cur, patient["uuid"], patient)
+            interaction_uuids = _latest_chat_interaction_uuids(cur, patient_uuids)
+            cur.execute("SET session_replication_role = origin")
+        conn.commit()
+
+    prior_summaries = 0
+    risk_levels_reset = 0
+    with psycopg.connect(migration_database_url("care-episode")) as conn:
+        with conn.cursor() as cur:
+            cur.execute("SET session_replication_role = replica")
+            risk_levels_reset = _reset_catalog_recovery_risk_levels(cur, patients)
+            prior_summaries = _seed_prior_risk_summaries(cur, patients, interaction_uuids)
+            cur.execute("SET session_replication_role = origin")
+        conn.commit()
+
+    print(
+        f"chat: trimmed final transcript turn ({trimmed_messages} messages) "
+        f"on {len(patients)} interactions for risk replay",
+    )
+    print(
+        f"care-episode: reset {risk_levels_reset} catalog recovery risk levels; "
+        f"seeded prior risk summaries for {prior_summaries} interactions",
+    )
+
+    succeeded = 0
+    failed = 0
+    for patient in patients:
+        patient_uuid = patient["uuid"]
+        display_code = patient["display_code"]
+        interaction_uuid = interaction_uuids.get(patient_uuid)
+        if not interaction_uuid:
+            failed += 1
+            print(f"risk-summaries: skip {display_code} (no chat interaction)")
+            continue
+
+        content = _last_patient_message_content(patient)
+        url = (
+            f"{api_url}/api/v1/care-episodes/{patient_uuid}"
+            f"/chat/interactions/{interaction_uuid}/completions"
+        )
+        try:
+            status, body = _request_json("POST", url, headers, {"content": content})
+        except RuntimeError as exc:
+            failed += 1
+            print(f"risk-summaries: {display_code} failed: {exc}")
+            continue
+
+        if status != 200:
+            failed += 1
+            print(f"risk-summaries: {display_code} failed: HTTP {status}")
+            continue
+
+        risk = body.get("risk_evaluation") or {}
+        risk_level = risk.get("risk_level", "?")
+        succeeded += 1
+        print(f"risk-summaries: {display_code} ok (risk_level={risk_level})")
+
+    print(
+        f"risk-summaries: {succeeded} ok, {failed} failed "
+        f"for {len(patients)} catalog patients (via care-episode completion proxy)",
+    )
+
+
 def main() -> None:
     if not CATALOG_FILE.exists():
         raise RuntimeError(f"Missing catalog file: {CATALOG_FILE}")
@@ -595,6 +808,13 @@ def main() -> None:
         if not tenant_uuid:
             raise RuntimeError("SEED_BEARER_TOKEN is required to resolve tenant for chat seed")
         _seed_chat(catalog, tenant_uuid, now_utc)
+        if _seed_risk_summaries_enabled():
+            if not os.getenv("SEED_BEARER_TOKEN", "").strip():
+                print("risk-summaries: skipped (SEED_BEARER_TOKEN required)")
+            else:
+                _seed_risk_summaries(catalog, urls["care-episode"], _clinician_headers())
+        else:
+            print("risk-summaries: skipped (SEED_RISK_SUMMARIES disabled)")
     print("Done.")
 
 

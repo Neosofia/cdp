@@ -219,8 +219,12 @@ export default function App() {
     pingApi(url, label, token);
   };
 
-  /** Full-height layout with internal chat scroll — not used for lists, records, or TOS. */
-  const fillViewport = selectedSection === 'Patient' && selectedAction === 'Chat';
+  /** Full-height layout with internal scroll — not used for lists, records, or TOS. */
+  const fillViewport =
+    (selectedSection === 'Patient' && selectedAction === 'Chat') ||
+    (selectedSection === 'Clinician' &&
+      selectedAction === 'Patients' &&
+      Boolean(clinicianPatientUuid));
 
   if (isTosPreviewPath()) {
     return (

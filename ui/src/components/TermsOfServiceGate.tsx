@@ -45,14 +45,14 @@ export default function TermsOfServiceGate({
     return (
       <div
         className={cn(
-          'flex min-h-dvh flex-col bg-slate-100 text-slate-900',
-          preview ? 'flex-1 min-h-0' : undefined,
+          'flex flex-col overflow-hidden bg-slate-100 text-slate-900',
+          preview ? 'flex-1 min-h-0' : 'h-dvh',
           className,
         )}
       >
-        <AppBrandHeader />
+        <AppBrandHeader className="shrink-0" />
 
-        <main className="relative z-10 flex flex-1 flex-col pt-4 pb-8">
+        <main className="relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto pt-4 pb-8">
           {!preview ? (
             <p className="mb-3 shrink-0 text-center text-sm text-slate-600 px-4">
               Welcome, {displayName}. Please review and accept the Terms of Service to continue.

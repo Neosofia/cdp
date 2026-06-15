@@ -240,8 +240,10 @@ export async function bootstrapDemoWorkspace(
   }
 
   const templateUuid = await resolveTemplatePatientUuid(token, tenantUuid);
+  // Catalog template (DEMO-123) is seeded in the platform demo tenant; demo Cedar policy
+  // allows reading that patient cross-tenant. Do not scope this lookup to the human's tenant.
   const templateRecoveries = await listCareEpisodeRecoveries(token, DEMO_ACTOR, tenantUuid, {
-    includeTenantFilter: true,
+    includeTenantFilter: false,
   });
   const templateRecovery = templateRecoveries.find((row) => row.user_uuid === templateUuid);
   if (!templateRecovery) {

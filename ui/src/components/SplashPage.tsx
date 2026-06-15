@@ -1,6 +1,5 @@
-import AppBrandHeader from '@/components/AppBrandHeader';
 import AppFooter from '@/components/AppFooter';
-import SpawnBrandHeader from '@/components/SpawnBrandHeader';
+import SplashPageHeader, { SplashLoginButton } from '@/components/SplashPageHeader';
 import StarField from '@/components/StarField';
 import { beginLogin } from '@/lib/auth';
 import { useUiTheme } from '@/lib/uiTheme';
@@ -35,22 +34,9 @@ const STATS = [
 function CorporateSplashPage() {
   return (
     <div className="flex h-dvh min-h-0 w-full flex-col bg-slate-50 text-slate-900">
-      <AppBrandHeader
-        trailing={
-          <a
-            href="#"
-            onClick={(e) => {
-              e.preventDefault();
-              beginLogin();
-            }}
-            className="inline-flex items-center rounded-md bg-slate-900 px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-slate-800"
-          >
-            Sign In
-          </a>
-        }
-      />
+      <SplashPageHeader trailing={<SplashLoginButton isCorporate />} />
 
-      <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col items-center justify-center px-4 py-12 text-center md:px-8">
+      <main className="flex w-full flex-1 flex-col items-center justify-center px-6 py-12 text-center md:px-10">
         <p className="mb-4 text-sm font-medium uppercase tracking-widest text-slate-500">
           Coordinated post-discharge care
         </p>
@@ -63,16 +49,7 @@ function CorporateSplashPage() {
         </p>
 
         <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row">
-          <a
-            href="#"
-            onClick={(e) => {
-              e.preventDefault();
-              beginLogin();
-            }}
-            className="inline-flex items-center rounded-md bg-slate-900 px-8 py-3 text-sm font-semibold text-white transition-colors hover:bg-slate-800"
-          >
-            Sign In
-          </a>
+          <SplashLoginButton isCorporate />
           <span className="text-xs uppercase tracking-widest text-slate-500">
             Authorized users only
           </span>
@@ -95,7 +72,7 @@ function CorporateSplashPage() {
         </div>
       </main>
 
-      <AppFooter className="border-t border-slate-200 bg-white" />
+      <AppFooter className="border-t border-slate-200 bg-white" fullWidth />
     </div>
   );
 }
@@ -119,26 +96,9 @@ function SpawnSplashPage() {
         />
       </div>
 
-      <SpawnBrandHeader
-        trailing={
-          <a
-            href="#"
-            onClick={(e) => {
-              e.preventDefault();
-              beginLogin();
-            }}
-            className="relative group inline-flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-bold uppercase tracking-wider text-white transition-all duration-200 hover:scale-105"
-            style={{
-              background: 'linear-gradient(135deg, #22d3ee 0%, #a855f7 100%)',
-              boxShadow: '0 0 20px rgba(168,85,247,0.4)',
-            }}
-          >
-            <span>⚡</span> Login
-          </a>
-        }
-      />
+      <SplashPageHeader trailing={<SplashLoginButton isCorporate={false} />} />
 
-      <main className="relative z-10 flex-1 flex flex-col items-center justify-center text-center px-6 py-8 md:py-12">
+      <main className="relative z-10 flex flex-1 flex-col items-center justify-center px-6 py-8 text-center md:px-10 md:py-12">
         <div
           className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 mb-8 text-xs font-semibold uppercase tracking-widest border"
           style={{
@@ -239,7 +199,7 @@ function SpawnSplashPage() {
         </div>
       </div>
 
-      <AppFooter className="relative z-10" tagline="All protocols confirmed" />
+      <AppFooter className="relative z-10" tagline="All protocols confirmed" fullWidth />
 
       <style>{`
         @keyframes ticker {
