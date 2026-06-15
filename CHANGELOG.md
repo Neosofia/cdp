@@ -1,5 +1,19 @@
 # Changelog
 
+## [2026.06.15] - 2026-06-15
+
+**Pinned services:** authentication **v0.37.0**; user **v0.8.1**; chat **v0.6.1**; care-episode **v0.7.0**; capabilities **v0.7.1**; **cdp-policies v0.2.0**.
+
+### Added
+
+- Corporate UI mode with theme toggle, refreshed shell/header/footer, and Post Discharge Care Platform branding.
+- Terms-of-service review flow and demo workspace bootstrap configuration for patient testing.
+
+### Changed
+
+- CDP UI release id is **2026.06.15** and capabilities production builds now consume **`POLICIES_IMAGE=ghcr.io/neosofia/cdp-policies:v0.2.0`**.
+- Patient, clinician, operator, and service-management screens share themed form and shell styling tokens.
+
 ## [2026.06.14] - 2026-06-14
 
 **Pinned services:** authentication **v0.37.0**; user **v0.8.1**; chat **v0.6.0**; care-episode **v0.7.0**; capabilities **v0.7.0**; **cdp-policies v0.2.0**.

@@ -24,17 +24,9 @@ import {
   usersListPath,
   usesPlatformUserCatalog,
 } from '@/lib/userRegistryApi';
-import {
-  USER_FIELD_LABEL_CLASS,
-  USER_INPUT_CLASS,
-  USER_PRIMARY_BUTTON_CLASS,
-  USER_SHEET_BODY_CLASS,
-  USER_SHEET_CANCEL_BUTTON_CLASS,
-  USER_SHEET_CONTENT_CLASS,
-  USER_SHEET_HEADER_CLASS,
-  USER_SHEET_TITLE_CLASS,
-  USER_SHEET_TITLE_STYLE,
-} from '@/components/userFormStyles';
+import { useUserFormStyles } from '@/components/userFormStyles';
+import { usePatientViewStyles } from '@/lib/patientViewStyles';
+import { cn } from '@/lib/utils';
 
 const USER_API = import.meta.env.VITE_USER_API_URL ?? 'http://localhost:8018';
 const AUTH_API = import.meta.env.VITE_AUTH_API_URL ?? 'http://localhost:8014';
@@ -117,6 +109,8 @@ export default function UserManagement({
   sessionTenantUuid,
   entitlements = {},
 }: Props) {
+  const formStyles = useUserFormStyles();
+  const adminStyles = usePatientViewStyles();
   const usePlatformCatalog = usesPlatformUserCatalog(activeActor);
   const canUpdateRoles =
     activeActor === 'operator' && Boolean(entitlements['ui:tenant:user:update-roles']);
@@ -362,12 +356,12 @@ export default function UserManagement({
 
   return (
     <div className="space-y-4">
-      <Card className="border-slate-800 bg-slate-950/80">
+      <Card className={adminStyles.adminCardClass}>
         <CardHeader>
-          <CardTitle className="text-cyan-300 font-mono uppercase tracking-wider text-sm">
+          <CardTitle className={adminStyles.adminTitleClass}>
             {listTitle}
           </CardTitle>
-          <p className="text-xs text-slate-500 mt-1">
+          <p className={adminStyles.adminSubtitleClass}>
             {listSubtitle}
           </p>
         </CardHeader>
@@ -378,47 +372,47 @@ export default function UserManagement({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search name, email, display code, idp id…"
-              className="pl-9 bg-slate-900 border-slate-700"
+              className={cn('pl-9', adminStyles.inputClass)}
             />
           </div>
           {listError && <p className="text-sm text-red-400">{listError}</p>}
-          <div className="overflow-x-auto rounded-lg border border-slate-800">
-            <table className="w-full text-sm text-left">
-              <thead className="text-xs uppercase text-slate-500 bg-slate-900/80">
+          <div className={adminStyles.adminTableWrapClass}>
+            <table className={adminStyles.adminTableClass}>
+              <thead className={adminStyles.adminTheadClass}>
                 <tr>
-                  <th className="px-3 py-2">Name</th>
-                  <th className="px-3 py-2">Display code</th>
-                  <th className="px-3 py-2">Email</th>
-                  <th className="px-3 py-2">Roles</th>
-                  <th className="px-3 py-2">Tenant</th>
-                  {showRowActions ? <th className="px-3 py-2" /> : null}
+                  <th className={adminStyles.adminThClass}>Name</th>
+                  <th className={adminStyles.adminThClass}>Display code</th>
+                  <th className={adminStyles.adminThClass}>Email</th>
+                  <th className={adminStyles.adminThClass}>Roles</th>
+                  <th className={adminStyles.adminThClass}>Tenant</th>
+                  {showRowActions ? <th className={adminStyles.adminThClass} /> : null}
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={showRowActions ? 6 : 5} className="px-3 py-6 text-center text-slate-500">
+                    <td colSpan={showRowActions ? 6 : 5} className={adminStyles.adminEmptyCellClass}>
                       Loading…
                     </td>
                   </tr>
                 ) : items.length === 0 ? (
                   <tr>
-                    <td colSpan={showRowActions ? 6 : 5} className="px-3 py-6 text-center text-slate-500">
+                    <td colSpan={showRowActions ? 6 : 5} className={adminStyles.adminEmptyCellClass}>
                       Users appear after first login
                     </td>
                   </tr>
                 ) : (
                   items.map((user) => (
-                    <tr key={user.uuid} className="border-t border-slate-800 hover:bg-slate-900/50">
-                      <td className="px-3 py-2 text-white">{displayName(user)}</td>
-                      <td className="px-3 py-2 font-mono text-xs text-slate-400">
+                    <tr key={user.uuid} className={adminStyles.adminTrClass}>
+                      <td className={adminStyles.adminTdPrimaryClass}>{displayName(user)}</td>
+                      <td className={adminStyles.adminTdMonoClass}>
                         {user.display_code ?? '—'}
                       </td>
-                      <td className="px-3 py-2 text-slate-400">{user.email ?? '—'}</td>
-                      <td className="px-3 py-2 text-slate-400 max-w-xs truncate">
+                      <td className={adminStyles.adminTdMutedClass}>{user.email ?? '—'}</td>
+                      <td className={cn(adminStyles.adminTdMutedClass, 'max-w-xs truncate')}>
                         {user.roles.join(', ') || '—'}
                       </td>
-                      <td className="px-3 py-2 text-slate-400">
+                      <td className={adminStyles.adminTdMutedClass}>
                         {tenantNames[user.tenant_uuid] ?? `${user.tenant_uuid.slice(0, 8)}…`}
                       </td>
                       {showRowActions ? (
@@ -455,7 +449,7 @@ export default function UserManagement({
               </tbody>
             </table>
           </div>
-          <div className="flex items-center justify-between text-sm text-slate-500">
+          <div className={adminStyles.adminPaginationClass}>
             <span>
               {total} user{total === 1 ? '' : 's'}
             </span>
@@ -487,35 +481,35 @@ export default function UserManagement({
       </Card>
 
       <Sheet open={!!editUser} onOpenChange={(open) => !open && setEditUser(null)}>
-        <SheetContent side="right" className={USER_SHEET_CONTENT_CLASS}>
-          <SheetHeader className={USER_SHEET_HEADER_CLASS}>
-            <SheetTitle className={USER_SHEET_TITLE_CLASS} style={USER_SHEET_TITLE_STYLE}>
+        <SheetContent side="right" className={formStyles.sheetContentClass}>
+          <SheetHeader className={formStyles.sheetHeaderClass}>
+            <SheetTitle className={formStyles.sheetTitleClass} style={formStyles.sheetTitleStyle}>
               Edit user
             </SheetTitle>
           </SheetHeader>
           {editUser && (
-            <div className={USER_SHEET_BODY_CLASS}>
+            <div className={formStyles.sheetBodyClass}>
               <div>
-                <label className={USER_FIELD_LABEL_CLASS}>User UUID</label>
-                <p className="font-mono text-xs text-slate-400 break-all">{editUser.uuid}</p>
+                <label className={formStyles.fieldLabelClass}>User UUID</label>
+                <p className={formStyles.monoMutedClass}>{editUser.uuid}</p>
               </div>
               <div>
-                <label className={USER_FIELD_LABEL_CLASS}>Tenant</label>
-                <p className="text-sm text-slate-200">
+                <label className={formStyles.fieldLabelClass}>Tenant</label>
+                <p className={cn('text-sm', formStyles.bodyTextClass)}>
                   {tenantNames[editUser.tenant_uuid] ?? editUser.tenant_uuid}
                 </p>
               </div>
               <div>
-                <label className={USER_FIELD_LABEL_CLASS}>IdP ID</label>
-                <p className="font-mono text-xs text-slate-400 break-all">{editUser.idp_id}</p>
+                <label className={formStyles.fieldLabelClass}>IdP ID</label>
+                <p className={formStyles.monoMutedClass}>{editUser.idp_id}</p>
               </div>
               <div>
-                <label className={USER_FIELD_LABEL_CLASS} htmlFor="edit-display-code">
+                <label className={formStyles.fieldLabelClass} htmlFor="edit-display-code">
                   Display code
                 </label>
                 <Input
                   id="edit-display-code"
-                  className={USER_INPUT_CLASS}
+                  className={formStyles.inputClass}
                   placeholder="e.g. DET-4035"
                   value={editUser.display_code ?? ''}
                   onChange={(e) =>
@@ -526,12 +520,12 @@ export default function UserManagement({
                 />
               </div>
               <div>
-                <label className={USER_FIELD_LABEL_CLASS} htmlFor="edit-first-name">
+                <label className={formStyles.fieldLabelClass} htmlFor="edit-first-name">
                   First name
                 </label>
                 <Input
                   id="edit-first-name"
-                  className={USER_INPUT_CLASS}
+                  className={formStyles.inputClass}
                   value={editUser.first_name ?? ''}
                   onChange={(e) =>
                     setEditUser((u) => (u ? { ...u, first_name: e.target.value } : u))
@@ -539,12 +533,12 @@ export default function UserManagement({
                 />
               </div>
               <div>
-                <label className={USER_FIELD_LABEL_CLASS} htmlFor="edit-last-name">
+                <label className={formStyles.fieldLabelClass} htmlFor="edit-last-name">
                   Last name
                 </label>
                 <Input
                   id="edit-last-name"
-                  className={USER_INPUT_CLASS}
+                  className={formStyles.inputClass}
                   value={editUser.last_name ?? ''}
                   onChange={(e) =>
                     setEditUser((u) => (u ? { ...u, last_name: e.target.value } : u))
@@ -552,13 +546,13 @@ export default function UserManagement({
                 />
               </div>
               <div>
-                <label className={USER_FIELD_LABEL_CLASS} htmlFor="edit-email">
+                <label className={formStyles.fieldLabelClass} htmlFor="edit-email">
                   Email
                 </label>
                 <Input
                   id="edit-email"
                   type="email"
-                  className={USER_INPUT_CLASS}
+                  className={formStyles.inputClass}
                   value={editUser.email ?? ''}
                   onChange={(e) =>
                     setEditUser((u) => (u ? { ...u, email: e.target.value } : u))
@@ -566,18 +560,18 @@ export default function UserManagement({
                 />
               </div>
               <div>
-                <label className={USER_FIELD_LABEL_CLASS}>Platform roles</label>
+                <label className={formStyles.fieldLabelClass}>Platform roles</label>
                 {editRolesLocked ? (
                   <>
-                    <p className="text-xs text-amber-400/90 mb-2">
+                    <p className="text-xs text-amber-700 mb-2">
                       This user has organization roles outside the platform namespace. Profile
                       fields can be updated; role assignment is not available from this screen.
                     </p>
-                    <p className="text-sm text-slate-300 font-mono">{editUser.roles.join(', ') || '—'}</p>
+                    <p className={cn('text-sm font-mono', formStyles.bodyTextClass)}>{editUser.roles.join(', ') || '—'}</p>
                   </>
                 ) : (
                   <>
-                    <p className="text-xs text-slate-500 mb-2">
+                    <p className={cn('text-xs mb-2', formStyles.mutedTextClass)}>
                       Assignable platform roles under your Tier-1 roles (
                       {sessionActors.length > 0 ? sessionActors.join(', ') : 'none on JWT'})
                     </p>
@@ -599,13 +593,13 @@ export default function UserManagement({
                 <Button
                   type="button"
                   variant="outline"
-                  className={USER_PRIMARY_BUTTON_CLASS}
+                  className={formStyles.primaryButtonClass}
                   disabled={editSaving}
                   onClick={submitEdit}
                 >
                   {editSaving ? 'Saving…' : 'Save changes'}
                 </Button>
-                <Button type="button" variant="outline" onClick={() => setEditUser(null)} className={USER_SHEET_CANCEL_BUTTON_CLASS}>
+                <Button type="button" variant="outline" onClick={() => setEditUser(null)} className={formStyles.sheetCancelButtonClass}>
                   Cancel
                 </Button>
               </div>
@@ -622,8 +616,8 @@ export default function UserManagement({
             Audit history —{' '}
             {auditUser ? (
               <>
-                <span className="normal-case text-slate-300">{displayName(auditUser)}</span>{' '}
-                <span className="font-mono normal-case text-slate-600">({auditUser.uuid})</span>
+                <span className={cn('normal-case', formStyles.bodyTextClass)}>{displayName(auditUser)}</span>{' '}
+                <span className={cn('font-mono normal-case', formStyles.mutedTextClass)}>({auditUser.uuid})</span>
               </>
             ) : null}
           </>

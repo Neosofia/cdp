@@ -34,6 +34,34 @@ Run once per new environment **before** platform admin UI or `GET /api/v1/users`
 
 ---
 
+## CDP UI 2026.06.15 / capabilities v0.7.1 / chat v0.6.1
+
+**Build:** CDP UI **2026.06.15**; **authentication v0.37.0**; **user v0.8.1**; **chat v0.6.1**; **care-episode v0.7.0**; **capabilities v0.7.1**; **cdp-policies v0.2.0**.
+
+**Prerequisites:**
+
+- Publish **chat/v0.6.1** and **capabilities/v0.7.1** before redeploying staging.
+- Capabilities build uses **`POLICIES_IMAGE=ghcr.io/neosofia/cdp-policies:v0.2.0`**.
+- CDP UI build includes staging `VITE_*_API_URL` values for authentication, capabilities, user, chat, care-episode, and template.
+
+**Deploy:**
+
+1. Deploy **chat v0.6.1** and run existing migrations/pre-deploy command.
+2. Deploy **capabilities v0.7.1** with the pinned policy bundle image.
+3. Deploy CDP UI **2026.06.15** after backend services are healthy.
+
+**Post-deploy verification:**
+
+1. `GET /health` on chat and capabilities reports **0.6.1** and **0.7.1**.
+2. CDP footer reports **UI 2026.06.15**.
+3. Platform admin can open **Admin → Users** and **Admin → Services**.
+4. Patient and clinician chat flows work for an enrolled demo patient, including an empty-chat-history patient.
+5. Corporate/SPAWN theme toggle and Terms-of-service review render in staging.
+
+**Evidence:** Health JSON version fields; staging screenshots for footer/theme/TOS; clinician patient chat response.
+
+---
+
 ## cdp-policies v0.2.0 / user v0.8.1
 
 **Build:** **cdp-policies v0.2.0**; **user v0.8.1** (other backend pins unchanged from **2026.06.14**).
@@ -42,11 +70,12 @@ Run once per new environment **before** platform admin UI or `GET /api/v1/users`
 
 - Publish **cdp-policies/v0.2.0** (adds `policies/user/cedar/` — platform, site, sponsor Cedar moved from user repo).
 - Rebuild **user** with `USER_PRODUCT_POLICIES_IMAGE=ghcr.io/neosofia/cdp-policies:v0.2.0` (Dockerfile default).
+- Rebuild **capabilities** with `POLICIES_IMAGE=ghcr.io/neosofia/cdp-policies:v0.2.0` when bumping the capabilities Dockerfile pin.
 
 **Deploy:**
 
-1. Pull `ghcr.io/neosofia/cdp-policies:v0.2.0` (capabilities unchanged on v0.1.0 unless repinned).
-2. Deploy **user v0.8.1**.
+1. Pull `ghcr.io/neosofia/cdp-policies:v0.2.0`.
+2. Deploy **user v0.8.1**; redeploy **capabilities** after repinning `POLICIES_IMAGE` to v0.2.0.
 
 **Post-deploy verification:**
 
@@ -63,7 +92,7 @@ Run once per new environment **before** platform admin UI or `GET /api/v1/users`
 
 **Prerequisites:**
 
-- Publish **cdp-policies/v0.1.0** before rebuilding **capabilities** and **user** (both pin `CDP_POLICIES_IMAGE`).
+- Publish **cdp-policies/v0.1.0** before rebuilding **capabilities** and **user** (capabilities pins **`POLICIES_IMAGE`**; user pins **`USER_PRODUCT_POLICIES_IMAGE`**).
 - Deploy all five backend services; migrations to head on authentication, user, chat, and care-episode databases.
 
 **Deploy:**

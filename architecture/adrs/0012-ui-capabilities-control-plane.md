@@ -34,8 +34,8 @@ We treat the **capabilities service** as the platform UI control plane and **CDP
 ## Consequences
 
 - Adding a UI entitlement requires changes in CDP (`entitlements.json`, Cedar policies) and in the UI (entitlement key references). Capabilities code changes only when the engine contract evolves.
-- CDP publishes `ghcr.io/neosofia/cdp-policies:vX.Y.Z` on tag `cdp-policies/vX.Y.Z`. Capabilities pins `CDP_POLICIES_IMAGE` at build time, copies `/policies/capabilities` → `/app/policies`, and redeploys when the bundle version changes.
-- Local development may volume-mount `cdp/policies/` over `/app/policies` without rebuilding either image.
+- CDP publishes `ghcr.io/neosofia/cdp-policies:vX.Y.Z` on tag `cdp-policies/vX.Y.Z`. Capabilities pins **`POLICIES_IMAGE`** at build time, copies `/policies/capabilities` → `/app/policies`, and redeploys when the bundle version changes.
+- Local development may volume-mount `cdp/policies/capabilities/` over `/app/policies` without rebuilding either image.
 - Feature toggles and tenant licensing will live in capabilities as an additional evaluation source, not as a replacement for backend service authorization.
 
 ## Status

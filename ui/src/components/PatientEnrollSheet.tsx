@@ -9,20 +9,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
-import {
-  USER_FIELD_LABEL_CLASS,
-  USER_INPUT_CLASS,
-  USER_PRIMARY_BUTTON_CLASS,
-  USER_SELECT_CLASS,
-  USER_SHEET_BODY_CLASS,
-  USER_SHEET_CANCEL_BUTTON_CLASS,
-  USER_SHEET_CONTENT_CLASS,
-  USER_SHEET_HEADER_CLASS,
-  USER_SHEET_TITLE_CLASS,
-  USER_SHEET_TITLE_STYLE,
-  USER_SHEET_TOGGLE_IDLE_CLASS,
-  USER_SHEET_TOGGLE_SELECTED_CLASS,
-} from '@/components/userFormStyles';
+import { useUserFormStyles } from '@/components/userFormStyles';
 import { cn } from '@/lib/utils';
 import { procedureById } from '@/lib/procedureCatalog';
 import type { PostCareEnrollmentInput } from '@/lib/postCareEnrollment';
@@ -50,6 +37,7 @@ export default function PatientEnrollSheet({
   tenantUuid,
   onEnroll,
 }: Props) {
+  const formStyles = useUserFormStyles();
   const [mode, setMode] = useState<'existing' | 'new'>('existing');
   const [existingPatientUuid, setExistingPatientUuid] = useState('');
   const [newPatient, setNewPatient] = useState(EMPTY_NEW_PATIENT);
@@ -174,20 +162,20 @@ export default function PatientEnrollSheet({
 
   return (
     <Sheet open={open} onOpenChange={handleClose}>
-      <SheetContent side="right" className={USER_SHEET_CONTENT_CLASS}>
-        <SheetHeader className={USER_SHEET_HEADER_CLASS}>
-          <SheetTitle className={USER_SHEET_TITLE_CLASS} style={USER_SHEET_TITLE_STYLE}>
+      <SheetContent side="right" className={formStyles.sheetContentClass}>
+        <SheetHeader className={formStyles.sheetHeaderClass}>
+          <SheetTitle className={formStyles.sheetTitleClass} style={formStyles.sheetTitleStyle}>
             Enroll in post-care monitoring
           </SheetTitle>
         </SheetHeader>
-        <div className={USER_SHEET_BODY_CLASS}>
-          <p className="text-xs text-slate-500">
+        <div className={formStyles.sheetBodyClass}>
+          <p className={cn('text-xs', formStyles.mutedTextClass)}>
             Start post-discharge monitoring for a procedure. This opens a care episode with a
             monitoring window and invite path for the patient.
           </p>
 
           <div>
-            <span className={USER_FIELD_LABEL_CLASS}>Patient</span>
+            <span className={formStyles.fieldLabelClass}>Patient</span>
             <div className="flex gap-2 mb-3">
               <Button
                 type="button"
@@ -196,7 +184,7 @@ export default function PatientEnrollSheet({
                 disabled={existingPatients.length === 0}
                 onClick={() => setMode('existing')}
                 className={cn(
-                  mode === 'existing' ? USER_SHEET_TOGGLE_SELECTED_CLASS : USER_SHEET_TOGGLE_IDLE_CLASS,
+                  mode === 'existing' ? formStyles.sheetToggleSelectedClass : formStyles.sheetToggleIdleClass,
                 )}
               >
                 Existing
@@ -207,20 +195,20 @@ export default function PatientEnrollSheet({
                 variant="outline"
                 onClick={() => setMode('new')}
                 className={cn(
-                  mode === 'new' ? USER_SHEET_TOGGLE_SELECTED_CLASS : USER_SHEET_TOGGLE_IDLE_CLASS,
+                  mode === 'new' ? formStyles.sheetToggleSelectedClass : formStyles.sheetToggleIdleClass,
                 )}
               >
                 New patient
               </Button>
             </div>
             {mode === 'existing' && existingPatients.length === 0 ? (
-              <p className="text-xs text-slate-500">
+              <p className={cn('text-xs', formStyles.mutedTextClass)}>
                 All registry patients are already on the active roster. Use New patient to enroll someone else.
               </p>
             ) : null}
             {mode === 'existing' ? (
               <select
-                className={USER_SELECT_CLASS}
+                className={formStyles.selectClass}
                 value={existingPatientUuid}
                 onChange={(e) => setExistingPatientUuid(e.target.value)}
               >
@@ -236,20 +224,20 @@ export default function PatientEnrollSheet({
                 <input type="hidden" name="tenant_uuid" value={tenantUuid ?? ''} readOnly />
                 <input type="hidden" name="roles" value="patient.self" readOnly />
                 <Input
-                  className={USER_INPUT_CLASS}
+                  className={formStyles.inputClass}
                   placeholder="Display code (e.g. PAT-4821)"
                   value={newPatient.display_code}
                   onChange={(e) => setNewPatient(f => ({ ...f, display_code: e.target.value }))}
                 />
                 <div className="grid grid-cols-2 gap-3">
                   <Input
-                    className={USER_INPUT_CLASS}
+                    className={formStyles.inputClass}
                     placeholder="First name"
                     value={newPatient.first_name}
                     onChange={(e) => setNewPatient(f => ({ ...f, first_name: e.target.value }))}
                   />
                   <Input
-                    className={USER_INPUT_CLASS}
+                    className={formStyles.inputClass}
                     placeholder="Last name"
                     value={newPatient.last_name}
                     onChange={(e) => setNewPatient(f => ({ ...f, last_name: e.target.value }))}
@@ -257,7 +245,7 @@ export default function PatientEnrollSheet({
                 </div>
                 <Input
                   type="email"
-                  className={USER_INPUT_CLASS}
+                  className={formStyles.inputClass}
                   placeholder="Email for invite"
                   value={newPatient.email}
                   onChange={(e) => setNewPatient(f => ({ ...f, email: e.target.value }))}
@@ -272,7 +260,7 @@ export default function PatientEnrollSheet({
           />
 
           <div>
-            <label className={USER_FIELD_LABEL_CLASS} htmlFor="enroll-procedure-date">
+            <label className={formStyles.fieldLabelClass} htmlFor="enroll-procedure-date">
               Procedure date
             </label>
             <SpawnDatePicker
@@ -283,14 +271,14 @@ export default function PatientEnrollSheet({
           </div>
 
           <div>
-            <label className={USER_FIELD_LABEL_CLASS} htmlFor="enroll-care-window">
+            <label className={formStyles.fieldLabelClass} htmlFor="enroll-care-window">
               Care window (days)
             </label>
             <Input
               id="enroll-care-window"
               type="number"
               min={1}
-              className={USER_INPUT_CLASS}
+              className={formStyles.inputClass}
               value={careWindowDays}
               onChange={(e) => setCareWindowDays(e.target.value)}
             />
@@ -301,7 +289,7 @@ export default function PatientEnrollSheet({
             <Button
               type="button"
               variant="outline"
-              className={USER_PRIMARY_BUTTON_CLASS}
+              className={formStyles.primaryButtonClass}
               disabled={saving || !canSubmit}
               onClick={() => void submit()}
             >
@@ -310,7 +298,7 @@ export default function PatientEnrollSheet({
             <Button
               type="button"
               variant="outline"
-              className={USER_SHEET_CANCEL_BUTTON_CLASS}
+              className={formStyles.sheetCancelButtonClass}
               onClick={() => handleClose(false)}
             >
               Cancel

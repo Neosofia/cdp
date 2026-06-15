@@ -1,7 +1,9 @@
+import AppBrandHeader from '@/components/AppBrandHeader';
 import AppFooter from '@/components/AppFooter';
 import SpawnBrandHeader from '@/components/SpawnBrandHeader';
 import StarField from '@/components/StarField';
 import { beginLogin } from '@/lib/auth';
+import { useUiTheme } from '@/lib/uiTheme';
 
 const TICKER_ITEMS = [
   '◆ PHASE III COMPLETE',
@@ -30,18 +32,84 @@ const STATS = [
   { value: '2X', label: 'THE ORIGINAL' },
 ];
 
-export default function SplashPage() {
+function CorporateSplashPage() {
+  return (
+    <div className="flex h-dvh min-h-0 w-full flex-col bg-slate-50 text-slate-900">
+      <AppBrandHeader
+        trailing={
+          <a
+            href="#"
+            onClick={(e) => {
+              e.preventDefault();
+              beginLogin();
+            }}
+            className="inline-flex items-center rounded-md bg-slate-900 px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-slate-800"
+          >
+            Sign In
+          </a>
+        }
+      />
+
+      <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col items-center justify-center px-4 py-12 text-center md:px-8">
+        <p className="mb-4 text-sm font-medium uppercase tracking-widest text-slate-500">
+          Coordinated post-discharge care
+        </p>
+        <h1 className="max-w-3xl text-4xl font-semibold leading-tight text-slate-900 md:text-5xl">
+          Post Discharge Care Platform
+        </h1>
+        <p className="mt-6 max-w-2xl text-base leading-relaxed text-slate-600 md:text-lg">
+          Secure clinical workflows for care teams, patients, and authorized operators. Manage care
+          episodes, communications, and operational tasks within your organization&apos;s tenant.
+        </p>
+
+        <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row">
+          <a
+            href="#"
+            onClick={(e) => {
+              e.preventDefault();
+              beginLogin();
+            }}
+            className="inline-flex items-center rounded-md bg-slate-900 px-8 py-3 text-sm font-semibold text-white transition-colors hover:bg-slate-800"
+          >
+            Sign In
+          </a>
+          <span className="text-xs uppercase tracking-widest text-slate-500">
+            Authorized users only
+          </span>
+        </div>
+
+        <div className="mt-14 grid w-full max-w-3xl grid-cols-1 gap-4 sm:grid-cols-3">
+          {[
+            { title: 'Role-based access', body: 'Entitlements aligned to clinical and operational roles.' },
+            { title: 'Audit-ready workflows', body: 'Structured actions with authorization at every step.' },
+            { title: 'Tenant isolation', body: 'Organization-scoped data and configuration boundaries.' },
+          ].map((item) => (
+            <div
+              key={item.title}
+              className="rounded-lg border border-slate-200 bg-white px-4 py-5 text-left shadow-sm"
+            >
+              <h2 className="text-sm font-semibold text-slate-900">{item.title}</h2>
+              <p className="mt-2 text-sm leading-relaxed text-slate-600">{item.body}</p>
+            </div>
+          ))}
+        </div>
+      </main>
+
+      <AppFooter className="border-t border-slate-200 bg-white" />
+    </div>
+  );
+}
+
+function SpawnSplashPage() {
   const tickerText = (TICKER_ITEMS.join('  ') + '  ').repeat(4);
 
   return (
     <div
-      className="min-h-screen flex flex-col overflow-hidden"
+      className="flex h-dvh min-h-0 w-full flex-col overflow-hidden"
       style={{ background: '#05050f', fontFamily: "'Inter', sans-serif" }}
     >
-      {/* Star background */}
       <div className="fixed inset-0 pointer-events-none z-0">
         <StarField />
-        {/* Radial glow */}
         <div
           className="absolute inset-0"
           style={{
@@ -70,9 +138,7 @@ export default function SplashPage() {
         }
       />
 
-      {/* ── Hero ── */}
       <main className="relative z-10 flex-1 flex flex-col items-center justify-center text-center px-6 py-8 md:py-12">
-        {/* Badge */}
         <div
           className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 mb-8 text-xs font-semibold uppercase tracking-widest border"
           style={{
@@ -88,15 +154,13 @@ export default function SplashPage() {
           Clinical Data Platform
         </div>
 
-        {/* Tagline */}
         <p
           className="text-base md:text-lg font-semibold tracking-widest uppercase mb-4"
           style={{ color: '#94a3b8' }}
         >
-          They said it couldn't be done. We disagreed.
+          They said it couldn&apos;t be done. We disagreed.
         </p>
 
-        {/* Main headline */}
         <h1
           className="text-7xl md:text-9xl font-black uppercase leading-none mb-2 select-none"
           style={{
@@ -111,13 +175,11 @@ export default function SplashPage() {
           SPAWN v2
         </h1>
 
-        {/* Subtitle */}
         <p className="mt-6 max-w-xl text-base md:text-lg text-slate-400 leading-relaxed">
-          Born from hellspawn. Cleared by the IRB. Clinical data management so
-          good it came back from the dead — and passed FDA approval.
+          Born from hellspawn. Cleared by the IRB. Clinical data management so good it came back from
+          the dead — and passed FDA approval.
         </p>
 
-        {/* Stats row */}
         <div className="mt-12 flex flex-wrap items-center justify-center gap-8 md:gap-14">
           {STATS.map((s) => (
             <div key={s.label} className="flex flex-col items-center gap-1">
@@ -137,7 +199,6 @@ export default function SplashPage() {
           ))}
         </div>
 
-        {/* CTA */}
         <div className="mt-12 flex flex-col sm:flex-row items-center gap-4">
           <a
             href="#"
@@ -160,7 +221,6 @@ export default function SplashPage() {
         </div>
       </main>
 
-      {/* ── Scrolling ticker ── */}
       <div
         className="relative z-10 overflow-hidden border-t border-b border-white/6 py-3"
         style={{ background: 'rgba(255,255,255,0.02)' }}
@@ -179,13 +239,8 @@ export default function SplashPage() {
         </div>
       </div>
 
-      {/* ── Footer ── */}
-      <AppFooter
-        className="relative z-10"
-        tagline="All protocols confirmed"
-      />
+      <AppFooter className="relative z-10" tagline="All protocols confirmed" />
 
-      {/* Ticker keyframe */}
       <style>{`
         @keyframes ticker {
           0%   { transform: translateX(0); }
@@ -194,4 +249,9 @@ export default function SplashPage() {
       `}</style>
     </div>
   );
+}
+
+export default function SplashPage() {
+  const { isCorporate } = useUiTheme();
+  return isCorporate ? <CorporateSplashPage /> : <SpawnSplashPage />;
 }

@@ -130,10 +130,6 @@ export async function fetchLastChatActivityByPatient(
   return byPatient;
 }
 
-export function isChatServiceConfigured(): boolean {
-  return Boolean(CHAT_API);
-}
-
 export function sortChatMessagesBySentAt(messages: ChatMessage[]): ChatMessage[] {
   return [...messages].sort((a, b) => {
     const sentA = Date.parse(a.created_at);
@@ -260,15 +256,6 @@ export async function createChatInteraction(
   }
 
   return (await res.json()) as ChatInteraction;
-}
-
-export async function resolveLatestChatInteractionUuid(
-  token: string,
-  activeActor: string,
-  userUuid: string,
-): Promise<string | null> {
-  const interactions = await listChatInteractions(token, activeActor, userUuid);
-  return interactions[0]?.chat_interaction_uuid ?? null;
 }
 
 export async function loadPatientChatHistory(

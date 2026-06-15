@@ -2,9 +2,18 @@
 :root {
   --removed-body-scroll-bar-size: 0px !important;
 }
-html, body {
+html,
+body {
   /* For base-ui locking */
   --removed-body-scroll-bar-size: 0px !important;
+  min-height: 100dvh;
+  height: 100%;
+}
+#root {
+  min-height: 100dvh;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 * {
   --removed-body-scroll-bar-size: 0px !important;

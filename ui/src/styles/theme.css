@@ -321,6 +321,161 @@ body[data-floating-ui-scroll-lock] {
   overflow: auto !important;
 }
 
+[data-ui-theme="spawn"] {
+  color-scheme: dark;
+}
+
+[data-ui-theme="spawn"] html,
+[data-ui-theme="spawn"] body {
+  background-color: #05050f;
+}
+
+[data-ui-theme="corporate"] {
+  color-scheme: light;
+}
+
+[data-ui-theme="corporate"] [data-slot="card"]:not([style*="background"]) {
+  background-color: white;
+  color: rgb(15 23 42);
+  --tw-ring-color: rgb(203 213 225);
+}
+
+[data-ui-theme="corporate"] [data-slot="input"] {
+  background-color: white;
+  border-color: rgb(203 213 225);
+  color: rgb(15 23 42);
+}
+
+[data-ui-theme="corporate"] [data-slot="input"]::placeholder {
+  color: rgb(100 116 139);
+}
+
+[data-ui-theme="corporate"] [data-slot="input"]:focus-visible {
+  border-color: rgb(148 163 184);
+  --tw-ring-color: rgb(148 163 184 / 0.3);
+}
+
+[data-ui-theme="corporate"] [data-slot="dropdown-menu-content"] {
+  background-color: white;
+  border-color: rgb(203 213 225);
+  color: rgb(15 23 42);
+}
+
+[data-ui-theme="corporate"] [data-slot="dropdown-menu-item"]:focus {
+  background-color: rgb(248 250 252);
+  color: rgb(15 23 42);
+}
+
+[data-ui-theme="corporate"] [data-slot="navigation-menu-content"] {
+  background-color: white !important;
+  color: rgb(51 65 85) !important;
+  border-color: rgb(203 213 225);
+  --tw-ring-color: rgb(203 213 225);
+  box-shadow:
+    0 10px 15px -3px rgb(0 0 0 / 0.08),
+    0 4px 6px -4px rgb(0 0 0 / 0.08);
+}
+
+[data-ui-theme="corporate"] [data-slot="navigation-menu-trigger"] {
+  color: rgb(71 85 105);
+}
+
+[data-ui-theme="corporate"] [data-slot="navigation-menu-trigger"]:hover,
+[data-ui-theme="corporate"] [data-slot="navigation-menu-trigger"]:focus,
+[data-ui-theme="corporate"] [data-slot="navigation-menu-trigger"][data-state="open"],
+[data-ui-theme="corporate"] [data-slot="navigation-menu-trigger"][data-open],
+[data-ui-theme="corporate"] [data-slot="navigation-menu-trigger"][data-popup-open] {
+  background-color: rgb(241 245 249) !important;
+  color: rgb(15 23 42) !important;
+}
+
+[data-ui-theme="corporate"] [data-slot="navigation-menu-content"] [data-slot="button"][data-variant="ghost"] {
+  color: rgb(51 65 85) !important;
+}
+
+[data-ui-theme="corporate"] [data-slot="navigation-menu-content"] [data-slot="button"][data-variant="ghost"]:hover {
+  background-color: rgb(241 245 249) !important;
+  color: rgb(15 23 42) !important;
+}
+
+[data-ui-theme="corporate"] [data-slot="button"][data-variant="outline"]:not([class*="!bg-slate-900"]):not([class*="!bg-amber-50"]) {
+  border-color: rgb(203 213 225);
+  color: rgb(51 65 85);
+}
+
+[data-ui-theme="corporate"] [data-slot="button"][data-variant="outline"]:not([class*="!bg-slate-900"]):not([class*="!bg-amber-50"]):hover {
+  background-color: rgb(248 250 252);
+  color: rgb(15 23 42);
+}
+
+[data-ui-theme="corporate"] [data-slot="button"][data-variant="ghost"]:not([class*="!bg-white"]):not([class*="!bg-amber-50"]):not([class*="!bg-slate-900"]) {
+  color: rgb(51 65 85);
+}
+
+[data-ui-theme="corporate"] [data-slot="button"][data-variant="ghost"]:not([class*="!bg-white"]):not([class*="!bg-amber-50"]):not([class*="!bg-slate-900"]):hover {
+  background-color: rgb(241 245 249);
+  color: rgb(15 23 42);
+}
+
+[data-ui-theme="corporate"] .chat-bubble-assistant {
+  background-color: rgb(241 245 249) !important;
+  border-color: rgb(226 232 240) !important;
+  color: rgb(15 23 42) !important;
+}
+
+[data-ui-theme="corporate"] .chat-bubble-assistant .prose,
+[data-ui-theme="corporate"] .chat-bubble-assistant .prose :where(p, li, ol, ul, strong, em, h1, h2, h3, h4, blockquote) {
+  color: rgb(30 41 59) !important;
+}
+
+[data-ui-theme="corporate"] .chat-bubble-assistant .prose a {
+  color: rgb(3 105 161) !important;
+}
+
+[data-ui-theme="corporate"] .chat-bubble-user {
+  background-color: rgb(15 23 42) !important;
+  border-color: rgb(51 65 85) !important;
+  color: white !important;
+}
+
+[data-ui-theme="corporate"] .chat-bubble-user .whitespace-pre-wrap,
+[data-ui-theme="corporate"] .chat-bubble-user .prose,
+[data-ui-theme="corporate"] .chat-bubble-user .prose :where(p, li, ol, ul, strong, em, h1, h2, h3, h4, blockquote, code) {
+  color: white !important;
+}
+
+[data-ui-theme="corporate"] .chat-bubble-user .prose a {
+  color: rgb(125 211 252) !important;
+}
+
+[data-ui-theme="corporate"] .chat-send-button:not(:disabled) {
+  background-color: rgb(15 23 42) !important;
+  border-color: rgb(15 23 42) !important;
+  color: white !important;
+}
+
+[data-ui-theme="corporate"] .chat-send-button:not(:disabled):hover {
+  background-color: rgb(30 41 59) !important;
+  border-color: rgb(30 41 59) !important;
+  color: white !important;
+}
+
+[data-ui-theme="corporate"] .chat-send-button:disabled {
+  background-color: rgb(226 232 240) !important;
+  border-color: rgb(203 213 225) !important;
+  color: rgb(148 163 184) !important;
+}
+
+[data-ui-theme="corporate"] [data-slot="button"][data-variant="default"]:not([class*="!bg-slate-900"]) {
+  background-color: rgb(15 23 42);
+  color: white;
+}
+
+[data-ui-theme="corporate"] [data-slot="button"][data-variant="default"]:not([class*="!bg-slate-900"]):hover:not(:disabled) {
+  background-color: rgb(30 41 59);
+  color: white;
+}
+
 /* Star Wars–style TOS opening crawl (TermsOfServiceCrawl) */
 @layer components {
   .tos-crawl-viewport {

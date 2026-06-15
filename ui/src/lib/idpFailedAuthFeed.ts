@@ -64,14 +64,6 @@ export function countFailedSignInsInWindow(
   }).length;
 }
 
-export async function countFailedSignInsLast24Hours(
-  token: string,
-  activeActor: string,
-): Promise<number> {
-  const { failedSignIns24h } = await fetchIdpOperatorOps(token, activeActor);
-  return failedSignIns24h;
-}
-
 export async function fetchIdpOperatorOps(
   token: string,
   activeActor: string,
@@ -108,12 +100,4 @@ export async function fetchIdpOperatorOps(
     failedSignIns24h,
     events: feedItems.map(mapFailedAuthToAuditEvent),
   };
-}
-
-export async function fetchIdpFailedAuthAuditEvents(
-  token: string,
-  activeActor: string,
-): Promise<DashboardAuditEvent[]> {
-  const { events } = await fetchIdpOperatorOps(token, activeActor);
-  return events;
 }

@@ -1,4 +1,4 @@
-const USER_API = import.meta.env.VITE_USER_API_URL ?? 'http://localhost:8018';
+import { USER_API } from '@/lib/apiBases';
 
 export interface RoleDefinition {
   id: string;
@@ -50,4 +50,4 @@ export function clinicianRoleLabelForUserRoles(
   return roleId ? (labels.get(roleId) ?? '') : '';
 }
 
-export { cdpClinicalRoleCatalog, defaultRoleForActor, defaultRolesByActor, roleCatalogForUi } from '@/lib/clinicalRoleCatalog';
+export { cdpClinicalRoleCatalog, roleCatalogForUi } from '@/lib/clinicalRoleCatalog';

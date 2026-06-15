@@ -7,8 +7,6 @@ import cdpRoleCatalog from '@policies/user/role-catalog.json';
 interface CdpRoleCatalog {
   tenant_types: Record<string, { roles: string[] }>;
   roles: Array<{ id: string; label: string }>;
-  default_roles_by_actor?: Record<string, string>;
-  job_functions?: string[];
 }
 
 const catalog = cdpRoleCatalog as CdpRoleCatalog;
@@ -50,19 +48,4 @@ export function roleCatalogForUi(remote: RoleCatalogSnapshot | null): RoleCatalo
       ? remote.tenant_types
       : clinical.tenant_types,
   };
-}
-
-export const CDP_JOB_FUNCTION_IDS = catalog.job_functions ?? [];
-
-/** UI-only tier-1 → default tier-2 slug (enroll forms, demo seeds). Not sent on login provision. */
-export function defaultRoleForActor(actor: string): string | undefined {
-  const defaults = catalog.default_roles_by_actor;
-  if (!defaults) {
-    return undefined;
-  }
-  return defaults[actor];
-}
-
-export function defaultRolesByActor(): Record<string, string> {
-  return { ...(catalog.default_roles_by_actor ?? {}) };
 }

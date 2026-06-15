@@ -33,6 +33,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
+import { usePatientViewStyles } from '@/lib/patientViewStyles';
 
 const CHAT_API = import.meta.env.VITE_CHAT_API_URL;
 
@@ -61,6 +62,7 @@ export default function PatientChat({
   patientUuid,
   tenantName: _tenantName,
 }: Props) {
+  const pv = usePatientViewStyles();
   const canLoadHistory = Boolean(CHAT_API && patientUuid);
   const [interactions, setInteractions] = useState<ChatInteraction[]>([]);
   const [activeInteractionUuid, setActiveInteractionUuid] = useState<string | null>(null);
@@ -448,21 +450,16 @@ export default function PatientChat({
     }
   };
 
-  const cardStyle = {
-    background: 'rgba(5,5,15,0.7)',
-    border: '1px solid rgba(34,211,238,0.18)',
-    boxShadow: '0 0 40px rgba(34,211,238,0.05)',
-  };
-
-  const sidebarStyle = {
-    background: 'rgba(5,5,15,0.85)',
-    borderLeft: '1px solid rgba(34,211,238,0.12)',
-  };
-
   const conversationsSidebar = showSidebar ? (
-    <aside className="w-64 shrink-0 flex flex-col min-h-0 overflow-hidden" style={sidebarStyle}>
-      <div className="px-3 py-3 border-b" style={{ borderColor: 'rgba(34,211,238,0.12)' }}>
-        <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">Conversations</p>
+    <aside
+      className={cn('w-64 shrink-0 flex flex-col min-h-0 overflow-hidden', pv.sidebarClass)}
+      style={pv.sidebarStyle}
+    >
+      <div
+        className={cn('px-3 py-3 border-b', pv.isCorporate ? 'border-slate-200 bg-white' : '')}
+        style={pv.isCorporate ? undefined : { borderColor: 'rgba(34,211,238,0.12)' }}
+      >
+        <p className={cn('text-xs font-semibold uppercase tracking-widest', pv.mutedText)}>Conversations</p>
       </div>
       <nav className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain py-2 px-2 space-y-1">
         {interactions.map(interaction => {
@@ -476,12 +473,12 @@ export default function PatientChat({
               onClick={() => void selectInteraction(interaction.chat_interaction_uuid)}
               disabled={loadingHistory || sending}
               className={cn(
-                'w-full text-left rounded-lg px-3 py-2 text-sm transition-colors',
+                'w-full text-left rounded-lg px-3 py-2 text-sm transition-colors border',
                 isActive
-                  ? 'text-cyan-200 bg-cyan-500/15 border border-cyan-500/30'
+                  ? pv.conversationActive
                   : threadHasIntervention
-                    ? 'text-slate-300 hover:bg-slate-800/60 border border-amber-500/25 bg-amber-500/5'
-                    : 'text-slate-300 hover:bg-slate-800/60 border border-transparent',
+                    ? pv.conversationIntervention
+                    : pv.conversationIdle,
               )}
             >
               <span className="flex items-start gap-2 min-w-0">
@@ -490,7 +487,10 @@ export default function PatientChat({
                 </span>
                 {threadHasIntervention ? (
                   <span
-                    className="shrink-0 inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-amber-200/90 bg-amber-500/15 border border-amber-500/25"
+                    className={cn(
+                      'shrink-0 inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide',
+                      pv.careTeamBadgeClass,
+                    )}
                     title="Your care team is responding in this conversation"
                   >
                     <UserGroupIcon className="h-3 w-3" aria-hidden />
@@ -509,21 +509,26 @@ export default function PatientChat({
   ) : null;
 
   return (
-    <div className="col-span-2 h-full min-h-0 flex overflow-hidden">
+    <div className="flex h-full min-h-0 w-full overflow-hidden">
       <Card
-        className="gap-0 py-0 flex-1 min-w-0 h-full min-h-0 flex flex-col overflow-hidden"
-        style={cardStyle}
+        className={cn('gap-0 py-0 flex-1 min-w-0 h-full min-h-0 flex flex-col overflow-hidden', pv.cardClass)}
+        {...(pv.cardStyle ? { style: pv.cardStyle } : {})}
       >
-        <CardHeader
-          className="py-4"
-          style={{ borderBottom: '1px solid rgba(34,211,238,0.12)', background: 'rgba(34,211,238,0.03)' }}
-        >
+        <CardHeader className={cn('py-4', pv.headerClass)} style={pv.headerStyle}>
           <div className="flex items-center justify-between gap-3">
-            <CardTitle className="text-lg flex items-center gap-2" style={{ color: '#22d3ee' }}>
+            <CardTitle
+              className={cn('text-lg flex items-center gap-2', pv.titleClass)}
+              style={pv.titleStyle}
+            >
               <ChatBubbleLeftRightIcon className="h-5 w-5" />
               Care assistant
               {canLoadHistory && !assistantAvailable && !humanInterventionActive && (
-                <span className="text-[10px] font-semibold uppercase tracking-widest px-2 py-0.5 rounded-md ml-2 text-amber-200/90 border border-amber-500/30 bg-amber-500/10">
+                <span
+                  className={cn(
+                    'text-[10px] font-semibold uppercase tracking-widest px-2 py-0.5 rounded-md ml-2',
+                    pv.unavailableBadgeClass,
+                  )}
+                >
                   Unavailable
                 </span>
               )}
@@ -535,7 +540,7 @@ export default function PatientChat({
                 size="sm"
                 onClick={() => void startNewChat()}
                 disabled={sending || loadingInteractions}
-                className="shrink-0 border-cyan-500/30 text-cyan-200 hover:bg-cyan-500/10 hover:text-cyan-100"
+                className={cn('shrink-0', pv.outlineButton)}
               >
                 <PlusIcon className="h-4 w-4 mr-1.5" />
                 New chat
@@ -546,11 +551,14 @@ export default function PatientChat({
         <CardContent className="p-0 flex flex-1 flex-col min-h-0 overflow-hidden">
           <div
             ref={scrollRef}
-            className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain px-4 py-4 pb-6 space-y-4"
+            className={cn(
+              'flex-1 min-h-0 overflow-y-auto overscroll-y-contain px-4 py-4 pb-6 space-y-4',
+              pv.chatScrollClass,
+            )}
           >
             {loadingHistory && messages.length === 0 && (
               <div className="flex justify-center py-8">
-                <p className="text-sm text-slate-400">Loading your conversation…</p>
+                <p className={cn('text-sm', pv.mutedText)}>Loading your conversation…</p>
               </div>
             )}
             {messages.map(msg => {
@@ -572,34 +580,47 @@ export default function PatientChat({
                   className={cn(
                     'max-w-[85%] rounded-2xl px-4 py-3 text-base leading-relaxed',
                     msg.role === 'user'
-                      ? 'text-white rounded-br-md'
-                      : 'text-slate-200 rounded-bl-md',
+                      ? cn(pv.chatBubbleUserClass, 'rounded-br-md')
+                      : cn(pv.chatBubbleAssistantClass, 'rounded-bl-md'),
                   )}
                   style={
-                    msg.role === 'user'
-                      ? {
-                          background: 'linear-gradient(135deg, rgba(34,211,238,0.35) 0%, rgba(168,85,247,0.35) 100%)',
-                          border: '1px solid rgba(34,211,238,0.25)',
-                        }
-                      : {
-                          background: 'rgba(15,23,42,0.8)',
-                          border: '1px solid rgba(34,211,238,0.12)',
-                        }
+                    msg.role === 'user' ? pv.chatBubbleUser() : pv.chatBubbleAssistant()
                   }
                 >
                   {msg.role === 'assistant' && msg.senderType === 'ai_agent' && (
-                    <SparklesIcon className="h-4 w-4 mb-1.5 inline-block mr-1.5" style={{ color: '#a855f7' }} />
+                    <SparklesIcon
+                      className={cn(
+                        'h-4 w-4 mb-1.5 inline-block mr-1.5',
+                        pv.isCorporate ? 'text-violet-600' : '',
+                      )}
+                      style={pv.isCorporate ? undefined : { color: '#a855f7' }}
+                    />
                   )}
                   {clinicianLabel ? (
                     <div className="text-xs mb-1.5 leading-snug">
-                      <span className="font-medium text-cyan-200/90">{clinicianName}</span>
+                      <span className={cn('font-medium', pv.isCorporate ? 'text-slate-800' : 'text-cyan-200/90')}>
+                        {clinicianName}
+                      </span>
                       {clinicianRole ? (
-                        <span className="text-slate-400">{` · ${clinicianRole}`}</span>
+                        <span className={pv.mutedText}>{` · ${clinicianRole}`}</span>
                       ) : null}
                     </div>
                   ) : null}
-                  <ChatMessageContent content={msg.content} markdown={msg.role === 'assistant'} />
-                  <div className="text-[10px] mt-2 opacity-50 text-right">
+                  <ChatMessageContent
+                    content={msg.content}
+                    markdown={msg.role === 'assistant'}
+                    surface={msg.role === 'user' ? 'dark' : 'light'}
+                  />
+                  <div
+                    className={cn(
+                      'text-[10px] mt-2 text-right',
+                      pv.isCorporate
+                        ? msg.role === 'user'
+                          ? 'text-slate-300'
+                          : 'text-slate-500'
+                        : 'opacity-50',
+                    )}
+                  >
                     {msg.createdAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </div>
                 </div>
@@ -607,32 +628,23 @@ export default function PatientChat({
               );
             })}
             {!humanInterventionActive && !assistantAvailable && canLoadHistory && !loadingHistory ? (
-              <div
-                className="mx-auto max-w-md rounded-xl px-4 py-3 text-center"
-                style={{
-                  background: 'rgba(245,158,11,0.08)',
-                  border: '1px solid rgba(245,158,11,0.22)',
-                }}
-              >
-                <p className="text-xs text-amber-100/90 leading-relaxed">
+              <div className={cn('mx-auto max-w-md px-4 py-3 text-center', pv.alertClass)} style={pv.alertStyle}>
+                <p className={cn('text-xs leading-relaxed', pv.alertText)}>
                   {ASSISTANT_UNAVAILABLE_MESSAGE}
                 </p>
               </div>
             ) : null}
             {humanInterventionActive ? (
               <div
-                className="mx-auto max-w-md rounded-xl px-4 py-3 text-center space-y-2"
-                style={{
-                  background: 'rgba(245,158,11,0.08)',
-                  border: '1px solid rgba(245,158,11,0.22)',
-                }}
+                className={cn('mx-auto max-w-md px-4 py-3 text-center space-y-2', pv.alertClass)}
+                style={pv.alertStyle}
               >
-                <p className="text-xs text-amber-100/90 leading-relaxed">
+                <p className={cn('text-xs leading-relaxed', pv.alertText)}>
                   Your care team is responding directly in this conversation. The care assistant is
                   paused here — you can still message your clinicians, and this thread stays in your
                   conversations list.
                 </p>
-                <p className="text-xs text-slate-400 leading-relaxed">
+                <p className={cn('text-xs leading-relaxed', pv.mutedText)}>
                   To chat with the care assistant, start a new conversation.
                 </p>
                 <Button
@@ -641,7 +653,7 @@ export default function PatientChat({
                   size="sm"
                   onClick={() => void startNewChat()}
                   disabled={sending || loadingInteractions}
-                  className="border-cyan-500/30 text-cyan-200 hover:bg-cyan-500/10 hover:text-cyan-100"
+                  className={pv.outlineButton}
                 >
                   <SparklesIcon className="h-4 w-4 mr-1.5" />
                   New chat with assistant
@@ -651,8 +663,12 @@ export default function PatientChat({
             {sending && !humanInterventionActive ? (
               <div className="flex justify-start">
                 <div
-                  className="rounded-2xl rounded-bl-md px-4 py-3 text-sm text-slate-400"
-                  style={{ background: 'rgba(15,23,42,0.8)', border: '1px solid rgba(34,211,238,0.12)' }}
+                  className={cn(
+                    'rounded-2xl rounded-bl-md px-4 py-3 text-sm',
+                    pv.chatBubbleAssistantClass,
+                    pv.mutedText,
+                  )}
+                  style={pv.chatBubbleAssistant()}
                 >
                   <span className="inline-flex gap-1">
                     <span className="animate-pulse">●</span>
@@ -669,8 +685,8 @@ export default function PatientChat({
           )}
 
           <form
-            className="flex gap-2 p-4 border-t"
-            style={{ borderColor: 'rgba(34,211,238,0.12)', background: 'rgba(34,211,238,0.02)' }}
+            className={cn('flex gap-2 p-4', pv.formFooterClass)}
+            style={pv.formFooterStyle}
             onSubmit={e => {
               e.preventDefault();
               void sendMessage();
@@ -690,17 +706,18 @@ export default function PatientChat({
                 canSendMessages ? 'Type your message…' : 'Care assistant is unavailable'
               }
               disabled={loadingHistory || loadingInteractions || !canSendMessages}
-              className="flex-1 h-10 bg-slate-900/60 border-slate-700 text-slate-100 placeholder:text-slate-500 focus-visible:border-cyan-500/50 focus-visible:ring-cyan-500/20"
+              className={cn('flex-1 h-10', pv.inputClass)}
               autoComplete="off"
             />
             <Button
               type="button"
+              variant="outline"
               onClick={() => void sendMessage()}
               disabled={
                 sending || loadingHistory || loadingInteractions || !canSendMessages || !input.trim()
               }
-              className="shrink-0 text-white"
-              style={{ background: 'linear-gradient(135deg, #22d3ee 0%, #a855f7 100%)' }}
+              className={cn('chat-send-button', pv.sendButtonClass)}
+              style={pv.sendButtonStyle}
             >
               <PaperAirplaneIcon className="h-4 w-4" />
             </Button>

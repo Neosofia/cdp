@@ -39,7 +39,7 @@ CI: `.github/workflows/cdp-policies-build-push.yml` on tag `cdp-policies/vX.Y.Z`
 
 | Service | Image pin | Runtime path |
 |---------|-----------|----------------|
-| **Capabilities** | `CDP_POLICIES_IMAGE` at build | `COPY /policies/capabilities` → `/app/policies` |
+| **Capabilities** | `POLICIES_IMAGE` at build (default `ghcr.io/neosofia/cdp-policies`) | `COPY /policies/capabilities` → `/app/policies` |
 | **User** | `USER_PRODUCT_POLICIES_IMAGE` at build (default `cdp-policies`) | `COPY /policies/user/role-catalog.json` → `/app/policies/role-catalog.json`; `COPY /policies/user/cedar/` → `/app/policies/` |
 
 Non-CDP products can publish their own policy bundle image with the same layout under `/policies/user/` and pass `USER_PRODUCT_POLICIES_IMAGE` when building the user service.

@@ -1,6 +1,6 @@
 import type { ServiceAuditItem } from '@/components/AuditHistorySheet';
 
-const AUTH_API = import.meta.env.VITE_AUTH_API_URL ?? 'http://localhost:8014';
+import { AUTH_API } from '@/lib/apiBases';
 
 export interface AuthServiceItem {
   uuid: string;
@@ -17,15 +17,6 @@ export interface AuthServiceListResponse {
   total: number;
   page: number;
   page_size: number;
-}
-
-export interface AuthServiceAuditResponse {
-  service_uuid: string;
-  slug: string;
-  total: number;
-  page: number;
-  page_size: number;
-  items: ServiceAuditItem[];
 }
 
 export interface CatalogAuditsResponse {
@@ -58,31 +49,6 @@ export async function fetchAuthServices(
     throw new Error(message);
   }
   return body as AuthServiceListResponse;
-}
-
-export async function fetchAuthServiceAudits(
-  token: string,
-  activeActor: string,
-  slug: string,
-  source: 'service' | 'credential',
-  page = 1,
-  pageSize = 5,
-): Promise<AuthServiceAuditResponse> {
-  const params = new URLSearchParams({
-    page: String(page),
-    page_size: String(pageSize),
-    source,
-  });
-  const res = await fetch(
-    `${AUTH_API}/api/services/${encodeURIComponent(slug)}/audits?${params}`,
-    { headers: authApiHeaders(token, activeActor) },
-  );
-  const body = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const message = typeof body.message === 'string' ? body.message : `HTTP ${res.status}`;
-    throw new Error(message);
-  }
-  return body as AuthServiceAuditResponse;
 }
 
 export async function fetchCatalogAudits(

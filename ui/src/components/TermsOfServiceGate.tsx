@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react';
+import AppBrandHeader from '@/components/AppBrandHeader';
 import AppFooter from '@/components/AppFooter';
 import TermsOfServiceCrawl from '@/components/TermsOfServiceCrawl';
+import TermsOfServiceReview from '@/components/TermsOfServiceReview';
 import StarField from '@/components/StarField';
 import { Button } from '@/components/ui/button';
 import { TOS_VERSION } from '@/lib/termsOfServiceContent';
+import { useUiTheme } from '@/lib/uiTheme';
 import { cn } from '@/lib/utils';
 
 interface TermsOfServiceGateProps {
@@ -26,6 +29,7 @@ export default function TermsOfServiceGate({
   onAccept,
   onDecline,
 }: TermsOfServiceGateProps) {
+  const { isCorporate } = useUiTheme();
   const [agreed, setAgreed] = useState(false);
 
   useEffect(() => {
@@ -37,6 +41,85 @@ export default function TermsOfServiceGate({
     return () => window.removeEventListener('pageshow', resetForm);
   }, [preview]);
 
+  if (isCorporate) {
+    return (
+      <div
+        className={cn(
+          'flex min-h-dvh flex-col bg-slate-100 text-slate-900',
+          preview ? 'flex-1 min-h-0' : undefined,
+          className,
+        )}
+      >
+        <AppBrandHeader />
+
+        <main className="relative z-10 flex flex-1 flex-col pt-4 pb-8">
+          {!preview ? (
+            <p className="mb-3 shrink-0 text-center text-sm text-slate-600 px-4">
+              Welcome, {displayName}. Please review and accept the Terms of Service to continue.
+            </p>
+          ) : (
+            <p className="mb-3 shrink-0 text-center text-sm text-slate-600 px-4">
+              Preview · Version {TOS_VERSION}
+            </p>
+          )}
+
+          <TermsOfServiceReview />
+
+          {!preview ? (
+            <div className="relative z-20 mx-auto mt-8 w-full max-w-3xl shrink-0 rounded-lg border border-slate-300 bg-white px-4 py-4 shadow-sm sm:px-5">
+              <label className="flex cursor-pointer items-start gap-2.5 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={agreed}
+                  onChange={(e) => setAgreed(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-400 text-slate-900 focus:ring-slate-400/40"
+                />
+                <span>
+                  I have read and agree to the Terms of Service. I understand that acceptance is
+                  recorded on my user profile and that declining will return me to the sign-in page.
+                </span>
+              </label>
+
+              {errorMessage ? (
+                <p className="mt-2 text-sm text-red-700" role="alert">
+                  {errorMessage}
+                </p>
+              ) : null}
+
+              <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="border-slate-300 text-slate-700 hover:bg-slate-50"
+                  disabled={accepting}
+                  onClick={onDecline}
+                >
+                  Decline
+                </Button>
+                <Button
+                  type="button"
+                  variant="default"
+                  size="default"
+                  disabled={!agreed || accepting}
+                  className={cn(
+                    'min-w-[11rem] bg-slate-900 text-white hover:bg-slate-800',
+                    !agreed && 'opacity-50',
+                  )}
+                  onClick={onAccept}
+                >
+                  {accepting ? 'Recording acceptance…' : 'I Agree — Continue'}
+                </Button>
+              </div>
+            </div>
+          ) : null}
+        </main>
+
+        <AppFooter className="relative z-10 shrink-0 py-2" />
+      </div>
+    );
+  }
+
   return (
     <div
       className={cn(
@@ -46,6 +129,8 @@ export default function TermsOfServiceGate({
       )}
       style={{ background: '#05050f', fontFamily: "'Inter', sans-serif" }}
     >
+      <AppBrandHeader className="shrink-0" />
+
       <div className="fixed inset-0 pointer-events-none z-0">
         <StarField />
         <div

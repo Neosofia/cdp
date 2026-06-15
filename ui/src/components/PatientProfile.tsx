@@ -18,6 +18,8 @@ import {
   type CareEpisodeRecord,
 } from '@/lib/careEpisodeApi';
 import { formatRelativeActivity } from '@/lib/demoPatients';
+import { cn } from '@/lib/utils';
+import { usePatientViewStyles } from '@/lib/patientViewStyles';
 
 interface PatientProfileProps {
   firstName: string;
@@ -40,36 +42,33 @@ function ProfileField({
   value: string;
   icon: React.ElementType;
 }) {
+  const pv = usePatientViewStyles();
+
   return (
-    <div className="flex items-start gap-3 py-3" style={{ borderBottom: '1px solid rgba(34,211,238,0.08)' }}>
+    <div
+      className={cn('flex items-start gap-3 py-3', pv.isCorporate ? 'border-b border-slate-200' : '')}
+      style={pv.isCorporate ? undefined : { borderBottom: '1px solid rgba(34,211,238,0.08)' }}
+    >
       <div
-        className="rounded-lg p-2 shrink-0"
-        style={{ background: 'rgba(34,211,238,0.06)', border: '1px solid rgba(34,211,238,0.15)' }}
+        className={cn(
+          'rounded-lg p-2 shrink-0',
+          pv.isCorporate ? 'bg-slate-100 border border-slate-200' : '',
+        )}
+        style={
+          pv.isCorporate
+            ? undefined
+            : { background: 'rgba(34,211,238,0.06)', border: '1px solid rgba(34,211,238,0.15)' }
+        }
       >
-        <Icon className="h-4 w-4" style={{ color: '#22d3ee' }} />
+        <Icon className={cn('h-4 w-4', pv.isCorporate ? 'text-slate-700' : '')} style={pv.isCorporate ? undefined : { color: '#22d3ee' }} />
       </div>
       <div className="min-w-0">
-        <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">{label}</p>
-        <p className="text-sm text-slate-100 mt-0.5 wrap-break-word">{value}</p>
+        <p className={cn('text-xs font-semibold uppercase tracking-widest', pv.subText)}>{label}</p>
+        <p className={cn('text-sm mt-0.5 wrap-break-word', pv.bodyText)}>{value}</p>
       </div>
     </div>
   );
 }
-
-const CARD_STYLE = {
-  background: 'rgba(5,5,15,0.7)',
-  border: '1px solid rgba(34,211,238,0.14)',
-  boxShadow: '0 0 30px rgba(34,211,238,0.04)',
-};
-
-const TYPE_BADGE: Record<string, React.CSSProperties> = {
-  Lab: { borderColor: 'rgba(34,211,238,0.4)', color: '#22d3ee', background: 'rgba(34,211,238,0.08)' },
-  Visit: { borderColor: 'rgba(168,85,247,0.4)', color: '#a855f7', background: 'rgba(168,85,247,0.08)' },
-  Rx: { borderColor: 'rgba(34,197,94,0.4)', color: '#22c55e', background: 'rgba(34,197,94,0.08)' },
-  Imaging: { borderColor: 'rgba(234,179,8,0.4)', color: '#eab308', background: 'rgba(234,179,8,0.08)' },
-  Procedure: { borderColor: 'rgba(239,68,68,0.4)', color: '#ef4444', background: 'rgba(239,68,68,0.08)' },
-  Allergy: { borderColor: 'rgba(251,146,60,0.4)', color: '#fb923c', background: 'rgba(251,146,60,0.08)' },
-};
 
 function formatRecordDate(iso: string): string {
   return new Date(iso + 'T12:00:00').toLocaleDateString(undefined, {
@@ -99,6 +98,7 @@ export default function PatientProfile({
   patientUuid,
   onViewAllRecords,
 }: PatientProfileProps) {
+  const pv = usePatientViewStyles();
   const fullName = `${firstName} ${lastName}`.trim() || 'Patient';
   const [records, setRecords] = useState<CareEpisodeRecord[]>([]);
   const [loadingRecords, setLoadingRecords] = useState(false);
@@ -106,6 +106,10 @@ export default function PatientProfile({
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [markingReadId, setMarkingReadId] = useState<string | null>(null);
   const nowMs = useMemo(() => Date.now(), []);
+
+  const patientBadgeStyle = pv.isCorporate
+    ? { borderColor: '#0e7490', color: '#164e63', background: '#cffafe' }
+    : { borderColor: 'rgba(34,211,238,0.4)', color: '#22d3ee', background: 'rgba(34,211,238,0.08)' };
 
   useEffect(() => {
     if (!token || !patientUuid) {
@@ -171,13 +175,10 @@ export default function PatientProfile({
   return (
     <div className="grid w-full gap-6 lg:grid-cols-[minmax(360px,480px)_minmax(0,1fr)] lg:items-start">
       <div className="flex flex-col gap-6 min-w-0">
-        <Card className="gap-0 py-0" style={CARD_STYLE}>
-          <CardHeader
-            className="py-4 px-5"
-            style={{ borderBottom: '1px solid rgba(34,211,238,0.1)', background: 'rgba(34,211,238,0.02)' }}
-          >
-            <CardTitle className="text-lg flex items-center gap-3 text-white">
-              <UserCircleIcon className="h-6 w-6" style={{ color: '#22d3ee' }} />
+        <Card className={cn('gap-0 py-0', pv.cardClass)} style={pv.cardStyle}>
+          <CardHeader className={cn('py-4 px-5', pv.headerClass)} style={pv.headerStyle}>
+            <CardTitle className={cn('text-lg flex items-center gap-3', pv.titleClass)} style={pv.titleStyle}>
+              <UserCircleIcon className={cn('h-6 w-6', pv.isCorporate ? 'text-slate-700' : '')} />
               Your profile
             </CardTitle>
           </CardHeader>
@@ -186,11 +187,11 @@ export default function PatientProfile({
               <Badge
                 variant="outline"
                 className="text-[10px] font-semibold uppercase tracking-wider"
-                style={{ borderColor: 'rgba(34,211,238,0.4)', color: '#22d3ee', background: 'rgba(34,211,238,0.08)' }}
+                style={patientBadgeStyle}
               >
                 Patient
               </Badge>
-              <span className="text-xs text-slate-500">Account information from your care organization</span>
+              <span className={cn('text-xs', pv.subText)}>Account information from your care organization</span>
             </div>
             <ProfileField label="Full name" value={fullName} icon={UserCircleIcon} />
             <ProfileField label="Email" value={email || 'Not provided'} icon={EnvelopeIcon} />
@@ -201,20 +202,20 @@ export default function PatientProfile({
           </CardContent>
         </Card>
 
-        <Card className="gap-0 py-0" style={CARD_STYLE}>
+        <Card className={cn('gap-0 py-0', pv.cardClass)} style={pv.cardStyle}>
           <CardHeader
-            className="py-4 px-5 flex flex-row items-center justify-between gap-3"
-            style={{ borderBottom: '1px solid rgba(34,211,238,0.1)', background: 'rgba(34,211,238,0.02)' }}
+            className={cn('py-4 px-5 flex flex-row items-center justify-between gap-3', pv.headerClass)}
+            style={pv.headerStyle}
           >
-            <CardTitle className="text-lg flex items-center gap-3 text-white">
-              <InboxIcon className="h-6 w-6" style={{ color: '#22d3ee' }} />
+            <CardTitle className={cn('text-lg flex items-center gap-3', pv.titleClass)} style={pv.titleStyle}>
+              <InboxIcon className={cn('h-6 w-6', pv.isCorporate ? 'text-slate-700' : '')} />
               Messages
             </CardTitle>
             {unreadCount > 0 ? (
               <Badge
                 variant="outline"
                 className="text-[10px] font-semibold uppercase tracking-wider shrink-0"
-                style={{ borderColor: 'rgba(34,211,238,0.4)', color: '#22d3ee', background: 'rgba(34,211,238,0.08)' }}
+                style={patientBadgeStyle}
               >
                 {unreadCount} unread
               </Badge>
@@ -222,11 +223,11 @@ export default function PatientProfile({
           </CardHeader>
           <CardContent className="px-5 pb-5 pt-2">
             {loadingMessages ? (
-              <p className="text-sm text-slate-500 py-2">Loading messages…</p>
+              <p className={cn('text-sm py-2', pv.subText)}>Loading messages…</p>
             ) : messages.length === 0 ? (
-              <p className="text-sm text-slate-500 py-2">No messages from your care team.</p>
+              <p className={cn('text-sm py-2', pv.subText)}>No messages from your care team.</p>
             ) : (
-              <ul className="divide-y divide-cyan-500/10">
+              <ul className={cn('divide-y', pv.isCorporate ? 'divide-slate-200' : 'divide-cyan-500/10')}>
                 {messages.map(message => {
                   const isUnread = !message.read_at;
                   return (
@@ -235,34 +236,42 @@ export default function PatientProfile({
                       className="py-4"
                       style={
                         isUnread
-                          ? { background: 'rgba(34,211,238,0.03)', margin: '0 -0.25rem', padding: '1rem 0.25rem', borderRadius: '0.5rem' }
+                          ? pv.isCorporate
+                            ? {
+                                background: '#f8fafc',
+                                margin: '0 -0.25rem',
+                                padding: '1rem 0.25rem',
+                                borderRadius: '0.5rem',
+                              }
+                            : {
+                                background: 'rgba(34,211,238,0.03)',
+                                margin: '0 -0.25rem',
+                                padding: '1rem 0.25rem',
+                                borderRadius: '0.5rem',
+                              }
                           : undefined
                       }
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
-                            <p className="text-sm font-medium text-slate-100">{message.sender_display_name}</p>
+                            <p className={cn('text-sm font-medium', pv.bodyText)}>{message.sender_display_name}</p>
                             {isUnread ? (
                               <Badge
                                 variant="outline"
                                 className="text-[10px] font-semibold uppercase"
-                                style={{
-                                  borderColor: 'rgba(34,211,238,0.4)',
-                                  color: '#22d3ee',
-                                  background: 'rgba(34,211,238,0.08)',
-                                }}
+                                style={patientBadgeStyle}
                               >
                                 Unread
                               </Badge>
                             ) : null}
                           </div>
-                          <p className="text-xs text-slate-500 mt-1">
+                          <p className={cn('text-xs mt-1', pv.subText)}>
                             {formatMessageSent(message.sent_at)}
-                            <span className="text-slate-600"> · </span>
+                            <span className={pv.isCorporate ? 'text-slate-400' : 'text-slate-600'}> · </span>
                             {formatRelativeActivity(message.sent_at, nowMs)}
                           </p>
-                          <p className="text-sm text-slate-300 mt-2 leading-relaxed whitespace-pre-wrap">
+                          <p className={cn('text-sm mt-2 leading-relaxed whitespace-pre-wrap', pv.isCorporate ? 'text-slate-700' : 'text-slate-300')}>
                             {message.body}
                           </p>
                         </div>
@@ -272,15 +281,14 @@ export default function PatientProfile({
                           type="button"
                           variant="outline"
                           size="sm"
-                          className="mt-3 text-cyan-300"
-                          style={{ borderColor: 'rgba(34,211,238,0.3)', background: 'rgba(34,211,238,0.05)' }}
+                          className={cn('mt-3', pv.outlineButton)}
                           disabled={markingReadId === message.id}
                           onClick={() => void handleMarkRead(message.id)}
                         >
                           {markingReadId === message.id ? 'Marking…' : 'Mark as read'}
                         </Button>
                       ) : (
-                        <p className="text-xs text-slate-600 mt-2">
+                        <p className={cn('text-xs mt-2', pv.isCorporate ? 'text-slate-500' : 'text-slate-600')}>
                           Read {formatMessageSent(message.read_at!)}
                         </p>
                       )}
@@ -293,13 +301,13 @@ export default function PatientProfile({
         </Card>
       </div>
 
-      <Card className="gap-0 py-0 h-full flex flex-col min-w-0" style={CARD_STYLE}>
+      <Card className={cn('gap-0 py-0 h-full flex flex-col min-w-0', pv.cardClass)} style={pv.cardStyle}>
         <CardHeader
-          className="py-4 px-5 flex flex-row items-center justify-between gap-3 shrink-0"
-          style={{ borderBottom: '1px solid rgba(34,211,238,0.1)', background: 'rgba(34,211,238,0.02)' }}
+          className={cn('py-4 px-5 flex flex-row items-center justify-between gap-3 shrink-0', pv.headerClass)}
+          style={pv.headerStyle}
         >
-          <CardTitle className="text-lg flex items-center gap-3 text-white">
-            <DocumentTextIcon className="h-6 w-6" style={{ color: '#22d3ee' }} />
+          <CardTitle className={cn('text-lg flex items-center gap-3', pv.titleClass)} style={pv.titleStyle}>
+            <DocumentTextIcon className={cn('h-6 w-6', pv.isCorporate ? 'text-slate-700' : '')} />
             Health records
           </CardTitle>
           {onViewAllRecords ? (
@@ -307,8 +315,7 @@ export default function PatientProfile({
               type="button"
               variant="outline"
               size="sm"
-              className="text-cyan-300 shrink-0"
-              style={{ borderColor: 'rgba(34,211,238,0.3)', background: 'rgba(34,211,238,0.05)' }}
+              className={cn('shrink-0', pv.outlineButton)}
               onClick={onViewAllRecords}
             >
               View all records
@@ -317,24 +324,24 @@ export default function PatientProfile({
         </CardHeader>
         <CardContent className="px-5 pb-5 pt-2 flex-1">
           {loadingRecords ? (
-            <p className="text-sm text-slate-500 py-2">Loading health records…</p>
+            <p className={cn('text-sm py-2', pv.subText)}>Loading health records…</p>
           ) : sortedRecords.length === 0 ? (
-            <p className="text-sm text-slate-500 py-2">No health records on file yet.</p>
+            <p className={cn('text-sm py-2', pv.subText)}>No health records on file yet.</p>
           ) : (
-            <ul className="divide-y divide-cyan-500/10">
+            <ul className={cn('divide-y', pv.isCorporate ? 'divide-slate-200' : 'divide-cyan-500/10')}>
               {sortedRecords.map(record => (
                 <li key={record.id} className="py-4 flex items-start justify-between gap-4">
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-slate-100 leading-snug">{record.title}</p>
-                    <p className="text-xs text-slate-500 mt-1">
+                    <p className={cn('text-sm font-medium leading-snug', pv.bodyText)}>{record.title}</p>
+                    <p className={cn('text-xs mt-1', pv.subText)}>
                       {formatRecordDate(record.date)} · {record.provider}
                     </p>
-                    <p className="text-sm text-slate-400 mt-2 leading-relaxed">{record.summary}</p>
+                    <p className={cn('text-sm mt-2 leading-relaxed', pv.mutedText)}>{record.summary}</p>
                   </div>
                   <Badge
                     variant="outline"
                     className="text-[10px] font-semibold shrink-0 mt-0.5"
-                    style={TYPE_BADGE[record.type] ?? TYPE_BADGE.Lab}
+                    style={pv.recordTypeBadge(record.type as 'Lab' | 'Visit' | 'Rx' | 'Imaging' | 'Procedure' | 'Allergy')}
                   >
                     {record.type}
                   </Badge>

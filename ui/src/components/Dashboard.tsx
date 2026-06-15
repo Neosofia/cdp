@@ -46,6 +46,8 @@ import {
   formatServiceHealthSecondary,
 } from '@/lib/serviceHealth';
 import RiskSummaryHint from '@/components/RiskSummaryHint';
+import { useUiTheme } from '@/lib/uiTheme';
+import { cn } from '@/lib/utils';
 
 interface DashboardProps {
   activeActor: string;
@@ -87,9 +89,71 @@ const ACCENT: Record<NonNullable<StatCardProps['accent']>, { border: string; ico
   red:    { border: 'rgba(239,68,68,0.25)',   icon: '#ef4444', glow: 'rgba(239,68,68,0.06)'  },
 };
 
+const CORPORATE_ACCENT: Record<
+  NonNullable<StatCardProps['accent']>,
+  { card: string; iconWrap: string; icon: string; sub: string }
+> = {
+  cyan: {
+    card: 'border-cyan-300 bg-cyan-50',
+    iconWrap: 'border-cyan-300 bg-cyan-100',
+    icon: 'text-cyan-800',
+    sub: 'text-cyan-900',
+  },
+  purple: {
+    card: 'border-violet-300 bg-violet-50',
+    iconWrap: 'border-violet-300 bg-violet-100',
+    icon: 'text-violet-900',
+    sub: 'text-violet-950',
+  },
+  green: {
+    card: 'border-emerald-300 bg-emerald-50',
+    iconWrap: 'border-emerald-300 bg-emerald-100',
+    icon: 'text-emerald-900',
+    sub: 'text-emerald-950',
+  },
+  yellow: {
+    card: 'border-amber-300 bg-amber-50',
+    iconWrap: 'border-amber-300 bg-amber-100',
+    icon: 'text-amber-900',
+    sub: 'text-amber-950',
+  },
+  red: {
+    card: 'border-red-300 bg-red-50',
+    iconWrap: 'border-red-300 bg-red-100',
+    icon: 'text-red-900',
+    sub: 'text-red-950',
+  },
+};
+
 function StatCard({ label, value, sub, icon: Icon, accent = 'cyan', onClick }: StatCardProps) {
+  const { isCorporate } = useUiTheme();
   const a = ACCENT[accent];
+  const corporate = CORPORATE_ACCENT[accent];
   const Tag = onClick ? 'button' : 'div';
+
+  if (isCorporate) {
+    return (
+      <Tag
+        type={onClick ? 'button' : undefined}
+        onClick={onClick}
+        className={cn(
+          'rounded-xl border p-4 flex items-start gap-4 w-full text-left bg-white shadow-sm',
+          corporate.card,
+          onClick && 'cursor-pointer transition-colors hover:brightness-[0.98]',
+        )}
+      >
+        <div className={cn('rounded-lg border p-2 shrink-0', corporate.iconWrap)}>
+          <Icon className={cn('h-5 w-5', corporate.icon)} />
+        </div>
+        <div>
+          <div className="text-2xl font-bold text-slate-950">{value}</div>
+          <div className="text-sm font-medium text-slate-800">{label}</div>
+          {sub ? <div className={cn('text-xs mt-0.5 font-medium', corporate.sub)}>{sub}</div> : null}
+        </div>
+      </Tag>
+    );
+  }
+
   return (
     <Tag
       type={onClick ? 'button' : undefined}
@@ -129,27 +193,50 @@ const BADGE_STYLE: Record<NonNullable<ListItemProps['badge']>['color'], React.CS
   purple: { borderColor: 'rgba(168,85,247,0.4)', color: '#a855f7', background: 'rgba(168,85,247,0.08)' },
 };
 
+const CORPORATE_BADGE_STYLE: Record<NonNullable<ListItemProps['badge']>['color'], React.CSSProperties> = {
+  green:  { borderColor: '#15803d', color: '#14532d', background: '#dcfce7' },
+  yellow: { borderColor: '#a16207', color: '#713f12', background: '#fef9c3' },
+  red:    { borderColor: '#b91c1c', color: '#7f1d1d', background: '#fee2e2' },
+  cyan:   { borderColor: '#0e7490', color: '#164e63', background: '#cffafe' },
+  purple: { borderColor: '#7e22ce', color: '#581c87', background: '#f3e8ff' },
+};
+
 function ListItem({ primary, secondary, badge, meta, riskSummary, onClick }: ListItemProps) {
+  const { isCorporate } = useUiTheme();
   const Tag = onClick ? 'button' : 'div';
   return (
     <Tag
       type={onClick ? 'button' : undefined}
       onClick={onClick}
-      className={`flex items-center justify-between py-3 px-4 rounded-lg w-full text-left ${onClick ? 'cursor-pointer hover:bg-cyan-500/5 transition-colors' : ''}`}
-      style={{ borderBottom: '1px solid rgba(34,211,238,0.06)' }}
+      className={cn(
+        'flex items-center justify-between py-3 px-4 rounded-lg w-full text-left border-b last:border-b-0',
+        isCorporate ? 'border-slate-200 hover:bg-slate-50' : 'hover:bg-cyan-500/5 transition-colors',
+        onClick && 'cursor-pointer',
+      )}
+      style={isCorporate ? undefined : { borderBottom: '1px solid rgba(34,211,238,0.06)' }}
     >
       <div>
-        <div className="text-sm font-medium text-slate-100">{primary}</div>
-        <div className="text-xs text-slate-500 mt-0.5">{secondary}</div>
+        <div className={cn('text-sm font-medium', isCorporate ? 'text-slate-950' : 'text-slate-100')}>
+          {primary}
+        </div>
+        <div className={cn('text-xs mt-0.5', isCorporate ? 'text-slate-700' : 'text-slate-500')}>
+          {secondary}
+        </div>
       </div>
       <div className="flex items-center gap-3">
-        {meta && <span className="text-xs text-slate-500">{meta}</span>}
+        {meta ? (
+          <span className={cn('text-xs', isCorporate ? 'text-slate-600' : 'text-slate-500')}>{meta}</span>
+        ) : null}
         <RiskSummaryHint summary={riskSummary} />
-        {badge && (
-          <Badge variant="outline" className="text-[10px] font-semibold" style={BADGE_STYLE[badge.color]}>
+        {badge ? (
+          <Badge
+            variant="outline"
+            className="text-[10px] font-semibold"
+            style={isCorporate ? CORPORATE_BADGE_STYLE[badge.color] : BADGE_STYLE[badge.color]}
+          >
             {badge.label}
           </Badge>
-        )}
+        ) : null}
       </div>
     </Tag>
   );
@@ -168,20 +255,53 @@ function SectionCard({
   onTitleClick?: () => void;
   headerRight?: React.ReactNode;
 }) {
+  const { isCorporate } = useUiTheme();
+
   return (
     <Card
-      className="gap-0 py-0 self-start w-full"
-      style={{ background: 'rgba(5,5,15,0.7)', border: '1px solid rgba(34,211,238,0.14)', boxShadow: '0 0 30px rgba(34,211,238,0.04)' }}
+      className={cn(
+        'gap-0 py-0 self-start w-full',
+        isCorporate && 'border border-slate-300 bg-white text-slate-900 shadow-sm ring-0',
+      )}
+      style={
+        isCorporate
+          ? undefined
+          : {
+              background: 'rgba(5,5,15,0.7)',
+              border: '1px solid rgba(34,211,238,0.14)',
+              boxShadow: '0 0 30px rgba(34,211,238,0.04)',
+            }
+      }
     >
       <CardHeader
-        className="py-3 px-4"
-        style={{ borderBottom: '1px solid rgba(34,211,238,0.1)', background: 'rgba(34,211,238,0.02)' }}
+        className={cn('py-3 px-4', isCorporate && 'border-b border-slate-200 bg-slate-50')}
+        style={
+          isCorporate
+            ? undefined
+            : {
+                borderBottom: '1px solid rgba(34,211,238,0.1)',
+                background: 'rgba(34,211,238,0.02)',
+              }
+        }
       >
         <div className="flex items-center justify-between gap-2">
-          <CardTitle className="text-sm font-semibold flex items-center gap-2 uppercase tracking-wider" style={{ color: 'rgba(34,211,238,0.7)' }}>
+          <CardTitle
+            className={cn(
+              'text-sm font-semibold flex items-center gap-2 uppercase tracking-wider',
+              isCorporate ? 'text-slate-800' : undefined,
+            )}
+            style={isCorporate ? undefined : { color: 'rgba(34,211,238,0.7)' }}
+          >
             <Icon className="h-4 w-4" />
             {onTitleClick ? (
-              <button type="button" onClick={onTitleClick} className="hover:text-cyan-300 transition-colors">
+              <button
+                type="button"
+                onClick={onTitleClick}
+                className={cn(
+                  'transition-colors',
+                  isCorporate ? 'hover:text-slate-950' : 'hover:text-cyan-300',
+                )}
+              >
                 {title}
               </button>
             ) : (
@@ -201,10 +321,25 @@ function SectionCard({
 // ---------------------------------------------------------------------------
 
 function DemoBanner() {
+  const { isCorporate } = useUiTheme();
+
   return (
     <div
-      className="rounded-xl px-4 py-2.5 mb-6 flex items-center gap-2 text-sm"
-      style={{ background: 'rgba(168,85,247,0.07)', border: '1px solid rgba(168,85,247,0.2)', color: 'rgba(168,85,247,0.85)' }}
+      className={cn(
+        'rounded-xl px-4 py-2.5 mb-6 flex items-center gap-2 text-sm',
+        isCorporate
+          ? 'border border-amber-400 bg-amber-50 text-amber-950'
+          : undefined,
+      )}
+      style={
+        isCorporate
+          ? undefined
+          : {
+              background: 'rgba(168,85,247,0.07)',
+              border: '1px solid rgba(168,85,247,0.2)',
+              color: 'rgba(168,85,247,0.85)',
+            }
+      }
     >
       <ExclamationTriangleIcon className="h-4 w-4 shrink-0" />
       <span>
@@ -229,6 +364,12 @@ function ClinicianDashboard({
   onOpenPatients?: (patientUuid?: string | null, filters?: ClinicianListFilters) => void;
   onRetry?: () => void;
 }) {
+  const { isCorporate } = useUiTheme();
+  const emptyTextClass = isCorporate ? 'text-slate-700' : 'text-slate-400';
+  const pagerTextClass = isCorporate ? 'text-slate-600' : 'text-slate-400';
+  const pagerButtonClass = isCorporate
+    ? 'h-5 w-5 rounded border border-slate-400 text-slate-800 hover:border-slate-600 disabled:opacity-40'
+    : 'h-5 w-5 rounded border border-slate-700 hover:border-cyan-500 disabled:opacity-40';
   const [activePatientsPage, setActivePatientsPage] = useState(1);
   const nowMs = Date.now();
   const openList = (filters: ClinicianListFilters = DEFAULT_CLINICIAN_LIST_FILTERS) => onOpenPatients?.(null, filters);
@@ -276,15 +417,29 @@ function ClinicianDashboard({
       <DemoBanner />
       {error ? (
         <div
-          className="rounded-xl px-4 py-2.5 mb-4 text-sm flex flex-wrap items-center justify-between gap-3"
-          style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.22)', color: 'rgba(252,165,165,0.95)' }}
+          className={cn(
+            'rounded-xl px-4 py-2.5 mb-4 text-sm flex flex-wrap items-center justify-between gap-3',
+            isCorporate && 'border border-red-300 bg-red-50 text-red-950',
+          )}
+          style={
+            isCorporate
+              ? undefined
+              : {
+                  background: 'rgba(239,68,68,0.08)',
+                  border: '1px solid rgba(239,68,68,0.22)',
+                  color: 'rgba(252,165,165,0.95)',
+                }
+          }
         >
           <span>Clinician data failed to load: {error}</span>
           {onRetry ? (
             <button
               type="button"
               onClick={onRetry}
-              className="text-xs font-semibold uppercase tracking-wide text-cyan-300 hover:text-cyan-200"
+              className={cn(
+                'text-xs font-semibold uppercase tracking-wide',
+                isCorporate ? 'text-red-900 hover:text-red-950' : 'text-cyan-300 hover:text-cyan-200',
+              )}
             >
               Retry
             </button>
@@ -313,10 +468,10 @@ function ClinicianDashboard({
           icon={UserGroupIcon}
           onTitleClick={() => openList()}
           headerRight={pagedActivePatients.totalPages > 1 ? (
-            <div className="flex items-center gap-1 text-[10px] text-slate-400">
+            <div className={cn('flex items-center gap-1 text-[10px]', pagerTextClass)}>
               <button
                 type="button"
-                className="h-5 w-5 rounded border border-slate-700 hover:border-cyan-500 disabled:opacity-40"
+                className={pagerButtonClass}
                 onClick={() => setActivePatientsPage((page) => Math.max(1, page - 1))}
                 disabled={pagedActivePatients.page <= 1}
                 aria-label="Previous page"
@@ -328,7 +483,7 @@ function ClinicianDashboard({
               </span>
               <button
                 type="button"
-                className="h-5 w-5 rounded border border-slate-700 hover:border-cyan-500 disabled:opacity-40"
+                className={pagerButtonClass}
                 onClick={() => setActivePatientsPage((page) => Math.min(pagedActivePatients.totalPages, page + 1))}
                 disabled={pagedActivePatients.page >= pagedActivePatients.totalPages}
                 aria-label="Next page"
@@ -353,7 +508,7 @@ function ClinicianDashboard({
               ))}
             </>
           ) : (
-            <div className="px-4 py-6 text-sm text-slate-400">
+            <div className={cn('px-4 py-6 text-sm', emptyTextClass)}>
               No patients loaded for this role yet. Open Patients to confirm enrollment data is available.
             </div>
           )}
@@ -375,7 +530,7 @@ function ClinicianDashboard({
               />
             ))
           ) : (
-            <div className="px-4 py-6 text-sm text-slate-400">
+            <div className={cn('px-4 py-6 text-sm', emptyTextClass)}>
               No active chats in the last 30 minutes.
             </div>
           )}
@@ -406,6 +561,7 @@ function AdminDashboard({
   onOpenUsers?: () => void;
   onOpenServices?: () => void;
 }) {
+  const { isCorporate } = useUiTheme();
   const { rows, loading, error, summary, refresh } = usePlatformServiceHealth();
   const {
     total: userTotal,
@@ -565,7 +721,7 @@ function AdminDashboard({
           })}
           {!loading && summary.notConfigured > 0 ? (
             <div className="px-4 py-3 border-t border-cyan-500/10">
-              <p className="text-xs text-slate-500">
+              <p className={cn('text-xs', isCorporate ? 'text-slate-700' : 'text-slate-500')}>
                 Services marked <span className="text-slate-400">Not configured</span> need a{' '}
                 <code className="text-slate-400">VITE_*_API_URL</code> at UI build time (see{' '}
                 <code className="text-slate-400">ui/.env.sample</code>).
@@ -593,9 +749,9 @@ function AdminDashboard({
           onTitleClick={onOpenServices}
         >
           {opsLoading && auditEvents.length === 0 ? (
-            <p className="px-4 py-3 text-xs text-slate-500">Loading audit history…</p>
+            <p className={cn('px-4 py-3 text-xs', isCorporate ? 'text-slate-700' : 'text-slate-500')}>Loading audit history…</p>
           ) : auditEvents.length === 0 ? (
-            <p className="px-4 py-3 text-xs text-slate-500">No audit or sign-in events in the current window.</p>
+            <p className={cn('px-4 py-3 text-xs', isCorporate ? 'text-slate-700' : 'text-slate-500')}>No audit or sign-in events in the current window.</p>
           ) : (
             auditEvents.map((e) => (
               <ListItem
@@ -685,6 +841,7 @@ function PatientDashboard({
   demoSeeding?: boolean;
   onGoToProfile?: () => void;
 }) {
+  const { isCorporate } = useUiTheme();
   const [appointments, setAppointments] = useState<CareEpisodeAppointment[]>([]);
   const [messages, setMessages] = useState<CareEpisodeInboxMessage[]>([]);
   const [records, setRecords] = useState<CareEpisodeRecord[]>([]);
@@ -753,14 +910,27 @@ function PatientDashboard({
     <>
       <DemoBanner />
 
-      <div className="mb-6 rounded-xl px-5 py-4" style={{ background: 'rgba(34,211,238,0.04)', border: '1px solid rgba(34,211,238,0.12)' }}>
-        <p className="text-slate-300 text-sm">
+      <div
+        className={cn(
+          'mb-6 rounded-xl px-5 py-4',
+          isCorporate && 'border border-slate-300 bg-slate-100',
+        )}
+        style={
+          isCorporate
+            ? undefined
+            : {
+                background: 'rgba(34,211,238,0.04)',
+                border: '1px solid rgba(34,211,238,0.12)',
+              }
+        }
+      >
+        <p className={cn('text-sm', isCorporate ? 'text-slate-800' : 'text-slate-300')}>
           {demoSeeding || loading ? (
             <>Loading your care overview…</>
           ) : nextAppointment ? (
             <>
               Welcome back{firstName ? `, ${firstName}` : ''}. Your next appointment is in{' '}
-              <strong className="text-white">
+              <strong className={isCorporate ? 'text-slate-950' : 'text-white'}>
                 {welcomeDays === 0 ? 'less than a day' : `${welcomeDays} day${welcomeDays === 1 ? '' : 's'}`}
               </strong>
               .
@@ -812,7 +982,7 @@ function PatientDashboard({
       <div className="grid md:grid-cols-2 gap-6 mb-6">
         <SectionCard title="Upcoming appointments" icon={CalendarDaysIcon}>
           {upcoming.length === 0 ? (
-            <p className="px-4 py-3 text-xs text-slate-500">No upcoming appointments.</p>
+            <p className={cn('px-4 py-3 text-xs', isCorporate ? 'text-slate-700' : 'text-slate-500')}>No upcoming appointments.</p>
           ) : (
             upcoming.map(a => (
               <ListItem
@@ -827,7 +997,7 @@ function PatientDashboard({
 
         <SectionCard title="Messages" icon={BellIcon} onTitleClick={onGoToProfile}>
           {messages.length === 0 ? (
-            <p className="px-4 py-3 text-xs text-slate-500">No messages from your care team.</p>
+            <p className={cn('px-4 py-3 text-xs', isCorporate ? 'text-slate-700' : 'text-slate-500')}>No messages from your care team.</p>
           ) : (
             messages.map(m => (
               <ListItem
@@ -845,7 +1015,7 @@ function PatientDashboard({
 
       <SectionCard title="Recent medical records" icon={DocumentTextIcon} onTitleClick={onGoToProfile}>
         {recentRecords.length === 0 ? (
-          <p className="px-4 py-3 text-xs text-slate-500">No records yet. View your profile for health records.</p>
+          <p className={cn('px-4 py-3 text-xs', isCorporate ? 'text-slate-700' : 'text-slate-500')}>No records yet. View your profile for health records.</p>
         ) : (
           recentRecords.map(r => (
             <ListItem
@@ -867,28 +1037,60 @@ function PatientDashboard({
 // ---------------------------------------------------------------------------
 
 function NoRoleDashboard() {
+  const { isCorporate } = useUiTheme();
+
   return (
     <div
-      className="rounded-xl p-8 text-center"
-      style={{ background: 'rgba(34,211,238,0.03)', border: '1px solid rgba(34,211,238,0.12)' }}
+      className={cn(
+        'rounded-xl p-8 text-center',
+        isCorporate && 'border border-slate-300 bg-white text-slate-800 shadow-sm',
+      )}
+      style={
+        isCorporate
+          ? undefined
+          : {
+              background: 'rgba(34,211,238,0.03)',
+              border: '1px solid rgba(34,211,238,0.12)',
+            }
+      }
     >
-      <ShieldCheckIcon className="h-10 w-10 mx-auto mb-3" style={{ color: 'rgba(34,211,238,0.4)' }} />
-      <p className="text-slate-400 text-sm">
-        No active role selected. Use the <strong className="text-white">profile menu</strong> to choose a role and see your dashboard.
+      <ShieldCheckIcon
+        className={cn('h-10 w-10 mx-auto mb-3', isCorporate ? 'text-slate-500' : undefined)}
+        style={isCorporate ? undefined : { color: 'rgba(34,211,238,0.4)' }}
+      />
+      <p className={cn('text-sm', isCorporate ? 'text-slate-800' : 'text-slate-400')}>
+        No active role selected. Use the{' '}
+        <strong className={isCorporate ? 'text-slate-950' : 'text-white'}>profile menu</strong> to choose a role and see your dashboard.
       </p>
     </div>
   );
 }
 
 function StudyDashboard() {
+  const { isCorporate } = useUiTheme();
+
   return (
     <div
-      className="rounded-xl p-8 text-center"
-      style={{ background: 'rgba(34,211,238,0.03)', border: '1px solid rgba(34,211,238,0.12)' }}
+      className={cn(
+        'rounded-xl p-8 text-center',
+        isCorporate && 'border border-slate-300 bg-white text-slate-800 shadow-sm',
+      )}
+      style={
+        isCorporate
+          ? undefined
+          : {
+              background: 'rgba(34,211,238,0.03)',
+              border: '1px solid rgba(34,211,238,0.12)',
+            }
+      }
     >
-      <UserGroupIcon className="h-10 w-10 mx-auto mb-3" style={{ color: 'rgba(34,211,238,0.4)' }} />
-      <p className="text-slate-400 text-sm">
-        Study operations home. Open <strong className="text-white">Users</strong> in the menu to
+      <UserGroupIcon
+        className={cn('h-10 w-10 mx-auto mb-3', isCorporate ? 'text-slate-500' : undefined)}
+        style={isCorporate ? undefined : { color: 'rgba(34,211,238,0.4)' }}
+      />
+      <p className={cn('text-sm', isCorporate ? 'text-slate-800' : 'text-slate-400')}>
+        Study operations home. Open{' '}
+        <strong className={isCorporate ? 'text-slate-950' : 'text-white'}>Users</strong> in the menu to
         browse people in your organization (read-only until role management is enabled for study
         operators).
       </p>

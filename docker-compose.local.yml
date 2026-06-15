@@ -44,7 +44,7 @@ x-capabilities-local: &capabilities_local
     dockerfile: Dockerfile
     target: runtime
     args:
-      CDP_POLICIES_IMAGE: cdp-policies:local
+      POLICIES_IMAGE: cdp-policies:local
   image: neosofia/capabilities:local
 
 x-user-local: &user_local
@@ -155,7 +155,7 @@ services:
     env_file:
       - ./.capabilities.env
     volumes:
-      - ./policies:/app/policies:ro
+      - ./policies/capabilities:/app/policies:ro
     ports:
       - "8019:8019"
     depends_on:
@@ -208,7 +208,6 @@ services:
     env_file:
       - ./.user.env
     volumes:
-      - ./policies/user/role-catalog.json:/app/policies/role-catalog.json:ro
       - ../templates/sql/audit:/app/audit-templates:ro
     command: ["python", "-m", "alembic", "upgrade", "head"]
     depends_on:
@@ -221,10 +220,6 @@ services:
     container_name: cdp-user
     env_file:
       - ./.user.env
-    volumes:
-      - ../user/policies:/app/policies:ro
-      - ./policies/user/cedar:/app/policies/cdp:ro
-      - ./policies/user/role-catalog.json:/app/policies/role-catalog.json:ro
     ports:
       - "8018:8018"
     depends_on:

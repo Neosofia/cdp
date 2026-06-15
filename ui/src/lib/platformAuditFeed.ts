@@ -1,6 +1,5 @@
 import type { ServiceAuditItem } from '@/components/AuditHistorySheet';
 import { fetchAuthServices, fetchCatalogAudits } from '@/lib/authServicesApi';
-import { fetchIdpOperatorOps } from '@/lib/idpFailedAuthFeed';
 
 /** Matches ServiceManagement rotation warning threshold (≥300 days). */
 export const CREDENTIAL_ROTATION_WARNING_DAYS = 300;
@@ -87,15 +86,4 @@ export async function fetchPlatformOperatorOps(
     rotationDueCount: countRotationDueCredentials(services.items),
     events: mapPlatformAuditFeedItems(audits.items),
   };
-}
-
-export async function fetchOperatorAuditFeed(
-  token: string,
-  activeActor: string,
-): Promise<DashboardAuditEvent[]> {
-  const [platformOps, idpOps] = await Promise.all([
-    fetchPlatformOperatorOps(token, activeActor),
-    fetchIdpOperatorOps(token, activeActor),
-  ]);
-  return mergeAuditFeedEvents([...platformOps.events, ...idpOps.events]);
 }

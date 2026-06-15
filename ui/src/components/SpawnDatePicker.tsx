@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { CalendarDaysIcon } from '@heroicons/react/24/outline';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { useUserFormStyles } from '@/components/userFormStyles';
 import { cn } from '@/lib/utils';
 
 function parseIsoDate(iso: string): Date | null {
@@ -42,6 +43,7 @@ interface SpawnDatePickerProps {
 }
 
 export default function SpawnDatePicker({ id, value, onChange, className }: SpawnDatePickerProps) {
+  const formStyles = useUserFormStyles();
   const [open, setOpen] = useState(false);
   const selected = parseIsoDate(value);
   const currentYear = new Date().getFullYear();
@@ -53,23 +55,12 @@ export default function SpawnDatePicker({ id, value, onChange, className }: Spaw
       <PopoverTrigger
         id={id}
         type="button"
-        className={cn(
-          'flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-slate-700',
-          'bg-slate-900/80 px-3 text-sm text-slate-100 outline-none',
-          'hover:border-cyan-500/40 hover:bg-slate-900',
-          'focus-visible:border-cyan-500/50 focus-visible:ring-2 focus-visible:ring-cyan-500/25',
-          'data-popup-open:border-cyan-500/40 data-popup-open:ring-2 data-popup-open:ring-cyan-500/20',
-          className,
-        )}
+        className={cn(formStyles.datePickerTriggerClass, className)}
       >
         <span>{formatDisplayDate(value)}</span>
-        <CalendarDaysIcon className="size-4 shrink-0 text-cyan-400/80" aria-hidden />
+        <CalendarDaysIcon className={formStyles.datePickerIconClass} aria-hidden />
       </PopoverTrigger>
-      <PopoverContent
-        align="start"
-        sideOffset={6}
-        className="w-auto overflow-hidden border border-cyan-500/25 bg-[#05050f] p-0 text-slate-200 shadow-[0_0_32px_rgba(34,211,238,0.12)] ring-0"
-      >
+      <PopoverContent align="start" sideOffset={6} className={formStyles.datePickerPopoverClass}>
         <Calendar
           mode="single"
           selected={selected ?? undefined}

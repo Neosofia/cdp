@@ -12,7 +12,7 @@ Before expecting **Admin → Users** or operator registry APIs to work, complete
 
 ## Local env setup
 
-Before starting the services, a set of environment variable files must be generated in order to operate correctly. To promote Separation of Concerns (SoC) and adhere to Twelve-Factor App principles, all configuration is managed via `.env` files rather than hardcoded in the `docker-compose.dev.yml`.
+Before starting the services, a set of environment variable files must be generated in order to operate correctly. To promote Separation of Concerns (SoC) and adhere to Twelve-Factor App principles, all runtime configuration is managed via per-service `.env` files (`env_file:` in compose) — not inline `environment:` blocks in `docker-compose.dev.yml` or `docker-compose.local.yml`. Compose may set `build.args` (image build wiring) and `volumes` (local policy hot-reload); it must not duplicate service config that belongs in `.env`.
 
 For each service, copy its respective `.env.sample` file to a `.env` file and fill in the missing sensitive values (such as `YOUR_WORKOS_API_KEY` or `YOUR_SECRET`):
 
@@ -49,12 +49,12 @@ CDP owns the UI entitlement policy bundle under `policies/capabilities/`. The ca
 
 1. CDP publishes the platform policy image: `ghcr.io/neosofia/cdp-policies:vX.Y.Z`  
    Tag: `cdp-policies/vX.Y.Z` → triggers `.github/workflows/cdp-policies-build-push.yml`
-2. Capabilities Dockerfile pins that tag and copies `/policies/capabilities` → `/app/policies`.
+2. Capabilities Dockerfile pins that tag via build arg **`POLICIES_IMAGE`** (default `ghcr.io/neosofia/cdp-policies:vX.Y.Z`) and copies `/policies/capabilities` → `/app/policies`.
 3. Bump the pinned tag / redeploy capabilities when the policy bundle version changes.
 
 **One-time GHCR setup (same as `sql-template` → authentication):** after the first publish, open the [`cdp-policies` package settings](https://github.com/Neosofia/packages/container/cdp-policies/settings) and add the `capabilities` and `user` repositories under **Manage Actions access → Add repository**.
 
-**Local development:** volume-mount `cdp/policies/capabilities/` over `/app/policies` (see `docker-compose.dev.yml`). No policy image required.
+**Local development:** `docker-compose.local.yml` builds `cdp-policies:local` and passes it as `POLICIES_IMAGE` at capabilities build time; optional volume-mount `./policies/capabilities/` over `/app/policies` for hot-reload. Pinned-release stacks in `docker-compose.dev.yml` use the same volume mount pattern.
 
 The bundle includes `entitlements.json`, `menu/*.cedar`, and `features/*.cedar`. The UI calls `GET /api/v1/capabilities/ui`.
 
@@ -74,7 +74,7 @@ CDP owns product user policies under `policies/user/` (`role-catalog.json` and `
 
 Non-CDP deployments: publish a bundle with the same `/policies/user/` layout and pass `USER_PRODUCT_POLICIES_IMAGE` at user image build.
 
-**Local development:** `docker-compose.local.yml` builds `cdp-policies:local` and passes it to capabilities and user image builds. Volume-mount `./policies/user/cedar` over `/app/policies/` cedar files when overriding base policies from the user repo. Optional: `./scripts/repack_user_service_policies.sh` writes `policies-packed/user/` for inspection.
+**Local development:** `docker-compose.local.yml` builds `cdp-policies:local` and passes it to capabilities (`POLICIES_IMAGE`) and user (`USER_PRODUCT_POLICIES_IMAGE`) image builds. Product Cedar and the role catalog are baked into the user image at build; set **`ROLE_CATALOG_OVERLAY=/app/policies/role-catalog.json`** in `.user.env` (see `.user.env.sample`) — do not override it in compose. Optional: `./scripts/repack_user_service_policies.sh` writes `policies-packed/user/` for inspection.
 
 ## Public cloud staging
 

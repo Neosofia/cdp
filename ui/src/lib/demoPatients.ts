@@ -8,16 +8,6 @@ export interface DemoPatientClinical {
   riskLevel: PatientRiskLevel;
 }
 
-export interface DemoPatientCatalogEntry {
-  uuid: string;
-  display_code: string;
-  first_name: string;
-  last_name: string;
-  email: string;
-  idp_id: string;
-  clinical: DemoPatientClinical;
-}
-
 export interface RegistryPatientUser {
   uuid: string;
   tenant_uuid: string;
@@ -71,10 +61,6 @@ export function registerPostCareEnrollment(patientUuid: string, clinical: DemoPa
   postCareEnrollmentOverlays.set(patientUuid, clinical);
 }
 
-export function clearPostCareEnrollmentOverlays(): void {
-  postCareEnrollmentOverlays.clear();
-}
-
 const DEFAULT_ENROLLED_CLINICAL: DemoPatientClinical = {
   surgery: 'Enrollment — clinical data pending',
   procedureDate: new Date().toISOString().slice(0, 10),
@@ -105,7 +91,7 @@ export function registryUsersNotYetEnrolled(
   return registryUsers.filter((user) => !enrolledUuids.has(user.uuid));
 }
 
-export function mergePatientRecovery(user: RegistryPatientUser): ActivePatientRecovery | null {
+function mergePatientRecovery(user: RegistryPatientUser): ActivePatientRecovery | null {
   if (!user.roles.includes('patient.self')) {
     return null;
   }
@@ -156,13 +142,6 @@ export function activePatientByUuid(
   return sessions.find(p => p.patientUuid === patientUuid);
 }
 
-export function activePatientByDisplayCode(
-  sessions: ActivePatientRecovery[],
-  displayCode: string,
-): ActivePatientRecovery | undefined {
-  return sessions.find(p => p.displayCode === displayCode);
-}
-
 /** Top dashboard patients — highest risk first, then recent chat activity. */
 export function highlightDashboardRecoveries(all: ActivePatientRecovery[]): ActivePatientRecovery[] {
   return [...all]
@@ -173,8 +152,6 @@ export function highlightDashboardRecoveries(all: ActivePatientRecovery[]): Acti
     })
     .slice(0, 4);
 }
-
-export const PATIENT_UUID_BY_DISPLAY_NAME: Record<string, string> = {};
 
 export const PATIENT_LIST_PAGE_SIZE = 10;
 
@@ -266,16 +243,6 @@ export function applyClinicianListFilters(
   }
 
   return result;
-}
-
-export function clinicianListFiltersLabel(filters: ClinicianListFilters): string {
-  const parts: string[] = [];
-  if (filters.risk === 'high-risk') parts.push('High risk');
-  else if (filters.risk === 'medium-risk') parts.push('Medium risk');
-  if (filters.activity === 'active-30m') parts.push('Active (30 min)');
-  else if (filters.activity === 'chats-today') parts.push('Chats today');
-  else if (filters.activity === 'this-week') parts.push('This week');
-  return parts.length > 0 ? parts.join(' · ') : 'All patients';
 }
 
 export function paginatePatientRecoveries<T>(

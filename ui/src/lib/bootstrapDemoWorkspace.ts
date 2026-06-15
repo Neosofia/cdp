@@ -58,10 +58,6 @@ export function profileHasDemoRoles(roles: string[] | undefined): boolean {
   return DEMO_TIER2_ROLES.every((role) => roles.includes(role));
 }
 
-export function needsDemoBootstrap(sessionActors: string[], roles: string[] | undefined): boolean {
-  return sessionHasDemoActor(sessionActors) && !profileHasDemoRoles(roles);
-}
-
 /** Add demo tier-2 roles without removing existing slugs (e.g. platform.admin). */
 export function mergeDemoTier2Roles(currentRoles: string[] | undefined): string[] {
   const merged = new Set(currentRoles ?? []);
@@ -100,10 +96,23 @@ async function assignDemoRoles(
   userUuid: string,
   currentRoles: string[] | undefined,
 ): Promise<RegistryUser> {
+  let rolesToMerge = currentRoles;
+  try {
+    const latestRes = await fetch(`${USER_API}/api/v1/users/${userUuid}`, {
+      headers: headers(token, DEMO_ACTOR),
+    });
+    if (latestRes.ok) {
+      const latest = (await latestRes.json()) as RegistryUser;
+      rolesToMerge = latest.roles;
+    }
+  } catch {
+    // Fall back to caller-provided roles when the registry read fails.
+  }
+
   const res = await fetch(`${USER_API}/api/v1/users/${userUuid}`, {
     method: 'PATCH',
     headers: headers(token, DEMO_ACTOR),
-    body: JSON.stringify(buildUserUpdatePayload({ roles: mergeDemoTier2Roles(currentRoles) })),
+    body: JSON.stringify(buildUserUpdatePayload({ roles: mergeDemoTier2Roles(rolesToMerge) })),
   });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {

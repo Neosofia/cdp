@@ -84,10 +84,6 @@ export async function createCareEpisodeInvite(
   return body as CareEpisodeInviteResult;
 }
 
-export function isCareEpisodeServiceConfigured(): boolean {
-  return Boolean(CARE_EPISODE_API);
-}
-
 export async function listCareEpisodeRecoveries(
   token: string,
   activeActor: string,

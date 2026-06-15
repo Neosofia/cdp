@@ -25,23 +25,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
+import { usePatientViewStyles } from '@/lib/patientViewStyles';
 import PatientRecordsPanel from '@/components/PatientRecordsPanel';
 import PatientEnrollSheet from '@/components/PatientEnrollSheet';
 import RiskSummaryHint from '@/components/RiskSummaryHint';
 import ProcedurePicker from '@/components/ProcedurePicker';
 import SpawnDatePicker from '@/components/SpawnDatePicker';
 import { procedureById, procedureIdForSurgeryName } from '@/lib/procedureCatalog';
-import {
-  USER_FIELD_LABEL_CLASS,
-  USER_INPUT_CLASS,
-  USER_PRIMARY_BUTTON_CLASS,
-  USER_SHEET_BODY_CLASS,
-  USER_SHEET_CANCEL_BUTTON_CLASS,
-  USER_SHEET_CONTENT_CLASS,
-  USER_SHEET_HEADER_CLASS,
-  USER_SHEET_TITLE_CLASS,
-  USER_SHEET_TITLE_STYLE,
-} from '@/components/userFormStyles';
+import { useUserFormStyles } from '@/components/userFormStyles';
 import type { MedicalRecord } from '@/lib/patientRecordsData';
 import {
   createChatMessage,
@@ -73,12 +64,6 @@ import {
   type RegistryPatientUser,
 } from '@/lib/demoPatients';
 import type { PostCareEnrollmentInput } from '@/lib/postCareEnrollment';
-
-const CARD_STYLE = {
-  background: 'rgba(5,5,15,0.7)',
-  border: '1px solid rgba(34,211,238,0.18)',
-  boxShadow: '0 0 40px rgba(34,211,238,0.05)',
-};
 
 interface Props {
   patients: ActivePatientRecovery[];
@@ -146,12 +131,6 @@ const ACTIVITY_FILTER_OPTIONS: { value: ClinicianActivityFilter; label: string }
   { value: 'this-week', label: 'This week' },
 ];
 
-const FILTER_TRIGGER_CLASS =
-  'inline-flex h-9 shrink-0 items-center gap-1 rounded-md border border-slate-700 bg-slate-950/80 px-2 text-xs text-slate-200 hover:border-slate-500 data-popup-open:border-cyan-500/40';
-
-const FILTER_MENU_CLASS =
-  'min-w-36 rounded-lg border border-slate-700 bg-slate-950 p-1 text-slate-200 shadow-lg';
-
 /** Fixed columns: patient · days post-op · last chat · risk (+ edit action). */
 const PATIENT_ROW_GRID =
   'grid w-full grid-cols-[minmax(0,1fr)_4.5rem_7rem_5.5rem_2rem] items-center gap-x-4';
@@ -167,24 +146,22 @@ function FilterDropdown<T extends string>({
   options: readonly { value: T; label: string }[];
   onSelect: (value: T) => void;
 }) {
+  const pv = usePatientViewStyles();
   const currentLabel = options.find((option) => option.value === value)?.label ?? label;
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger className={FILTER_TRIGGER_CLASS} aria-label={`${label}: ${currentLabel}`}>
-        <span className="text-slate-500">{label}</span>
-        <span className="max-w-[5.5rem] truncate text-slate-200">{currentLabel}</span>
-        <ChevronDownIcon className="size-3.5 shrink-0 text-slate-500" />
+      <DropdownMenuTrigger className={pv.filterTriggerClass} aria-label={`${label}: ${currentLabel}`}>
+        <span className={pv.filterLabelClass}>{label}</span>
+        <span className={pv.filterValueClass}>{currentLabel}</span>
+        <ChevronDownIcon className={cn('size-3.5 shrink-0', pv.mutedText)} />
       </DropdownMenuTrigger>
-      <DropdownMenuContent className={FILTER_MENU_CLASS} align="end">
+      <DropdownMenuContent className={pv.filterMenuClass} align="end">
         {options.map((option) => (
           <DropdownMenuItem
             key={option.value}
             onClick={() => onSelect(option.value)}
-            className={cn(
-              'cursor-pointer rounded-md px-2 py-1.5 text-xs text-slate-300 focus:bg-cyan-500/10 focus:text-cyan-200',
-              value === option.value && 'bg-cyan-500/15 text-cyan-200',
-            )}
+            className={pv.filterMenuItemClass(value === option.value)}
           >
             {option.label}
           </DropdownMenuItem>
@@ -259,6 +236,7 @@ function PatientList({
   onEdit: (patient: ActivePatientRecovery) => void;
   onEnroll: () => void;
 }) {
+  const pv = usePatientViewStyles();
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [page, setPage] = useState(1);
@@ -298,13 +276,13 @@ function PatientList({
   const rangeEnd = Math.min(safePage * PATIENT_LIST_PAGE_SIZE, total);
 
   return (
-    <Card className="gap-0 py-0 h-full min-h-0 flex flex-col overflow-hidden" style={CARD_STYLE}>
-      <CardHeader
-        className="py-4 shrink-0"
-        style={{ borderBottom: '1px solid rgba(34,211,238,0.12)', background: 'rgba(34,211,238,0.03)' }}
-      >
+    <Card
+      className={cn('gap-0 py-0 flex flex-col', pv.cardClass)}
+      {...(pv.cardStyle ? { style: pv.cardStyle } : {})}
+    >
+      <CardHeader className={cn('py-4 shrink-0', pv.headerClass)} style={pv.headerStyle}>
         <div className="flex items-center justify-between gap-3">
-          <CardTitle className="text-lg flex items-center gap-2" style={{ color: '#22d3ee' }}>
+          <CardTitle className={cn('text-lg flex items-center gap-2', pv.titleClass)} style={pv.titleStyle}>
             <UserGroupIcon className="h-5 w-5" />
             Patients
           </CardTitle>
@@ -313,26 +291,26 @@ function PatientList({
             size="sm"
             variant="outline"
             onClick={onEnroll}
-            className="text-cyan-300 border-cyan-500/40 hover:bg-cyan-500/10 hover:text-cyan-200"
+            className={pv.outlineButton}
           >
             <UserPlusIcon className="h-4 w-4 mr-1.5" />
             Enroll
           </Button>
         </div>
       </CardHeader>
-      <CardContent className="p-0 flex-1 min-h-0 flex flex-col overflow-hidden">
+      <CardContent className="p-0 flex flex-col">
         <div
-          className="px-6 py-3 border-b shrink-0"
-          style={{ borderColor: 'rgba(34,211,238,0.08)' }}
+          className={cn('px-6 py-3 border-b shrink-0', pv.isCorporate ? 'border-slate-200' : '')}
+          style={pv.isCorporate ? undefined : { borderColor: 'rgba(34,211,238,0.08)' }}
         >
           <div className="flex items-center gap-2 min-w-0">
             <div className="relative min-w-0 flex-1">
-              <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-slate-500" />
+              <MagnifyingGlassIcon className={cn('absolute left-3 top-1/2 -translate-y-1/2 size-4', pv.mutedText)} />
               <Input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search patients…"
-                className="h-9 w-full pl-9 bg-slate-950/80 border-slate-700 text-slate-200 placeholder:text-slate-500"
+                className={cn('h-9 w-full pl-9', pv.inputClass)}
               />
             </div>
             <PatientListFilters filters={listFilters} onChange={onListFiltersChange} />
@@ -340,15 +318,15 @@ function PatientList({
         </div>
         {error ? (
           <div
-            className="px-6 py-3 text-xs text-amber-400/90 border-b shrink-0 flex items-center justify-between gap-3"
-            style={{ borderColor: 'rgba(34,211,238,0.08)' }}
+            className={cn('px-6 py-3 text-xs text-amber-400/90 border-b shrink-0 flex items-center justify-between gap-3', pv.isCorporate ? 'border-slate-200 text-amber-800' : '')}
+            style={pv.isCorporate ? undefined : { borderColor: 'rgba(34,211,238,0.08)' }}
           >
             <span>Could not load patients. {error}</span>
             {onRetry ? (
               <button
                 type="button"
                 onClick={onRetry}
-                className="font-semibold uppercase tracking-wide text-cyan-300 hover:text-cyan-200"
+                className={cn('font-semibold uppercase tracking-wide', pv.isCorporate ? 'text-slate-700 hover:text-slate-900' : 'text-cyan-300 hover:text-cyan-200')}
               >
                 Retry
               </button>
@@ -356,14 +334,20 @@ function PatientList({
           </div>
         ) : null}
         {loading ? (
-          <p className="px-6 py-4 text-sm text-slate-500">Loading patients from user service…</p>
+          <p className={cn('px-6 py-4 text-sm', pv.subText)}>Loading patients from user service…</p>
         ) : null}
         {!loading && total === 0 ? (
-          <p className="px-6 py-4 text-sm text-slate-500">
+          <p className={cn('px-6 py-4 text-sm', pv.subText)}>
             {patientListEmptyMessage(patients.length, debouncedSearch, listFilters)}
           </p>
         ) : null}
-        <ul className="divide-y flex-1 min-h-0 overflow-y-auto overscroll-y-contain" style={{ borderColor: 'rgba(34,211,238,0.08)' }}>
+        <ul
+          className={cn(
+            'divide-y',
+            pv.isCorporate ? 'divide-slate-200' : '',
+          )}
+          style={pv.isCorporate ? undefined : { borderColor: 'rgba(34,211,238,0.08)' }}
+        >
           {pagePatients.map(p => (
             <li key={p.patientUuid}>
               <button
@@ -371,46 +355,41 @@ function PatientList({
                 onClick={() => onSelect(p.patientUuid)}
                 className={cn(
                   PATIENT_ROW_GRID,
-                  'text-left px-6 py-4 hover:bg-cyan-500/5 transition-colors',
+                  'text-left px-6 py-4 transition-colors',
+                  pv.rowHover,
                 )}
               >
                 <div className="min-w-0 overflow-hidden">
-                  <div className="font-semibold text-sm text-white flex items-center gap-2 min-w-0">
+                  <div className={cn('font-semibold text-sm flex items-center gap-2 min-w-0', pv.bodyText)}>
                     <span className="truncate">{p.displayName}</span>
                     {selfUuid && p.patientUuid === selfUuid ? (
                       <Badge
                         variant="outline"
                         className="text-[10px] font-semibold shrink-0"
-                        style={{
-                          borderColor: 'rgba(34,211,238,0.5)',
-                          color: '#22d3ee',
-                          background: 'rgba(34,211,238,0.12)',
-                        }}
+                        style={pv.demoBadgeStyle}
                       >
                         Self (demo)
                       </Badge>
                     ) : null}
                   </div>
-                  <div className="font-mono text-xs text-cyan-300 mt-0.5 truncate">{p.displayCode}</div>
-                  <div className="text-sm text-slate-400 mt-0.5 truncate">{p.surgery}</div>
+                  <div className={cn('font-mono text-xs mt-0.5 truncate', pv.isCorporate ? 'text-slate-600' : 'text-cyan-300')}>
+                    {p.displayCode}
+                  </div>
+                  <div className={cn('text-sm mt-0.5 truncate', pv.mutedText)}>{p.surgery}</div>
                 </div>
                 <div className="w-[4.5rem] text-center shrink-0">
-                  <div className="text-lg font-bold text-white tabular-nums">{p.daysPostOp}</div>
-                  <div className="text-[10px] uppercase tracking-widest text-slate-500 leading-tight">days</div>
+                  <div className={cn('text-lg font-bold tabular-nums', pv.bodyText)}>{p.daysPostOp}</div>
+                  <div className={cn('text-[10px] uppercase tracking-widest leading-tight', pv.subText)}>days</div>
                 </div>
-                <div className="w-[7rem] shrink-0 flex items-center gap-1.5 text-xs text-slate-500 min-w-0">
-                  <SignalIcon className="h-4 w-4 shrink-0 text-green-400" />
+                <div className={cn('w-[7rem] shrink-0 flex items-center gap-1.5 text-xs min-w-0', pv.subText)}>
+                  <SignalIcon className={cn('h-4 w-4 shrink-0', pv.isCorporate ? 'text-green-600' : 'text-green-400')} />
                   <span className="truncate">{formatRelativeActivity(p.lastChatAt, nowMs)}</span>
                 </div>
                 <div className="w-[6.5rem] shrink-0 flex items-center justify-center gap-1">
                   <Badge
                     variant="outline"
                     className="text-[10px] whitespace-nowrap"
-                    style={riskForRecovery(p) === 'High'
-                      ? { borderColor: 'rgba(239,68,68,0.4)', color: '#ef4444', background: 'rgba(239,68,68,0.08)' }
-                      : riskForRecovery(p) === 'Medium'
-                        ? { borderColor: 'rgba(234,179,8,0.4)', color: '#eab308', background: 'rgba(234,179,8,0.08)' }
-                        : { borderColor: 'rgba(34,197,94,0.4)', color: '#22c55e', background: 'rgba(34,197,94,0.08)' }}
+                    style={pv.riskBadge(riskForRecovery(p))}
                   >
                     {riskForRecovery(p)} risk
                   </Badge>
@@ -421,7 +400,7 @@ function PatientList({
                     type="button"
                     size="icon"
                     variant="ghost"
-                    className="h-8 w-8 text-cyan-300 hover:text-cyan-200 hover:bg-cyan-500/10"
+                    className={cn('h-8 w-8', pv.isCorporate ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100' : 'text-cyan-300 hover:text-cyan-200 hover:bg-cyan-500/10')}
                     aria-label={`Edit patient profile for ${p.displayName}`}
                     onClick={(event) => {
                       event.stopPropagation();
@@ -437,8 +416,8 @@ function PatientList({
         </ul>
         {!loading && total > 0 ? (
           <div
-            className="shrink-0 flex items-center justify-between gap-4 px-6 py-3 text-sm text-slate-500 border-t"
-            style={{ borderColor: 'rgba(34,211,238,0.08)' }}
+            className={cn('shrink-0 flex items-center justify-between gap-4 px-6 py-3 text-sm border-t', pv.subText, pv.isCorporate ? 'border-slate-200' : '')}
+            style={pv.isCorporate ? undefined : { borderColor: 'rgba(34,211,238,0.08)' }}
           >
             <span>
               {rangeStart}–{rangeEnd} of {total} patient{total === 1 ? '' : 's'}
@@ -450,7 +429,7 @@ function PatientList({
                 variant="outline"
                 disabled={safePage <= 1}
                 onClick={() => setPage(p => Math.max(1, p - 1))}
-                className="text-slate-400 border-slate-700 hover:text-cyan-300 hover:border-cyan-500/40"
+                className={cn(pv.isCorporate ? 'text-slate-600 border-slate-300 hover:text-slate-900 hover:border-slate-400' : 'text-slate-400 border-slate-700 hover:text-cyan-300 hover:border-cyan-500/40')}
               >
                 Previous
               </Button>
@@ -463,7 +442,7 @@ function PatientList({
                 variant="outline"
                 disabled={safePage >= totalPages}
                 onClick={() => setPage(p => p + 1)}
-                className="text-slate-400 border-slate-700 hover:text-cyan-300 hover:border-cyan-500/40"
+                className={cn(pv.isCorporate ? 'text-slate-600 border-slate-300 hover:text-slate-900 hover:border-slate-400' : 'text-slate-400 border-slate-700 hover:text-cyan-300 hover:border-cyan-500/40')}
               >
                 Next
               </Button>
@@ -504,6 +483,7 @@ function TranscriptPanel({
   composeError: string | null;
   sending: boolean;
 }) {
+  const pv = usePatientViewStyles();
   const [draft, setDraft] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const lastMessageId = messages[messages.length - 1]?.id;
@@ -555,11 +535,11 @@ function TranscriptPanel({
   };
 
   return (
-    <Card className="gap-0 py-0 h-full min-h-0 flex flex-col overflow-hidden" style={CARD_STYLE}>
-      <CardHeader
-        className="py-3 shrink-0"
-        style={{ borderBottom: '1px solid rgba(34,211,238,0.12)', background: 'rgba(34,211,238,0.03)' }}
-      >
+    <Card
+      className={cn('gap-0 py-0 flex flex-col', pv.cardClass)}
+      {...(pv.cardStyle ? { style: pv.cardStyle } : {})}
+    >
+      <CardHeader className={cn('py-3 shrink-0', pv.headerClass)} style={pv.headerStyle}>
         <div className="flex items-center gap-2">
           <Button
             type="button"
@@ -570,17 +550,17 @@ function TranscriptPanel({
               if (!canGoOlder) return;
               onSelectInteraction(interactions[activeIndex + 1].chat_interaction_uuid);
             }}
-            className="shrink-0 text-slate-400 hover:text-cyan-300 hover:bg-cyan-500/10 disabled:opacity-30"
+            className={cn('shrink-0 disabled:opacity-30', pv.ghostButton)}
             aria-label="Older conversation"
           >
             <ChevronLeftIcon className="h-4 w-4" />
           </Button>
           <div className="min-w-0 flex-1 text-center">
-            <CardTitle className="text-sm font-medium truncate text-slate-100 normal-case tracking-normal">
+            <CardTitle className={cn('text-sm font-medium truncate normal-case tracking-normal', pv.bodyText)}>
               {sessionLabel}
             </CardTitle>
             {sessionDate ? (
-              <p className="text-xs text-slate-400 mt-0.5">{sessionDate}</p>
+              <p className={cn('text-xs mt-0.5', pv.mutedText)}>{sessionDate}</p>
             ) : null}
           </div>
           <Button
@@ -592,26 +572,23 @@ function TranscriptPanel({
               if (!canGoNewer) return;
               onSelectInteraction(interactions[activeIndex - 1].chat_interaction_uuid);
             }}
-            className="shrink-0 text-slate-400 hover:text-cyan-300 hover:bg-cyan-500/10 disabled:opacity-30"
+            className={cn('shrink-0 disabled:opacity-30', pv.ghostButton)}
             aria-label="Newer conversation"
           >
             <ChevronRightIcon className="h-4 w-4" />
           </Button>
         </div>
       </CardHeader>
-      <CardContent className="p-0 flex flex-1 flex-col min-h-0 overflow-hidden">
-        <div
-          ref={scrollRef}
-          className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain px-3 py-3 pb-6 space-y-3"
-        >
+      <CardContent className="flex flex-col p-0">
+        <div ref={scrollRef} className="space-y-3 px-3 py-3 pb-6">
           {loading && messages.length === 0 ? (
-            <p className="text-sm text-slate-400 text-center py-8">Loading chat transcript…</p>
+            <p className={cn('text-sm text-center py-8', pv.mutedText)}>Loading chat transcript…</p>
           ) : null}
           {error ? (
             <p className="text-sm text-red-400 text-center py-8">{error}</p>
           ) : null}
           {!loading && !error && messages.length === 0 ? (
-            <p className="text-sm text-slate-400 text-center py-8">No messages in this conversation yet.</p>
+            <p className={cn('text-sm text-center py-8', pv.mutedText)}>No messages in this conversation yet.</p>
           ) : null}
           {messages.map(msg => {
             const inbound = isPatientInboundMessage(msg.role);
@@ -623,26 +600,18 @@ function TranscriptPanel({
               <div
                 className={cn(
                   'max-w-[92%] rounded-xl px-3 py-2 text-sm leading-relaxed',
-                  inbound ? 'rounded-bl-sm' : 'rounded-br-sm',
+                  inbound ? cn('rounded-bl-sm', pv.chatBubbleInboundClass) : cn('rounded-br-sm', pv.chatBubbleOutboundClass),
                 )}
-                style={
-                  inbound
-                    ? {
-                        background: 'linear-gradient(135deg, rgba(34,211,238,0.2) 0%, rgba(168,85,247,0.2) 100%)',
-                        border: '1px solid rgba(34,211,238,0.2)',
-                        color: '#e2e8f0',
-                      }
-                    : {
-                        background: 'rgba(15,23,42,0.85)',
-                        border: '1px solid rgba(34,211,238,0.1)',
-                        color: '#cbd5e1',
-                      }
-                }
+                style={inbound ? pv.chatBubbleInbound() : pv.chatBubbleOutbound()}
               >
                 <div className="text-[9px] uppercase tracking-widest mb-1 opacity-60">
                   {transcriptSpeakerLabel(msg.role, clinicianDisplayName)} · {msg.time}
                 </div>
-                <ChatMessageContent content={msg.content} markdown={!inbound} />
+                <ChatMessageContent
+                  content={msg.content}
+                  markdown={!inbound}
+                  surface={inbound ? 'light' : 'dark'}
+                />
               </div>
             </div>
             );
@@ -650,15 +619,15 @@ function TranscriptPanel({
         </div>
         {canCompose ? (
           <div
-            className="shrink-0 border-t px-3 py-3 space-y-2"
-            style={{ borderColor: 'rgba(34,211,238,0.12)', background: 'rgba(34,211,238,0.02)' }}
+            className={cn('shrink-0 border-t px-3 py-3 space-y-2', pv.formFooterClass)}
+            style={pv.formFooterStyle}
           >
             <div className="min-w-0 text-center">
-              <p className="text-sm font-medium truncate text-slate-100">
+              <p className={cn('text-sm font-medium truncate', pv.bodyText)}>
                 {clinicianDisplayName?.trim() || 'Clinician'}
               </p>
               {clinicianRoleLabel ? (
-                <p className="text-xs text-slate-400 mt-0.5">{clinicianRoleLabel}</p>
+                <p className={cn('text-xs mt-0.5', pv.mutedText)}>{clinicianRoleLabel}</p>
               ) : null}
             </div>
             {composeError ? (
@@ -683,16 +652,17 @@ function TranscriptPanel({
                 }}
                 placeholder="Reply to patient…"
                 disabled={loading}
-                className="flex-1 h-9 bg-slate-900/60 border-slate-700 text-slate-100 placeholder:text-slate-500 focus-visible:border-cyan-500/50 focus-visible:ring-cyan-500/20"
+                className={cn('flex-1 h-9', pv.inputClass)}
                 autoComplete="off"
               />
               <Button
                 type="button"
+                variant="outline"
                 size="icon"
                 onClick={() => void submitReply()}
                 disabled={loading || sending || !draft.trim()}
-                className="shrink-0 text-white"
-                style={{ background: 'linear-gradient(135deg, #22d3ee 0%, #a855f7 100%)' }}
+                className={cn('chat-send-button', pv.sendButtonClass)}
+                style={pv.sendButtonStyle}
                 aria-label="Send reply"
               >
                 <PaperAirplaneIcon className="h-4 w-4" />
@@ -726,6 +696,7 @@ function SessionDetail({
   onEdit: (patient: ActivePatientRecovery) => void;
   saveNotice?: string | null;
 }) {
+  const pv = usePatientViewStyles();
   const [interactions, setInteractions] = useState<ChatInteraction[]>([]);
   const [activeInteractionUuid, setActiveInteractionUuid] = useState<string | null>(null);
   const [transcript, setTranscript] = useState<PatientTranscriptLine[]>([]);
@@ -888,7 +859,7 @@ function SessionDetail({
   };
 
   return (
-    <div className="h-full min-h-0 flex flex-col overflow-hidden gap-3">
+    <div className="flex flex-col gap-3">
       {saveNotice ? (
         <p
           role="status"
@@ -903,7 +874,7 @@ function SessionDetail({
           type="button"
           variant="ghost"
           onClick={onBack}
-          className="w-fit text-slate-400 hover:text-cyan-300 hover:bg-cyan-500/10"
+          className={cn('w-fit', pv.ghostButton)}
         >
           <ArrowLeftIcon className="h-4 w-4 mr-1.5" />
           Back to list
@@ -912,14 +883,14 @@ function SessionDetail({
           type="button"
           size="sm"
           variant="outline"
-          className="text-cyan-300 border-cyan-500/40 hover:bg-cyan-500/10 hover:text-cyan-200"
+          className={pv.outlineButton}
           onClick={() => onEdit(patient)}
         >
           <PencilSquareIcon className="h-4 w-4" />
         </Button>
       </div>
-      <div className="flex-1 min-h-0 grid lg:grid-cols-2 gap-4 overflow-hidden">
-        <div className="min-h-0 h-full overflow-hidden">
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div>
           <TranscriptPanel
             patient={patient}
             messages={transcript}
@@ -936,7 +907,7 @@ function SessionDetail({
             sending={sendingReply}
           />
         </div>
-        <div className="min-h-0 h-full overflow-hidden">
+        <div>
           <PatientRecordsPanel
             records={patientRecords}
             embedded
@@ -970,6 +941,7 @@ export default function ClinicianActivePatients({
   onEnrollInPostCare,
   onEditEnrollment,
 }: Props) {
+  const formStyles = useUserFormStyles();
   const [enrollOpen, setEnrollOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [editingPatient, setEditingPatient] = useState<ActivePatientRecovery | null>(null);
@@ -1063,7 +1035,7 @@ export default function ClinicianActivePatients({
     : null;
 
   return (
-    <div className="h-full min-h-0 flex flex-col overflow-hidden">
+    <div className="flex flex-col gap-3">
       {patient ? (
         <SessionDetail
           patient={patient}
@@ -1091,14 +1063,14 @@ export default function ClinicianActivePatients({
         />
       )}
       <Sheet open={editOpen} onOpenChange={(nextOpen) => (nextOpen ? setEditOpen(true) : closeEditSheet())}>
-        <SheetContent side="right" className={USER_SHEET_CONTENT_CLASS}>
-          <SheetHeader className={USER_SHEET_HEADER_CLASS}>
-            <SheetTitle className={USER_SHEET_TITLE_CLASS} style={USER_SHEET_TITLE_STYLE}>
+        <SheetContent side="right" className={formStyles.sheetContentClass}>
+          <SheetHeader className={formStyles.sheetHeaderClass}>
+            <SheetTitle className={formStyles.sheetTitleClass} style={formStyles.sheetTitleStyle}>
               {editingPatient
                 ? (
                   <>
                     Patient{' '}
-                    <span className="font-mono normal-case tracking-normal text-slate-400">
+                    <span className={cn('font-mono normal-case tracking-normal', formStyles.mutedTextClass)}>
                       ({editingPatient.patientUuid})
                     </span>
                   </>
@@ -1106,34 +1078,34 @@ export default function ClinicianActivePatients({
                 : 'Patient'}
             </SheetTitle>
           </SheetHeader>
-          <div className={USER_SHEET_BODY_CLASS}>
+          <div className={formStyles.sheetBodyClass}>
             <div>
-              <label className={USER_FIELD_LABEL_CLASS}>First name</label>
-              <Input value={editFirstName} onChange={(event) => setEditFirstName(event.target.value)} className={USER_INPUT_CLASS} />
+              <label className={formStyles.fieldLabelClass}>First name</label>
+              <Input value={editFirstName} onChange={(event) => setEditFirstName(event.target.value)} className={formStyles.inputClass} />
             </div>
             <div>
-              <label className={USER_FIELD_LABEL_CLASS}>Last name</label>
-              <Input value={editLastName} onChange={(event) => setEditLastName(event.target.value)} className={USER_INPUT_CLASS} />
+              <label className={formStyles.fieldLabelClass}>Last name</label>
+              <Input value={editLastName} onChange={(event) => setEditLastName(event.target.value)} className={formStyles.inputClass} />
             </div>
             <div>
-              <label className={USER_FIELD_LABEL_CLASS}>Email</label>
-              <Input value={editEmail} readOnly className={USER_INPUT_CLASS} />
+              <label className={formStyles.fieldLabelClass}>Email</label>
+              <Input value={editEmail} readOnly className={formStyles.inputClass} />
             </div>
             <div>
-              <label className={USER_FIELD_LABEL_CLASS}>Display code</label>
-              <Input value={editDisplayCode ?? ''} onChange={(event) => setEditDisplayCode(event.target.value)} className={USER_INPUT_CLASS} />
+              <label className={formStyles.fieldLabelClass}>Display code</label>
+              <Input value={editDisplayCode ?? ''} onChange={(event) => setEditDisplayCode(event.target.value)} className={formStyles.inputClass} />
             </div>
             <ProcedurePicker
               selectedId={editSelectedProcedureId}
               onChange={setEditSelectedProcedureId}
             />
             <div>
-              <label className={USER_FIELD_LABEL_CLASS}>Procedure date</label>
+              <label className={formStyles.fieldLabelClass}>Procedure date</label>
               <SpawnDatePicker value={editProcedureDate} onChange={setEditProcedureDate} />
             </div>
             <div>
-              <label className={USER_FIELD_LABEL_CLASS}>Recovery ID</label>
-              <Input value={editRecoveryId ?? ''} onChange={(event) => setEditRecoveryId(event.target.value)} className={USER_INPUT_CLASS} />
+              <label className={formStyles.fieldLabelClass}>Recovery ID</label>
+              <Input value={editRecoveryId ?? ''} onChange={(event) => setEditRecoveryId(event.target.value)} className={formStyles.inputClass} />
             </div>
             {editError ? <p className="text-sm text-red-400">{editError}</p> : null}
             <div className="flex items-center gap-3 pt-2">
@@ -1142,11 +1114,11 @@ export default function ClinicianActivePatients({
                 variant="outline"
                 onClick={() => void submitEdit()}
                 disabled={editSaving}
-                className={USER_PRIMARY_BUTTON_CLASS}
+                className={formStyles.primaryButtonClass}
               >
                 {editSaving ? 'Saving…' : 'Save profile'}
               </Button>
-              <Button type="button" variant="outline" onClick={closeEditSheet} className={USER_SHEET_CANCEL_BUTTON_CLASS}>
+              <Button type="button" variant="outline" onClick={closeEditSheet} className={formStyles.sheetCancelButtonClass}>
                 Cancel
               </Button>
             </div>

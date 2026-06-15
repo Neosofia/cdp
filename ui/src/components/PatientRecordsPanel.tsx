@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
+import { usePatientViewStyles } from '@/lib/patientViewStyles';
 import XrayScissorsDemo from '@/components/XrayScissorsDemo';
 import type { MedicalRecord, RecordType } from '@/lib/patientRecordsData';
 
@@ -23,21 +24,6 @@ const TYPE_FILTERS: { value: RecordType | 'all'; label: string }[] = [
   { value: 'Procedure', label: 'Procedure' },
   { value: 'Allergy', label: 'Allergy' },
 ];
-
-const TYPE_BADGE: Record<RecordType, React.CSSProperties> = {
-  Lab:       { borderColor: 'rgba(34,211,238,0.4)', color: '#22d3ee', background: 'rgba(34,211,238,0.08)' },
-  Visit:     { borderColor: 'rgba(168,85,247,0.4)', color: '#a855f7', background: 'rgba(168,85,247,0.08)' },
-  Rx:        { borderColor: 'rgba(34,197,94,0.4)',  color: '#22c55e', background: 'rgba(34,197,94,0.08)' },
-  Imaging:   { borderColor: 'rgba(234,179,8,0.4)',  color: '#eab308', background: 'rgba(234,179,8,0.08)' },
-  Procedure: { borderColor: 'rgba(239,68,68,0.4)',  color: '#ef4444', background: 'rgba(239,68,68,0.08)' },
-  Allergy:   { borderColor: 'rgba(251,146,60,0.4)', color: '#fb923c', background: 'rgba(251,146,60,0.08)' },
-};
-
-const CARD_STYLE = {
-  background: 'rgba(5,5,15,0.7)',
-  border: '1px solid rgba(34,211,238,0.18)',
-  boxShadow: '0 0 40px rgba(34,211,238,0.05)',
-};
 
 function formatDate(iso: string): string {
   return new Date(iso + 'T12:00:00').toLocaleDateString(undefined, {
@@ -63,6 +49,7 @@ export default function PatientRecordsPanel({
   onSelectRecord,
   loading = false,
 }: Props) {
+  const pv = usePatientViewStyles();
   const [query, setQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<RecordType | 'all'>('all');
   const [internalSelected, setInternalSelected] = useState<MedicalRecord | null>(null);
@@ -91,29 +78,26 @@ export default function PatientRecordsPanel({
   return (
     <Card
       className={cn(
-        'gap-0 py-0 h-full min-h-0 flex flex-col overflow-hidden',
+        'gap-0 py-0 flex flex-col',
         !embedded && 'col-span-2',
+        pv.cardClass,
       )}
-      style={CARD_STYLE}
+      style={pv.cardStyle}
     >
-      <CardHeader
-        className="py-3 shrink-0"
-        style={{ borderBottom: '1px solid rgba(34,211,238,0.12)', background: 'rgba(34,211,238,0.03)' }}
-      >
+      <CardHeader className={cn('py-3 shrink-0', pv.headerClass)} style={pv.headerStyle}>
         <CardTitle
-          className={cn('flex items-center gap-2', embedded ? 'text-sm uppercase tracking-wider' : 'text-lg')}
-          style={{ color: embedded ? 'rgba(34,211,238,0.8)' : '#22d3ee' }}
+          className={cn(
+            'flex items-center gap-2',
+            embedded ? 'text-sm uppercase tracking-wider' : 'text-lg',
+            embedded ? pv.titleEmbeddedClass : pv.titleClass,
+          )}
+          style={embedded ? pv.titleEmbeddedStyle : pv.titleStyle}
         >
           <DocumentTextIcon className={embedded ? 'h-4 w-4' : 'h-5 w-5'} />
           Health records
         </CardTitle>
       </CardHeader>
-      <CardContent
-        className={cn(
-          'flex flex-col flex-1 min-h-0 overflow-hidden',
-          embedded ? 'p-3' : 'p-6',
-        )}
-      >
+      <CardContent className={cn('flex flex-col', embedded ? 'p-3' : 'p-6')}>
         <div className={cn('shrink-0 space-y-3', embedded ? '' : 'mb-4')}>
           <div className="flex flex-col sm:flex-row gap-2">
             <div className="relative flex-1">
@@ -122,15 +106,15 @@ export default function PatientRecordsPanel({
                 value={query}
                 onChange={e => setQuery(e.target.value)}
                 placeholder="Search records…"
-                className="pl-9 h-9 bg-slate-900/60 border-slate-700 text-slate-100 placeholder:text-slate-500 focus-visible:border-cyan-500/50 text-sm"
+                className={cn('pl-9 h-9 text-sm', pv.inputClass)}
               />
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              <FunnelIcon className="h-4 w-4 text-slate-500 hidden sm:block" />
+              <FunnelIcon className={cn('h-4 w-4 hidden sm:block', pv.mutedText)} />
               <select
                 value={typeFilter}
                 onChange={e => setTypeFilter(e.target.value as RecordType | 'all')}
-                className="h-9 rounded-lg border border-slate-700 bg-slate-900/60 px-2 text-sm text-slate-200 focus:outline-none focus:border-cyan-500/50"
+                className={cn('h-9 rounded-lg border px-2 text-sm', pv.selectClass)}
               >
                 {TYPE_FILTERS.map(f => (
                   <option key={f.value} value={f.value}>{f.label}</option>
@@ -138,47 +122,38 @@ export default function PatientRecordsPanel({
               </select>
             </div>
           </div>
-          <p className="text-xs text-slate-500">
+          <p className={cn('text-xs', pv.subText)}>
             {filtered.length} of {records.length} records
           </p>
         </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain space-y-3">
+        <div className="space-y-3">
           {selected && embedded && (
-            <div
-              className="rounded-lg p-3 text-xs space-y-2"
-              style={{ background: 'rgba(34,211,238,0.04)', border: '1px solid rgba(34,211,238,0.15)' }}
-            >
+            <div className={cn('p-3 text-xs space-y-2', pv.detailPanelClass)} style={pv.detailPanelStyle}>
               <div className="flex items-start justify-between gap-2">
-                <span className="font-medium text-slate-100">{selected.title}</span>
+                <span className={cn('font-medium', pv.bodyText)}>{selected.title}</span>
                 <button
                   type="button"
                   onClick={() => setSelected(null)}
-                  className="text-slate-500 hover:text-cyan-300 text-[10px] uppercase tracking-widest"
+                  className={cn('text-[10px] uppercase tracking-widest', pv.ghostButton)}
                 >
                   Close
                 </button>
               </div>
-              <p className="text-slate-400 leading-relaxed">{selected.summary}</p>
+              <p className={cn('leading-relaxed', pv.mutedText)}>{selected.summary}</p>
               {selected.imageKey && (
-                <div
-                  className="rounded-lg overflow-hidden mt-2 p-2"
-                  style={{ background: '#0f172a', border: '1px solid rgba(34,211,238,0.15)' }}
-                >
+                <div className={cn('mt-2 p-2', pv.imageFrameClass)} style={pv.imageFrameStyle}>
                   <RecordImagePreview record={selected} />
                 </div>
               )}
             </div>
           )}
 
-          <ul
-            className="divide-y rounded-xl"
-            style={{ border: '1px solid rgba(34,211,238,0.12)' }}
-          >
+          <ul className={cn('divide-y', pv.listBorderClass)} style={pv.listBorderStyle}>
           {loading && records.length === 0 ? (
-            <li className="px-4 py-8 text-center text-sm text-slate-500">Loading health records…</li>
+            <li className={cn('px-4 py-8 text-center text-sm', pv.subText)}>Loading health records…</li>
           ) : filtered.length === 0 ? (
-            <li className="px-4 py-8 text-center text-sm text-slate-500">No matching records.</li>
+            <li className={cn('px-4 py-8 text-center text-sm', pv.subText)}>No matching records.</li>
           ) : (
             filtered.map(r => (
               <li key={r.id}>
@@ -187,16 +162,16 @@ export default function PatientRecordsPanel({
                   onClick={() => setSelected(selected?.id === r.id ? null : r)}
                   className={cn(
                     'w-full text-left px-3 py-3 flex items-center justify-between gap-3 transition-colors',
-                    selected?.id === r.id ? 'bg-cyan-500/10' : 'hover:bg-cyan-500/5',
+                    selected?.id === r.id ? pv.rowSelected : pv.rowHover,
                   )}
                 >
                   <div className="min-w-0">
-                    <div className="text-sm font-medium text-slate-100 truncate">{r.title}</div>
-                    <div className="text-xs text-slate-500 mt-0.5">
+                    <div className={cn('text-sm font-medium truncate', pv.bodyText)}>{r.title}</div>
+                    <div className={cn('text-xs mt-0.5', pv.subText)}>
                       {formatDate(r.date)} · {r.provider}
                     </div>
                   </div>
-                  <Badge variant="outline" className="shrink-0 text-[10px] font-semibold" style={TYPE_BADGE[r.type]}>
+                  <Badge variant="outline" className="shrink-0 text-[10px] font-semibold" style={pv.recordTypeBadge(r.type)}>
                     {r.type}
                   </Badge>
                 </button>

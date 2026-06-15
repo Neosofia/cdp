@@ -1,7 +1,7 @@
 {
   "name": "ui",
   "private": true,
-  "version": "2026.06.14.1",
+  "version": "2026.06.15",
   "type": "module",
   "scripts": {
     "dev": "vite --host",

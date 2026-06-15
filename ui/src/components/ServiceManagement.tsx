@@ -24,6 +24,8 @@ import {
   type ServiceAuditItem,
 } from '@/components/AuditHistorySheet';
 import { cn } from '@/lib/utils';
+import { usePatientViewStyles } from '@/lib/patientViewStyles';
+import { useUserFormStyles } from '@/components/userFormStyles';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -102,18 +104,15 @@ function downloadCSV(rows: ServiceAuditItem[], source: 'service' | 'credential',
   URL.revokeObjectURL(url);
 }
 
-function rotationWarningClass(days: number | null): string {
+function rotationWarningClass(days: number | null, isCorporate: boolean): string {
   if (days === null) return '';
-  if (days >= 365) return 'text-red-400';
-  if (days >= 300) return 'text-amber-400';
-  return 'text-slate-400';
+  if (days >= 365) return isCorporate ? 'text-red-700' : 'text-red-400';
+  if (days >= 300) return isCorporate ? 'text-amber-700' : 'text-amber-400';
+  return isCorporate ? 'text-slate-600' : 'text-slate-400';
 }
 
-// ---------------------------------------------------------------------------
-// CopyButton — copies text and shows a tick for 2 s
-// ---------------------------------------------------------------------------
-
 function CopyButton({ value }: { value: string }) {
+  const adminStyles = usePatientViewStyles();
   const [copied, setCopied] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -129,11 +128,11 @@ function CopyButton({ value }: { value: string }) {
     <button
       type="button"
       onClick={handleCopy}
-      className="ml-2 inline-flex items-center gap-1 text-xs text-slate-400 hover:text-white transition-colors"
+      className={adminStyles.adminCopyButtonClass}
       title="Copy to clipboard"
     >
       {copied
-        ? <CheckIcon className="size-4 text-green-400" />
+        ? <CheckIcon className="size-4 text-green-600" />
         : <ClipboardDocumentIcon className="size-4" />}
       {copied ? 'Copied' : 'Copy'}
     </button>
@@ -145,6 +144,8 @@ function CopyButton({ value }: { value: string }) {
 // ---------------------------------------------------------------------------
 
 export default function ServiceManagement({ token, activeActor }: Props) {
+  const adminStyles = usePatientViewStyles();
+  const formStyles = useUserFormStyles();
   // List state
   const [items, setItems] = useState<ServiceItem[]>([]);
   const [total, setTotal] = useState(0);
@@ -481,7 +482,7 @@ export default function ServiceManagement({ token, activeActor }: Props) {
             placeholder="Search by name, slug, or URL…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-8 bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-500"
+            className={cn('pl-8', adminStyles.inputClass)}
           />
         </div>
         {selected.size > 0 && (
@@ -489,7 +490,7 @@ export default function ServiceManagement({ token, activeActor }: Props) {
             variant="ghost"
             onClick={rotateSelected}
             disabled={rotating}
-            className="gap-1.5 bg-amber-500/20 border border-amber-500/40 text-amber-300 hover:bg-amber-500/30 hover:text-amber-200"
+            className={cn('gap-1.5', adminStyles.adminWarningButtonClass)}
           >
             <ArrowPathIcon className={cn('size-4', rotating && 'animate-spin')} />
             {rotating ? 'Rotating…' : `Rotate ${selected.size} secret${selected.size > 1 ? 's' : ''}`}
@@ -498,7 +499,7 @@ export default function ServiceManagement({ token, activeActor }: Props) {
         <Button
           variant="ghost"
           onClick={openNew}
-          className="gap-1.5 bg-cyan-500/20 border border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/30 hover:text-cyan-200"
+          className={cn('gap-1.5', adminStyles.adminAccentButtonClass)}
         >
           <PlusIcon className="size-4" />
           New service
@@ -510,9 +511,9 @@ export default function ServiceManagement({ token, activeActor }: Props) {
 
       {/* Rotation results */}
       {rotationResults && (
-        <Card className="border-amber-500/30 bg-slate-950">
-          <CardHeader className="py-3 px-4 border-b border-amber-500/20">
-            <CardTitle className="text-xs font-semibold uppercase tracking-widest flex items-center gap-2" style={{ color: 'rgba(251,191,36,0.8)' }}>
+        <Card className={adminStyles.adminAlertCardClass}>
+          <CardHeader className={adminStyles.adminAlertHeaderClass}>
+            <CardTitle className="text-xs font-semibold uppercase tracking-widest flex items-center gap-2" style={adminStyles.adminAlertTitleStyle}>
               <ExclamationTriangleIcon className="size-4" />
               New secrets — copy and deploy before closing
             </CardTitle>
@@ -525,18 +526,18 @@ export default function ServiceManagement({ token, activeActor }: Props) {
                   <span className="text-red-500">— {r.error}</span>
                 </div>
               ) : (
-                <div key={r.slug} className="rounded-lg border border-cyan-500/20 bg-slate-900 px-3 py-2.5">
+                <div key={r.slug} className={adminStyles.adminSecretBoxClass}>
                   <div className="flex items-center gap-2 mb-1.5">
-                    <span className="text-xs font-semibold uppercase tracking-widest text-slate-400">{r.slug}</span>
+                    <span className={adminStyles.adminSecretSlugClass}>{r.slug}</span>
                   </div>
-                  <div className="flex items-center gap-1 font-mono text-xs text-cyan-200 break-all">
+                  <div className={adminStyles.adminSecretValueClass}>
                     <span>{r.client_secret}</span>
                     <CopyButton value={r.client_secret} />
                   </div>
                 </div>
               )
             )}
-            <Button variant="ghost" size="sm" onClick={() => setRotationResults(null)} className="mt-1 text-xs font-semibold uppercase tracking-widest text-slate-500 hover:text-slate-300">
+            <Button variant="ghost" size="sm" onClick={() => setRotationResults(null)} className={adminStyles.adminDismissClass}>
               Dismiss
             </Button>
           </CardContent>
@@ -549,47 +550,47 @@ export default function ServiceManagement({ token, activeActor }: Props) {
       )}
 
       {/* Table */}
-      <Card className="border-slate-700/60">
+      <Card className={adminStyles.adminCardClass}>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm text-slate-300">
+          <table className={cn('w-full text-sm', adminStyles.isCorporate ? 'text-slate-900' : 'text-slate-300')}>
             <thead>
-              <tr className="border-b border-slate-700/60 bg-slate-800/60">
+              <tr className={adminStyles.adminCardTableHeadRowClass}>
                 <th className="w-10 px-4 py-3">
                   <input
                     type="checkbox"
                     checked={items.length > 0 && selected.size === items.length}
                     onChange={toggleAll}
-                    className="accent-cyan-400 size-4 rounded cursor-pointer"
+                    className={adminStyles.adminCheckboxClass}
                     title="Select all on this page"
                   />
                 </th>
-                <th className="px-4 py-3 text-left font-medium text-slate-400 whitespace-nowrap">Name</th>
-                <th className="px-4 py-3 text-left font-medium text-slate-400 whitespace-nowrap">Slug</th>
-                <th className="px-4 py-3 text-left font-medium text-slate-400 whitespace-nowrap hidden md:table-cell">Base URL</th>
-                <th className="px-4 py-3 text-right font-medium text-slate-400 whitespace-nowrap">
+                <th className={adminStyles.adminThClass}>Name</th>
+                <th className={adminStyles.adminThClass}>Slug</th>
+                <th className={adminStyles.adminThClass}>Base URL</th>
+                <th className={cn(adminStyles.adminThClass, 'text-right')}>
                   <span className="flex items-center justify-end gap-1">
                     <ClockIcon className="size-4" /> Days since rotation
                   </span>
                 </th>
-                <th className="px-4 py-3 text-right font-medium text-slate-400 whitespace-nowrap">Actions</th>
+                <th className={cn(adminStyles.adminThClass, 'text-right')}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading && items.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-slate-500">Loading…</td>
+                  <td colSpan={7} className={adminStyles.adminEmptyCellClass}>Loading…</td>
                 </tr>
               ) : items.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-slate-500">No services found</td>
+                  <td colSpan={7} className={adminStyles.adminEmptyCellClass}>No services found</td>
                 </tr>
               ) : (
                 items.map((svc) => (
                   <tr
                     key={svc.uuid}
                     className={cn(
-                      'border-b border-slate-800/60 hover:bg-slate-800/40 transition-colors',
-                      selected.has(svc.slug) && 'bg-slate-800/60'
+                      adminStyles.adminTrClass,
+                      selected.has(svc.slug) && adminStyles.adminTrSelectedClass,
                     )}
                   >
                     <td className="px-4 py-3">
@@ -597,16 +598,16 @@ export default function ServiceManagement({ token, activeActor }: Props) {
                         type="checkbox"
                         checked={selected.has(svc.slug)}
                         onChange={() => toggleOne(svc.slug)}
-                        className="accent-cyan-400 size-4 rounded cursor-pointer"
+                        className={adminStyles.adminCheckboxClass}
                       />
                     </td>
-                    <td className="px-4 py-3 font-medium text-slate-100">{svc.name}</td>
-                    <td className="px-4 py-3 font-mono text-xs text-slate-300">{svc.slug}</td>
-                    <td className="px-4 py-3 font-mono text-xs text-slate-400 hidden md:table-cell max-w-xs truncate">
+                    <td className={adminStyles.adminTdPrimaryClass}>{svc.name}</td>
+                    <td className={adminStyles.adminTdMonoClass}>{svc.slug}</td>
+                    <td className={adminStyles.adminTdMonoSubClass}>
                       {svc.base_url}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <span className={cn('font-mono text-xs', rotationWarningClass(svc.days_since_rotation))}>
+                      <span className={cn('font-mono text-xs', rotationWarningClass(svc.days_since_rotation, adminStyles.isCorporate))}>
                         {svc.days_since_rotation !== null ? `${svc.days_since_rotation}d` : '—'}
                       </span>
                     </td>
@@ -639,7 +640,7 @@ export default function ServiceManagement({ token, activeActor }: Props) {
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-slate-700/60 text-xs text-slate-400">
+          <div className={adminStyles.adminPaginationClass}>
             <span>{total} service{total !== 1 ? 's' : ''}</span>
             <div className="flex items-center gap-2">
               <Button variant="outline" size="xs" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
@@ -680,7 +681,7 @@ export default function ServiceManagement({ token, activeActor }: Props) {
               <button
                 onClick={() => handleDownloadCSV('service')}
                 disabled={downloadingCSV === 'service'}
-                className="text-slate-500 hover:text-slate-300 transition-colors disabled:opacity-40"
+                className={adminStyles.adminIconActionClass}
                 title="Download full history as CSV"
               >
                 {downloadingCSV === 'service'
@@ -712,7 +713,7 @@ export default function ServiceManagement({ token, activeActor }: Props) {
               <button
                 onClick={() => handleDownloadCSV('credential')}
                 disabled={downloadingCSV === 'credential'}
-                className="text-slate-500 hover:text-slate-300 transition-colors disabled:opacity-40"
+                className={adminStyles.adminIconActionClass}
                 title="Download full history as CSV"
               >
                 {downloadingCSV === 'credential'
@@ -737,36 +738,42 @@ export default function ServiceManagement({ token, activeActor }: Props) {
       {/* New Service Sheet                                                   */}
       {/* ------------------------------------------------------------------ */}
       <Sheet open={newSheetOpen} onOpenChange={(open) => { if (!open) setNewSheetOpen(false); }}>
-        <SheetContent side="right" className="w-full sm:max-w-md bg-slate-950 border-slate-700 text-slate-300 p-6">
-          <SheetHeader className="border-b border-slate-700/60 pb-4 mb-6">
-            <SheetTitle className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'rgba(34,211,238,0.7)' }}>New service</SheetTitle>
+        <SheetContent
+          side="right"
+          className={cn(
+            'w-full sm:max-w-md p-6 overflow-y-auto',
+            formStyles.isCorporate ? 'bg-white border-slate-200 text-slate-900' : 'bg-slate-950 border-slate-700 text-slate-300',
+          )}
+        >
+          <SheetHeader className={formStyles.sheetHeaderClass.replace('px-6 pt-6', 'pb-4 mb-6')}>
+            <SheetTitle className={formStyles.sheetTitleClass} style={formStyles.sheetTitleStyle}>New service</SheetTitle>
           </SheetHeader>
 
           <div className="space-y-5">
             <div>
-              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-widest mb-2">Name</label>
+              <label className={formStyles.fieldLabelClass}>Name</label>
               <Input
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
-                className="bg-slate-800 border-slate-700 text-slate-100"
+                className={formStyles.inputClass}
                 placeholder="My Service"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-widest mb-2">Slug</label>
+              <label className={formStyles.fieldLabelClass}>Slug</label>
               <Input
                 value={newSlug}
                 onChange={(e) => setNewSlug(e.target.value)}
-                className="bg-slate-800 border-slate-700 text-slate-100 font-mono"
+                className={cn(formStyles.inputClass, 'font-mono')}
                 placeholder="my-service"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-widest mb-2">Base URL</label>
+              <label className={formStyles.fieldLabelClass}>Base URL</label>
               <Input
                 value={newBaseUrl}
                 onChange={(e) => setNewBaseUrl(e.target.value)}
-                className="bg-slate-800 border-slate-700 text-slate-100 font-mono"
+                className={cn(formStyles.inputClass, 'font-mono')}
                 placeholder="http://my-service:8000"
                 type="url"
               />
@@ -781,11 +788,11 @@ export default function ServiceManagement({ token, activeActor }: Props) {
                 onClick={createService}
                 disabled={newSaving}
                 variant="ghost"
-                className="flex-1 bg-cyan-500/20 border border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/30 hover:text-cyan-200"
+                className={cn('flex-1', formStyles.primaryButtonClass)}
               >
                 {newSaving ? 'Creating…' : 'Create service'}
               </Button>
-              <Button variant="outline" onClick={() => setNewSheetOpen(false)}>Cancel</Button>
+              <Button variant="outline" onClick={() => setNewSheetOpen(false)} className={formStyles.sheetCancelButtonClass}>Cancel</Button>
             </div>
           </div>
         </SheetContent>
@@ -795,34 +802,40 @@ export default function ServiceManagement({ token, activeActor }: Props) {
       {/* Edit Sheet                                                          */}
       {/* ------------------------------------------------------------------ */}
       <Sheet open={!!editService} onOpenChange={(open) => { if (!open) setEditService(null); }}>
-        <SheetContent side="right" className="w-full sm:max-w-md bg-slate-950 border-slate-700 text-slate-300 p-6">
-          <SheetHeader className="border-b border-slate-700/60 pb-4 mb-6">
-            <SheetTitle className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'rgba(34,211,238,0.7)' }}>Edit service</SheetTitle>
+        <SheetContent
+          side="right"
+          className={cn(
+            'w-full sm:max-w-md p-6 overflow-y-auto',
+            formStyles.isCorporate ? 'bg-white border-slate-200 text-slate-900' : 'bg-slate-950 border-slate-700 text-slate-300',
+          )}
+        >
+          <SheetHeader className={formStyles.sheetHeaderClass.replace('px-6 pt-6', 'pb-4 mb-6')}>
+            <SheetTitle className={formStyles.sheetTitleClass} style={formStyles.sheetTitleStyle}>Edit service</SheetTitle>
           </SheetHeader>
 
           <div className="space-y-5">
             <div>
-              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-widest mb-2">Name</label>
+              <label className={formStyles.fieldLabelClass}>Name</label>
               <Input
                 value={editName}
                 onChange={(e) => setEditName(e.target.value)}
-                className="bg-slate-800 border-slate-700 text-slate-100"
+                className={formStyles.inputClass}
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-widest mb-2">Slug</label>
+              <label className={formStyles.fieldLabelClass}>Slug</label>
               <Input
                 value={editSlug}
                 onChange={(e) => setEditSlug(e.target.value)}
-                className="bg-slate-800 border-slate-700 text-slate-100 font-mono"
+                className={cn(formStyles.inputClass, 'font-mono')}
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-widest mb-2">Base URL</label>
+              <label className={formStyles.fieldLabelClass}>Base URL</label>
               <Input
                 value={editBaseUrl}
                 onChange={(e) => setEditBaseUrl(e.target.value)}
-                className="bg-slate-800 border-slate-700 text-slate-100 font-mono"
+                className={cn(formStyles.inputClass, 'font-mono')}
                 type="url"
               />
             </div>
@@ -836,11 +849,11 @@ export default function ServiceManagement({ token, activeActor }: Props) {
                 onClick={saveEdit}
                 disabled={editSaving}
                 variant="ghost"
-                className="flex-1 bg-cyan-500/20 border border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/30 hover:text-cyan-200"
+                className={cn('flex-1', formStyles.primaryButtonClass)}
               >
                 {editSaving ? 'Saving…' : 'Save changes'}
               </Button>
-              <Button variant="outline" onClick={() => setEditService(null)}>Cancel</Button>
+              <Button variant="outline" onClick={() => setEditService(null)} className={formStyles.sheetCancelButtonClass}>Cancel</Button>
             </div>
           </div>
         </SheetContent>
