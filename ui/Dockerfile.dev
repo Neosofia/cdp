@@ -4,11 +4,11 @@ RUN npm install -g pnpm
 
 WORKDIR /app
 
-COPY ui/package.json ui/pnpm-lock.yaml ui/pnpm-workspace.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 
-COPY ui/ .
-COPY ui/policies/user/role-catalog.json ./policies/user/role-catalog.json
+COPY . .
+COPY policies/user/role-catalog.json ./policies/user/role-catalog.json
 
 EXPOSE 5173
 

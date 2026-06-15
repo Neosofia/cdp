@@ -5,13 +5,13 @@ RUN npm install -g pnpm
 
 WORKDIR /app
 
-COPY ui/package.json ui/pnpm-lock.yaml ui/pnpm-workspace.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 
-COPY ui/src ./src
-COPY ui/public ./public
-COPY ui/index.html ui/vite.config.ts ui/tsconfig.json ui/tsconfig.app.json ui/tsconfig.node.json ui/components.json ./
-COPY ui/policies/user/role-catalog.json ./policies/user/role-catalog.json
+COPY src ./src
+COPY public ./public
+COPY index.html vite.config.ts tsconfig.json tsconfig.app.json tsconfig.node.json components.json ./
+COPY policies/user/role-catalog.json ./policies/user/role-catalog.json
 
 # Defaults match ui/.env.sample; override at build time if needed.
 ARG VITE_AUTH_BASE_URL=http://localhost:8014

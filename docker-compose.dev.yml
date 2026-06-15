@@ -247,8 +247,8 @@ services:
 
   ui:
     build:
-      context: .
-      dockerfile: ui/Dockerfile.dev
+      context: ./ui
+      dockerfile: Dockerfile.dev
     container_name: cdp-ui
     depends_on:
       authentication:

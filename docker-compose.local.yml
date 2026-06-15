@@ -341,8 +341,8 @@ services:
 
   ui:
     build:
-      context: .
-      dockerfile: ui/Dockerfile
+      context: ./ui
+      dockerfile: Dockerfile
     image: cdp-ui:local
     container_name: cdp-ui
     depends_on:
