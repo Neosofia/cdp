@@ -11,7 +11,7 @@ RUN pnpm install --frozen-lockfile
 COPY ui/src ./src
 COPY ui/public ./public
 COPY ui/index.html ui/vite.config.ts ui/tsconfig.json ui/tsconfig.app.json ui/tsconfig.node.json ui/components.json ./
-COPY policies/user/role-catalog.json ./policies/user/role-catalog.json
+COPY ui/policies/user/role-catalog.json ./policies/user/role-catalog.json
 
 # Defaults match ui/.env.sample; override at build time if needed.
 ARG VITE_AUTH_BASE_URL=http://localhost:8014

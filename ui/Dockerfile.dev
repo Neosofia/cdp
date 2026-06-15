@@ -8,7 +8,7 @@ COPY ui/package.json ui/pnpm-lock.yaml ui/pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 
 COPY ui/ .
-COPY policies/user/role-catalog.json ./policies/user/role-catalog.json
+COPY ui/policies/user/role-catalog.json ./policies/user/role-catalog.json
 
 EXPOSE 5173
 

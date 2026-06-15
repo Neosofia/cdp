@@ -14,6 +14,10 @@
 - CDP UI release id is **2026.06.15** and capabilities production builds now consume **`POLICIES_IMAGE=ghcr.io/neosofia/cdp-policies:v0.2.0`**.
 - Patient, clinician, operator, and service-management screens share themed form and shell styling tokens.
 
+### Fixed
+
+- Railway CDP UI image builds now bundle the role catalog from `ui/policies/user/role-catalog.json` so the Docker build does not depend on root policy context availability.
+
 ## [2026.06.14] - 2026-06-14
 
 **Pinned services:** authentication **v0.37.0**; user **v0.8.1**; chat **v0.6.0**; care-episode **v0.7.0**; capabilities **v0.7.0**; **cdp-policies v0.2.0**.
