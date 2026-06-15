@@ -34,25 +34,25 @@ Run once per new environment **before** platform admin UI or `GET /api/v1/users`
 
 ---
 
-## CDP UI 2026.06.15 / capabilities v0.7.1 / chat v0.6.1
+## CDP UI 2026.06.15 / capabilities v0.7.1 / chat v0.6.2
 
-**Build:** CDP UI **2026.06.15**; **authentication v0.37.0**; **user v0.8.1**; **chat v0.6.1**; **care-episode v0.7.0**; **capabilities v0.7.1**; **cdp-policies v0.2.0**.
+**Build:** CDP UI **2026.06.15**; **authentication v0.37.0**; **user v0.8.1**; **chat v0.6.2**; **care-episode v0.7.0**; **capabilities v0.7.1**; **cdp-policies v0.2.0**.
 
 **Prerequisites:**
 
-- Publish **chat/v0.6.1** and **capabilities/v0.7.1** before redeploying staging.
+- Publish **chat/v0.6.2** and **capabilities/v0.7.1** before redeploying staging.
 - Capabilities build uses **`POLICIES_IMAGE=ghcr.io/neosofia/cdp-policies:v0.2.0`**.
 - CDP UI build includes staging `VITE_*_API_URL` values for authentication, capabilities, user, chat, care-episode, and template.
 
 **Deploy:**
 
-1. Deploy **chat v0.6.1** and run existing migrations/pre-deploy command.
+1. Deploy **chat v0.6.2** and run existing migrations/pre-deploy command.
 2. Deploy **capabilities v0.7.1** with the pinned policy bundle image.
 3. Deploy CDP UI **2026.06.15** after backend services are healthy.
 
 **Post-deploy verification:**
 
-1. `GET /health` on chat and capabilities reports **0.6.1** and **0.7.1**.
+1. `GET /health` on chat and capabilities reports **0.6.2** and **0.7.1**.
 2. CDP footer reports **UI 2026.06.15**.
 3. Platform admin can open **Admin → Users** and **Admin → Services**.
 4. Patient and clinician chat flows work for an enrolled demo patient, including an empty-chat-history patient.

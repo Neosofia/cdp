@@ -2,7 +2,7 @@
 
 ## [2026.06.15] - 2026-06-15
 
-**Pinned services:** authentication **v0.37.0**; user **v0.8.1**; chat **v0.6.1**; care-episode **v0.7.0**; capabilities **v0.7.1**; **cdp-policies v0.2.0**.
+**Pinned services:** authentication **v0.37.0**; user **v0.8.1**; chat **v0.6.2**; care-episode **v0.7.0**; capabilities **v0.7.1**; **cdp-policies v0.2.0**.
 
 ### Added
 
