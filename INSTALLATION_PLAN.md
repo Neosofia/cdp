@@ -65,19 +65,19 @@ Run once per new environment **before** platform admin UI or `GET /api/v1/users`
 
 ---
 
-## cdp-policies v0.3.0 / capabilities v0.7.2 / CDP UI 2026.06.17
+## cdp-policies v0.3.0 / capabilities v0.7.3 / CDP UI 2026.06.17
 
-**Release pins:** **cdp-policies v0.3.0**; **capabilities v0.7.2**; CDP UI **2026.06.17** (other backend pins unchanged from **2026.06.16**).
+**Release pins:** **cdp-policies v0.3.0**; **capabilities v0.7.3**; CDP UI **2026.06.17** (other backend pins unchanged from **2026.06.16**).
 
 **Deploy:**
 
 1. Publish **`cdp-policies/v0.3.0`** (CI builds `ghcr.io/neosofia/cdp-policies:v0.3.0`).
-2. Redeploy **capabilities v0.7.2** (Dockerfile pins `POLICIES_IMAGE=ghcr.io/neosofia/cdp-policies:v0.3.0`).
+2. Redeploy **capabilities v0.7.3** (Dockerfile pins `POLICIES_IMAGE=ghcr.io/neosofia/cdp-policies:v0.3.0`).
 3. Redeploy CDP UI **2026.06.17** after capabilities is healthy.
 
 **Post-deploy verification:**
 
-1. `GET /health` on capabilities reports **0.7.2**.
+1. `GET /health` on capabilities reports **0.7.3**.
 2. CDP footer reports **UI 2026.06.17**.
 3. Signed-in operator: **Admin** and **Debug** menus visible; `GET /api/v1/capabilities/ui` returns keys like `ui::Menu::"operator"` (not legacy `ui:menu:operator`).
 4. Signed-in clinician: **Patients** menu and roster load; entitlement keys use Cedar entity ids.
