@@ -1,4 +1,4 @@
-x-auth-image: &auth_image ghcr.io/neosofia/authentication:v0.37.0
+x-auth-image: &auth_image ghcr.io/neosofia/authentication:v0.38.0
 x-user-image: &user_image ghcr.io/neosofia/user:v0.8.2
 x-chat-image: &chat_image ghcr.io/neosofia/chat:v0.6.2
 x-care-episode-image: &care_episode_image ghcr.io/neosofia/care-episode:v0.7.1

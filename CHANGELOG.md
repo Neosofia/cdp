@@ -1,5 +1,16 @@
 # Changelog
 
+## [2026.06.18]
+
+### Changed
+
+- Session tokens refresh every **15 minutes** (half the 30-minute access token lifetime) instead of once near expiry, with refocus catch-up when the tab returns from the background.
+- Chat and care-episode API calls retry once after **401** following a silent token refresh.
+
+### Fixed
+
+- Long-lived browser sessions no longer hit **Chat API returned 401** when the access token expired before background-tab refresh timers fired.
+
 ## [2026.06.17]
 
 ### Changed

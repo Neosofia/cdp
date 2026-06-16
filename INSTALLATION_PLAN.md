@@ -65,6 +65,25 @@ Run once per new environment **before** platform admin UI or `GET /api/v1/users`
 
 ---
 
+## CDP UI 2026.06.18 / authentication v0.38.0
+
+**Release pins:** CDP UI **2026.06.18**; **authentication v0.38.0** (other backend pins unchanged from **2026.06.17**).
+
+**Deploy:**
+
+1. Set **`ACCESS_TOKEN_TTL_SECS=1800`** on authentication and redeploy **authentication v0.38.0**.
+2. Redeploy CDP UI **2026.06.18**.
+
+**Post-deploy verification:**
+
+1. `GET /health` on authentication reports **0.38.0**; CDP footer **2026.06.18**.
+2. `POST /api/token` (`grant_type=session`) returns `"expires_in": 1800`.
+3. Patient **Care assistant** and clinician chat history load after 20+ minutes idle (refocus tab or wait for interval refresh).
+
+**Evidence:** Authentication health and token `expires_in`; chat interaction **200** after extended session.
+
+---
+
 ## cdp-policies v0.3.0 / capabilities v0.7.3 / CDP UI 2026.06.17
 
 **Release pins:** **cdp-policies v0.3.0**; **capabilities v0.7.3**; CDP UI **2026.06.17** (other backend pins unchanged from **2026.06.16**).

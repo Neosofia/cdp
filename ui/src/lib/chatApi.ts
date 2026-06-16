@@ -1,4 +1,5 @@
 import { CARE_EPISODE_API } from '@/lib/careEpisodeApi';
+import { platformApiFetch } from '@/lib/platformApiFetch';
 
 const CHAT_API = import.meta.env.VITE_CHAT_API_URL as string | undefined;
 
@@ -16,8 +17,13 @@ export function isAssistantUnavailableError(error: unknown): boolean {
   return error instanceof ChatApiError && error.status === 503;
 }
 
-async function chatApiFetch(url: string, init: RequestInit): Promise<Response> {
-  const res = await fetch(url, init);
+async function chatApiFetch(
+  url: string,
+  token: string,
+  activeActor: string,
+  init: RequestInit = {},
+): Promise<Response> {
+  const res = await platformApiFetch(url, token, activeActor, init);
   if (!res.ok) {
     throw new ChatApiError(`Chat API returned ${res.status}`, res.status);
   }
@@ -38,9 +44,7 @@ export async function fetchChatMeta(
     return { assistant: { available: false } };
   }
 
-  const res = await chatApiFetch(`${CHAT_API}/meta/enums`, {
-    headers: { Authorization: `Bearer ${token}`, 'X-Active-Actor': activeActor },
-  });
+  const res = await chatApiFetch(`${CHAT_API}/meta/enums`, token, activeActor);
   return (await res.json()) as ChatMeta;
 }
 
@@ -82,9 +86,11 @@ export async function fetchLastChatActivityForUser(
 
   let res: Response;
   try {
-    res = await fetch(`${CHAT_API}/api/v1/users/${userUuid}/last-activity`, {
-      headers: { Authorization: `Bearer ${token}`, 'X-Active-Actor': activeActor },
-    });
+    res = await platformApiFetch(
+      `${CHAT_API}/api/v1/users/${userUuid}/last-activity`,
+      token,
+      activeActor,
+    );
   } catch {
     return null;
   }
@@ -109,9 +115,11 @@ export async function fetchTenantLastChatActivity(
 
   let res: Response;
   try {
-    res = await fetch(`${CHAT_API}/api/v1/tenants/${tenantUuid}/last-activity`, {
-      headers: { Authorization: `Bearer ${token}`, 'X-Active-Actor': activeActor },
-    });
+    res = await platformApiFetch(
+      `${CHAT_API}/api/v1/tenants/${tenantUuid}/last-activity`,
+      token,
+      activeActor,
+    );
   } catch {
     return byPatient;
   }
@@ -219,13 +227,11 @@ export async function createChatMessage(
 
   const res = await chatApiFetch(
     `${CHAT_API}/api/v1/users/${userUuid}/interactions/${chatInteractionUuid}/messages`,
+    token,
+    activeActor,
     {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'X-Active-Actor': activeActor,
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(input),
     },
   );
@@ -240,9 +246,11 @@ export async function listChatInteractions(
 ): Promise<ChatInteraction[]> {
   if (!CHAT_API) return [];
 
-  const res = await fetch(`${CHAT_API}/api/v1/users/${userUuid}/interactions`, {
-    headers: { Authorization: `Bearer ${token}`, 'X-Active-Actor': activeActor },
-  });
+  const res = await platformApiFetch(
+    `${CHAT_API}/api/v1/users/${userUuid}/interactions`,
+    token,
+    activeActor,
+  );
 
   if (!res.ok) {
     throw new Error(`Chat API returned ${res.status}`);
@@ -257,14 +265,15 @@ export async function createChatInteraction(
   activeActor: string,
   userUuid: string,
 ): Promise<ChatInteraction> {
-  const res = await fetch(`${CARE_EPISODE_API}/api/v1/care-episodes/${userUuid}/chat/interactions`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'X-Active-Actor': activeActor,
-      'Content-Type': 'application/json',
+  const res = await platformApiFetch(
+    `${CARE_EPISODE_API}/api/v1/care-episodes/${userUuid}/chat/interactions`,
+    token,
+    activeActor,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
     },
-  });
+  );
 
   if (!res.ok) {
     throw new Error(`Care episode API returned ${res.status}`);
@@ -304,13 +313,11 @@ export async function requestChatSessionStart(
 ): Promise<PatientCompletionResult> {
   const res = await chatApiFetch(
     `${CARE_EPISODE_API}/api/v1/care-episodes/${userUuid}/chat/interactions/${chatInteractionUuid}/completions`,
+    token,
+    activeActor,
     {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'X-Active-Actor': activeActor,
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         session_start: true,
       }),
@@ -330,13 +337,11 @@ export async function requestPatientCompletion(
 ): Promise<PatientCompletionResult> {
   const res = await chatApiFetch(
     `${CARE_EPISODE_API}/api/v1/care-episodes/${userUuid}/chat/interactions/${chatInteractionUuid}/completions`,
+    token,
+    activeActor,
     {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'X-Active-Actor': activeActor,
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(input),
     },
   );
@@ -363,11 +368,10 @@ export async function listChatMessages(
 ): Promise<ChatMessage[]> {
   if (!CHAT_API) return [];
 
-  const res = await fetch(
+  const res = await platformApiFetch(
     `${CHAT_API}/api/v1/users/${userUuid}/interactions/${chatInteractionUuid}/messages`,
-    {
-      headers: { Authorization: `Bearer ${token}`, 'X-Active-Actor': activeActor },
-    },
+    token,
+    activeActor,
   );
 
   if (!res.ok) {

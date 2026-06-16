@@ -92,7 +92,7 @@ That document explains why local JWKS (`http://authentication:8014/...` in `.cap
 | **User service** | Deploy `ghcr.io/neosofia/user:vX.Y.Z` (Dockerfile pins `USER_PRODUCT_POLICIES_IMAGE` for role catalog and product Cedar); Railway root = **user** repo |
 | **UI build args** | `VITE_AUTH_BASE_URL`, `VITE_AUTH_API_URL`, `VITE_CAPABILITIES_API_URL`, `VITE_USER_API_URL`, `VITE_CHAT_API_URL`, `VITE_CARE_EPISODE_API_URL` — public HTTPS URLs (no trailing slash) |
 | **Capabilities CORS** | `FRONTEND_URL` = public CDP UI origin |
-| **Authentication** | `JWT_WEB_AUDIENCE` must include `capabilities`, `user`, `chat`, and `care-episode`; explicit `PORT` for private JWKS refs |
+| **Authentication** | `JWT_WEB_AUDIENCE` must include `capabilities`, `user`, `chat`, and `care-episode`; explicit `PORT` for private JWKS refs; **`ACCESS_TOKEN_TTL_SECS=1800`** (30 min human JWT) |
 | **Chat / care-episode CORS** | Each service `FRONTEND_URL` = same public CDP UI origin |
 
 See the Railway worked example in the infrastructure guide for `${{cdp.RAILWAY_PUBLIC_DOMAIN}}` and `${{authentication.RAILWAY_PRIVATE_DOMAIN}}` patterns.

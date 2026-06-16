@@ -10,6 +10,7 @@ import {
   clearAuthCallbackQuery,
   hasLoggedOutLocally,
   isAuthCallbackLanding,
+  registerTokenRefreshHandler,
 } from '@/lib/auth';
 import { AUTH_API, USER_API } from '@/lib/apiBases';
 import {
@@ -44,6 +45,10 @@ import {
   replaceAppRoute,
 } from '@/lib/appNavigation';
 import { useAppRoute } from '@/lib/useAppRoute';
+import {
+  TOKEN_REFRESH_INTERVAL_MS,
+  accessTokenNeedsRefresh,
+} from '@/lib/authSessionRefresh';
 
 export interface UseAuthSessionOptions {
   onBeforeNavigate?: () => void;
@@ -485,15 +490,38 @@ export function useAuthSession(options: UseAuthSessionOptions = {}) {
   }, [tokenInfo, activeActor, activeOrgRole, sessionRoleChoices, persistSessionSelection]);
 
   useEffect(() => {
-    if (tokenInfo?.decoded?.exp) {
-      const expirationTime = tokenInfo.decoded.exp * 1000;
-      const refreshIn = Math.max(expirationTime - Date.now() - 60_000, 0);
-      refreshTimerRef.current = setTimeout(() => {
-        fetchSessionData();
-      }, refreshIn);
+    registerTokenRefreshHandler(() => fetchSessionData());
+    return () => registerTokenRefreshHandler(null);
+  }, [fetchSessionData]);
+
+  useEffect(() => {
+    if (!tokenInfo?.decoded?.exp) {
+      return;
     }
+
+    const refreshIfStale = () => {
+      const exp = tokenInfo.decoded?.exp;
+      if (exp && accessTokenNeedsRefresh(exp)) {
+        void fetchSessionData();
+      }
+    };
+
+    refreshTimerRef.current = window.setInterval(() => {
+      void fetchSessionData();
+    }, TOKEN_REFRESH_INTERVAL_MS);
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        refreshIfStale();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
     return () => {
-      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+      if (refreshTimerRef.current) {
+        window.clearInterval(refreshTimerRef.current);
+      }
+      document.removeEventListener('visibilitychange', onVisibilityChange);
     };
   }, [tokenInfo, fetchSessionData]);
 

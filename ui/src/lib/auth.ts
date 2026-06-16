@@ -46,3 +46,17 @@ export function clearAuthCallbackQuery(): void {
   window.history.replaceState({}, '', next);
   notifyAppLocationChanged();
 }
+
+let tokenRefreshHandler: (() => Promise<string | null>) | null = null;
+
+export function registerTokenRefreshHandler(handler: (() => Promise<string | null>) | null): void {
+  tokenRefreshHandler = handler;
+}
+
+/** Re-mint the access token from the HttpOnly IdP session (used after 401 or on tab focus). */
+export async function refreshAccessTokenIfPossible(): Promise<string | null> {
+  if (!tokenRefreshHandler) {
+    return null;
+  }
+  return tokenRefreshHandler();
+}
