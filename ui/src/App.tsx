@@ -36,6 +36,7 @@ import { isTosPreviewPath } from '@/lib/tosPreview';
 import { useUiTheme } from '@/lib/uiTheme';
 import { cn } from '@/lib/utils';
 import { useAuthSession } from '@/hooks/useAuthSession';
+import { uiResource } from '@/lib/uiCapability';
 
 try {
   setupTracing();
@@ -93,9 +94,9 @@ export default function App() {
     enrollInPostCare,
   } = usePatientRegistry(tokenInfo?.raw, activeActor, sessionTenantUuid);
 
-  const showPatientMenu = activeRoleEntitlements['ui:menu:patient'];
-  const showClinicianMenu = activeRoleEntitlements['ui:menu:clinician'];
-  const showStudyUsersMenu = activeRoleEntitlements['ui:menu:users'];
+  const showPatientMenu = activeRoleEntitlements[uiResource('Menu', 'patient')];
+  const showClinicianMenu = activeRoleEntitlements[uiResource('Menu', 'clinician')];
+  const showStudyUsersMenu = activeRoleEntitlements[uiResource('Menu', 'users')];
   const isDashboard = !selectedSection && !selectedAction;
 
   const clinicianPatient = clinicianPatientUuid

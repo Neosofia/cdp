@@ -18,6 +18,7 @@ import {
   type UserAuditItem,
 } from '@/components/AuditHistorySheet';
 import PlatformRolePicker from '@/components/PlatformRolePicker';
+import { uiResource } from '@/lib/uiCapability';
 import { roleCatalogForUi, type RoleCatalogSnapshot } from '@/lib/roleCatalogApi';
 import {
   buildUserUpdatePayload,
@@ -80,7 +81,7 @@ interface Props {
   /** Refetch session profile + role catalog after the signed-in user updates their own roles. */
   onSelfRolesUpdated?: () => void;
   sessionTenantUuid?: string | null;
-  /** Capabilities entitlements for the active Tier-1 actor (ui:tenant:user:*). */
+  /** Capabilities entitlements for the active Tier-1 actor (ui::Feature tenant-user gates). */
   entitlements?: Record<string, boolean>;
 }
 
@@ -113,8 +114,8 @@ export default function UserManagement({
   const adminStyles = usePatientViewStyles();
   const usePlatformCatalog = usesPlatformUserCatalog(activeActor);
   const canUpdateRoles =
-    activeActor === 'operator' && Boolean(entitlements['ui:tenant:user:update-roles']);
-  const canViewAudit = Boolean(entitlements['ui:tenant:user:audit']);
+    activeActor === 'operator' && Boolean(entitlements[uiResource('Feature', 'tenant-user:update-roles')]);
+  const canViewAudit = Boolean(entitlements[uiResource('Feature', 'tenant-user:audit')]);
   const showRowActions = canUpdateRoles || canViewAudit;
 
   const canEditUser = useCallback(

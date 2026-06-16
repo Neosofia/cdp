@@ -8,9 +8,8 @@ Published as a single image: **`ghcr.io/neosofia/cdp-policies`** (tag `cdp-polic
 
 | Path | Consumer | Purpose |
 |------|----------|---------|
-| [`capabilities/entitlements.json`](capabilities/entitlements.json) | **Capabilities** | Maps UI entitlement keys to Cedar resources/actions |
-| [`capabilities/menu/*.cedar`](capabilities/menu/) | **Capabilities** | Menu visibility rules (`ui::Menu`) |
-| [`capabilities/features/*.cedar`](capabilities/features/) | **Capabilities** | Feature gates (`ui::Feature`, e.g. tenant user admin) |
+| [`capabilities/CONVENTIONS.md`](capabilities/CONVENTIONS.md) | **Capabilities**, policy authors | Cedar conventions: API keys are entity ids; discovery from `View` permits |
+| [`capabilities/ui/*.cedar`](capabilities/ui/) | **Capabilities** | UI menu and feature gates (`ui::Menu`, `ui::Feature`) |
 | [`user/role-catalog.json`](user/role-catalog.json) | **User**, **CDP UI** | Clinical tier-2 labels, assignable slugs, job functions, UI actor defaults |
 | [`user/cedar/*.cedar`](user/cedar/) | **User** | CDP product Cedar (platform, site, sponsor, demo sandbox) |
 

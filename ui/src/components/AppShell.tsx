@@ -21,6 +21,7 @@ import type { EntitlementsMap } from '@/lib/appTypes';
 import type { SessionRoleChoice } from '@/lib/sessionRoles';
 import { useShellStyles } from '@/lib/shellStyles';
 import { cn } from '@/lib/utils';
+import { uiResource } from '@/lib/uiCapability';
 
 export interface AppShellProps {
   profile: UserProfile | null;
@@ -162,7 +163,7 @@ export default function AppShell({
           <div className="flex shrink-0 items-center gap-3">
             <NavigationMenu className="hidden max-w-max flex-none justify-end md:flex" viewport={false}>
               <NavigationMenuList className="flex-none justify-end gap-1">
-                {entitlements['ui:menu:debug'] && (
+                {entitlements[uiResource('Menu', 'debug')] && (
                   <NavigationMenuItem>
                     <NavigationMenuTrigger className={menuTriggerClass}>
                       Debug
@@ -189,7 +190,7 @@ export default function AppShell({
                     </Button>
                   </NavigationMenuItem>
                 )}
-                {entitlements['ui:menu:operator'] && (
+                {entitlements[uiResource('Menu', 'operator')] && (
                   <NavigationMenuItem>
                     <NavigationMenuTrigger className={menuTriggerClass}>
                       Admin

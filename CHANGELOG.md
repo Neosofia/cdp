@@ -1,87 +1,36 @@
 # Changelog
 
-## [2026.06.16] - 2026-06-16
-
-**Pinned services:** authentication **v0.37.0**; user **v0.8.2**; chat **v0.6.2**; care-episode **v0.7.1**; capabilities **v0.7.1**; **cdp-policies v0.2.0**.
-
-### Added
-
-- Demo seed **risk summary replay** — after SQL chat seed, replays each catalog patient's final turn through the care-episode completion proxy with clinician auth, prior transcript summary, and catalog risk-level reset.
-- `SplashPageHeader` shared header for splash and terms flows.
+## [2026.06.17]
 
 ### Changed
 
-- CDP UI release id is **2026.06.16**; compose dev pin **care-episode v0.7.1** and **user v0.8.2**.
-- Clinician roster uses tenant-scoped user list and chat last-activity; risk summary tooltip renders below the icon (no clip under card headers).
+- UI capabilities use Cedar entity ids as entitlement keys (for example `ui::Menu::"clinician"`) — policy is the single source of truth; `entitlements.json` is removed.
+- Platform policy bundle reorganized under `policies/capabilities/ui/`.
+
+## [2026.06.16]
+
+### Changed
+
+- Clinician roster lists patients for your organization and shows each patient's last chat activity.
+- Risk summary tooltip on the clinician roster opens below the icon so it is not clipped under card headers.
 
 ### Fixed
 
-- Demo workspace bootstrap filters catalog recoveries to the session tenant and completes personal recovery create (care-episode **v0.7.1**).
-- Demo seed transcripts end with clinically meaningful patient lines so risk agent scores medium/high catalog patients appropriately.
+- Demo workspace setup completes when creating a personal recovery for the signed-in patient.
+- Demo patient roster shows a realistic mix of low, medium, and high risk summary levels.
 
-## [2026.06.15] - 2026-06-15
-
-**Pinned services:** authentication **v0.37.0**; user **v0.8.1**; chat **v0.6.2**; care-episode **v0.7.0**; capabilities **v0.7.1**; **cdp-policies v0.2.0**.
+## [2026.06.15]
 
 ### Added
 
-- Corporate UI mode with theme toggle, refreshed shell/header/footer, and Post Discharge Care Platform branding.
-- Terms-of-service review flow and demo workspace bootstrap configuration for patient testing.
+- Corporate UI mode with theme toggle, refreshed shell, header, and footer, and Post Discharge Care Platform branding.
+- Terms-of-service review flow before entering the demo workspace.
 
 ### Changed
 
-- CDP UI release id is **2026.06.15** and capabilities production builds now consume **`POLICIES_IMAGE=ghcr.io/neosofia/cdp-policies:v0.2.0`**.
-- Patient, clinician, operator, and service-management screens share themed form and shell styling tokens.
+- Patient, clinician, operator, and service-management screens share consistent themed forms and shell styling.
 
-### Fixed
-
-- Railway CDP UI image builds now bundle the role catalog from `ui/policies/user/role-catalog.json` so the Docker build does not depend on root policy context availability.
-
-## [2026.06.14] - 2026-06-14
-
-**Pinned services:** authentication **v0.37.0**; user **v0.8.1**; chat **v0.6.0**; care-episode **v0.7.0**; capabilities **v0.7.0**; **cdp-policies v0.2.0**.
-
-### Changed
-
-- **cdp-policies v0.2.0:** CDP product user Cedar (`platform.admin`, `site.clinical`, `sponsor.clinical-ops`, `demo`) moved from user repo to `policies/user/cedar/`. Demo platform tenant roles added to `role-catalog.json`.
-- User service build arg **`USER_PRODUCT_POLICIES_IMAGE`** (default `cdp-policies:v0.2.0`); copies product Cedar and role catalog at build. Non-CDP products can override with their own bundle image.
-
-## [2026.06.14-policies-v0.1] - 2026-06-14
-
-**Pinned services:** authentication **v0.37.0**; user **v0.8.0**; chat **v0.6.0**; care-episode **v0.7.0**; capabilities **v0.7.0**; **cdp-policies v0.1.0**.
-
-### Changed
-
-- Platform stack pins **authorization-in-the-middle/v0.7.1** across JWT-consuming services.
-- Unified platform policy bundle: **`cdp-policies`** image (`policies/capabilities/` for menu/feature Cedar + entitlements; `policies/user/role-catalog.json` for role labels).
-- Capabilities Cedar organized under `policies/capabilities/menu/` and `policies/capabilities/features/`.
-- Single `policies/Dockerfile` replaces separate `cdp-ui-policies` and `cdp-user-policies` images/workflows.
-- Role catalog lives in `policies/user/role-catalog.json` (labels and UI vocabulary; base slugs in user `default.json`).
-- `docker-compose.dev.yml` pins the full backend stack on new GHCR release images.
-- Documentation: **Greenfield Step 0** for manual tier-2 role assignment on new environments ([policies/README.md](policies/README.md)).
-- Consolidated role catalog under `policies/`; removed top-level `roles/` directory.
-
-## [2026.06.11] - 2026-06-11
-
-**Pinned services:** chat **v0.4.0**; other backend pins unchanged from **2026.06.10**.
-
-### Changed
-
-- Patient **Care assistant** and clinician patient chat use user-scoped chat API paths and completion fields `intervention` / `user_message`.
-- `docker-compose.dev.yml` pins **chat v0.4.0**.
-
-## [2026.06.10] - 2026-06-10
-
-**Pinned services:** authentication **v0.33.0**; user **v0.7.0**; chat **v0.3.0**; care-episode **v0.3.0**; capabilities **v0.6.0**; **cdp-user-policies v0.2.1** unchanged.
-
-### Changed
-
-- `docker-compose.dev.yml` pins the full platform stack on GHCR release images (adds chat and care-episode alongside authentication, user, and capabilities).
-- Backend services ship **authorization-in-the-middle v0.4.23** with simplified `@with_security()` route decorators.
-
-## [2026.06.05 chat] - 2026-06-05
-
-**Pinned services:** chat **v0.2.2**; care-episode **v0.2.3**.
+## [2026.06.05 chat]
 
 ### Added
 
@@ -89,72 +38,44 @@
 - Clinician patient chat: session pagination, direct replies (assistant paused for that thread), and compose with clinician name and role.
 - Patient banner suggests **New chat with assistant** while the care team is responding in the current thread.
 
-### Changed
-
-- Chat history and completions use the chat service interaction model (care-episode no longer stores transcripts).
-- Demo platform seed script seeds `chat_interactions` and messages for catalog patients.
-
-## [2026.06.05 authz patch] - 2026-06-05
-
-**Pinned services:** user **v0.6.9**; **cdp-user-policies v0.2.1** unchanged.
+## [2026.06.05 authz patch]
 
 ### Fixed
 
-- Platform operators with multiple tier-2 roles (e.g. `site.clinical` and `platform.admin`) no longer get **403 Forbidden** on **Registered users** when the active session role is **Platform Admin**.
+- Platform operators with multiple organization roles (for example clinical and **Platform Admin**) can open **Registered users** while the active session role is **Platform Admin**.
 
-## [2026.06.05 provisioning] - 2026-06-05
-
-**Pinned services:** user **v0.6.8**; **cdp-user-policies v0.2.1**.
-
-### Fixed
-
-- Login-time User registry provisioning on cloud stacks when Authentication pointed at an HTTP internal User URL (Talisman redirect); operators must register an HTTPS `base_url` for `user`.
-- Role catalog overlay from **cdp-user-policies v0.2.1** (`ROLE_CATALOG_OVERLAY=/app/policies/role-catalog.json`) supplies UI labels; it does **not** auto-assign tier-2 roles on login (see INSTALLATION_PLAN Step 0).
-
-## [2026.06.05] - 2026-06-05
-
-**Pinned services:** authentication **v0.32.2**; user **v0.6.7**; care-episode **v0.2.2**; **cdp-user-policies v0.2.0**.
+## [2026.06.05]
 
 ### Added
 
-- Role catalog **default_roles_by_actor** maps each tier-1 actor (patient, clinician, study, operator) to a default tier-2 org role for **UI enroll forms and demo seeds** (not applied on Authentication login provision).
-- Patient dashboard loads appointments, inbox, and records from care-episode when switching to the **patient** role.
-
-### Changed
-
-- Switching to **patient** runs care-episode **clone-demo** using operator, clinician, or patient JWT actors (not operator-only).
-- `docker-compose.dev.yml` pins **user v0.6.7**.
+- Enrollment forms pre-select a default organization role for each actor type (patient, clinician, study, operator).
+- Patient dashboard loads appointments, inbox, and records from care-episode when you switch to the **patient** role.
 
 ### Fixed
 
-- Patient dashboard no longer stays half-empty after a failed demo clone; care-episode repairs incomplete demo rows and the UI waits for seeding before fetching.
-- Default **VITE_CARE_EPISODE_API_URL** falls back to `http://localhost:8015` when unset in local Vite builds.
+- Patient dashboard no longer stays half-empty after a failed demo data setup; the UI waits for seeding to finish before loading dashboard data.
 
-## [2026.06.04] - 2026-06-04
-
-**Pinned services:** authentication **v0.32.2**; user **v0.6.5**.
+## [2026.06.04]
 
 ### Added
 
-- Footer shows the CDP UI release date (**CalVer** `YYYY.MM.DD`).
-- Operator dashboard **Service health** probes each configured platform API (`GET /health`) and shows live semver versions.
-- Operator dashboard **failed sign-ins (24h)** stat and identity-provider failures in the **Recent audit events** feed (authentication `GET /api/idp/failed-authentications`).
+- Footer shows the CDP release date.
+- Operator dashboard **Service health** probes each configured platform API and shows live service versions.
+- Operator dashboard **failed sign-ins (24h)** stat and identity-provider failures in the **Recent audit events** feed.
 - Role-specific home page titles (for example **Platform Admin Dashboard**) with breadcrumb still **Dashboard**.
-- Terms-of-service acceptance gate on login; profile stores `tos_accepted_at` via User service.
+- Terms-of-service acceptance gate on login.
 - Clinicians can edit a patient's profile from the patient view.
-- Enrollment flow includes a procedure catalog and clearer enroll sheet when adding patients to the roster.
+- Enrollment flow includes a procedure catalog and a clearer enroll sheet when adding patients to the roster.
 
 ### Changed
 
 - Patient roster risk indicators use each patient's care-episode risk level instead of a generic featured flag.
-- When a profile save fails, the error message names which service returned the problem (easier to tell user vs care-episode issues apart).
-- `docker-compose.dev.yml` pins published authentication and user images for dev stacks.
+- When a profile save fails, the error message identifies which platform service returned the problem.
 
 ### Fixed
 
 - Roster risk levels display correctly when care-episode tenant data does not match the roster tenant.
-- Railway production build: removed unused TypeScript variable in failed-sign-in counter (`tsc -b`).
-- Footer **TOS** link and `/tos-preview` crawl route available in production and staging builds (not dev-only).
+- Footer **TOS** link and terms preview are available in production and staging builds.
 
 ## [0.2.1] - 2026-05
 
@@ -165,7 +86,7 @@
 
 ### Removed
 
-- Debug-only copy in the patient context panel (operator/debug menus unchanged).
+- Debug-only copy in the patient context panel (operator and debug menus unchanged).
 
 ## [0.2.0] - 2026-05
 
@@ -173,8 +94,8 @@
 
 - **Admin → Users** for platform operators: browse users in the tenant, open a user, and edit their platform roles.
 - **Admin → Users** and **Admin → Services** audit history: open a user or service and review who changed what and when.
-- Clinician and operator flows wired to chat and care-episode services for patient conversations and roster data.
+- Clinician patient chat and patient roster data powered by the chat and care-episode services.
 
 ### Changed
 
-- Platform administration in the UI uses the **operator** actor (replaces the old **admin** label in menus and role picker).
+- Platform administration in the UI uses the **operator** actor (replaces the old **admin** label in menus and the role picker).

@@ -12,7 +12,6 @@ and a JWT whose ``neosofia:actors`` includes ``clinician``.
 Environment variables:
   SEED_BEARER_TOKEN        Required (tenant claim or SEED_TENANT_UUID override for all services).
   SEED_ACTIVE_ACTOR        Optional. X-Active-Actor header (default: operator).
-  SEED_RISK_SUMMARIES      Optional. Set to 0/false to skip post-chat risk replay (default: on).
   SEED_TENANT_UUID         Optional override; default is the tenant claim on SEED_BEARER_TOKEN.
   USER_API_URL             Optional. Default: http://localhost:8018
   CARE_EPISODE_API_URL     Optional. Default: http://localhost:8015
@@ -175,11 +174,6 @@ def _headers(*, required: bool = True, active_actor: str | None = None) -> dict[
 
 def _clinician_headers() -> dict[str, str]:
     return _headers(required=True, active_actor="clinician")
-
-
-def _seed_risk_summaries_enabled() -> bool:
-    raw = os.getenv("SEED_RISK_SUMMARIES", "1").strip().lower()
-    return raw not in {"0", "false", "no", "off"}
 
 
 def _request_json(method: str, url: str, headers: dict[str, str], body: dict | None = None) -> tuple[int, dict]:
@@ -808,13 +802,7 @@ def main() -> None:
         if not tenant_uuid:
             raise RuntimeError("SEED_BEARER_TOKEN is required to resolve tenant for chat seed")
         _seed_chat(catalog, tenant_uuid, now_utc)
-        if _seed_risk_summaries_enabled():
-            if not os.getenv("SEED_BEARER_TOKEN", "").strip():
-                print("risk-summaries: skipped (SEED_BEARER_TOKEN required)")
-            else:
-                _seed_risk_summaries(catalog, urls["care-episode"], _clinician_headers())
-        else:
-            print("risk-summaries: skipped (SEED_RISK_SUMMARIES disabled)")
+        _seed_risk_summaries(catalog, urls["care-episode"], _clinician_headers())
     print("Done.")
 
 

@@ -12,11 +12,11 @@ We need a dedicated layer that (a) defines the controllable UI surface and (b) e
 
 We treat the **capabilities service** as the platform UI control plane and **CDP** as the owner of the product policy bundle.
 
-1. **Capabilities (generic engine)** exposes `GET /api/v1/capabilities/{namespace}` and returns a flat `{ key: boolean }` map. It loads Cedar policies and an `entitlements.json` manifest from an injected policy bundle at runtime. It does not embed CDP-specific menu names or rules in application code.
+1. **Capabilities (generic engine)** exposes `GET /api/v1/capabilities/{namespace}` and returns a flat `{ key: boolean }` map. Keys are Cedar entity ids (`ui::Menu::"clinician"`). It loads Cedar policies from an injected policy bundle and discovers entitlements from `View` permits on `ui::` resources. It does not embed CDP-specific menu names or rules in application code.
 
-2. **CDP (product configuration)** version-controls the policy bundle under `cdp/policies/`:
-   - `entitlements.json` — declares namespaces and the entitlement keys the UI may query
-   - `*.cedar` — Cedar rules for UI entities (for example, `ui::Menu`)
+2. **CDP (product configuration)** version-controls the policy bundle under `cdp/policies/capabilities/ui/`:
+   - Cedar rules for UI entities (for example, `ui::Menu`, `ui::Feature`)
+   - The CDP UI references the same entity ids via `uiResource(type, uid)` (see `ui/src/lib/uiCapability.ts`)
 
 3. **Backend services** retain complex Cedar evaluation at the API boundary. Capabilities does not replace per-service authorization.
 
@@ -27,13 +27,13 @@ We treat the **capabilities service** as the platform UI control plane and **CDP
 ## Rationale
 
 - **Separation of concerns:** the capabilities service is reusable infrastructure; CDP owns what UI entities exist and how they are gated for this product.
-- **Shared vocabulary:** Cedar entity types (`ui::Menu`, later `ui::Feature`, `ui::Module`) and manifest keys (`ui:menu:patient`) give the UI and policy authors a common language that extends to licensing without API churn.
+- **Shared vocabulary:** Cedar entity ids (`ui::Menu::"patient"`, `ui::Feature::"tenant-user:list"`) are the API keys; the UI and policy authors use the same identifiers via `uiResource()`.
 - **Defence in depth:** hiding a UI affordance does not authorize an API call; backend services still enforce their own Cedar policies.
 - **Independent deployment:** capabilities deploys from its own repository and image (for example, Railway on `capabilities/`). CDP publishes a versioned **`cdp-policies`** image (capabilities Cedar + user role catalog). Capabilities consumes the capabilities subtree at **build time** via `COPY --from=`, the same pattern authentication uses for `sql-template`.
 
 ## Consequences
 
-- Adding a UI entitlement requires changes in CDP (`entitlements.json`, Cedar policies) and in the UI (entitlement key references). Capabilities code changes only when the engine contract evolves.
+- Adding a UI entitlement requires a `View` permit in CDP `capabilities/ui/*.cedar` and a matching `uiResource()` reference in the UI. Capabilities code changes only when the engine contract evolves.
 - CDP publishes `ghcr.io/neosofia/cdp-policies:vX.Y.Z` on tag `cdp-policies/vX.Y.Z`. Capabilities pins **`POLICIES_IMAGE`** at build time, copies `/policies/capabilities` → `/app/policies`, and redeploys when the bundle version changes.
 - Local development may volume-mount `cdp/policies/capabilities/` over `/app/policies` without rebuilding either image.
 - Feature toggles and tenant licensing will live in capabilities as an additional evaluation source, not as a replacement for backend service authorization.

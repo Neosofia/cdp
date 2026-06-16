@@ -56,7 +56,7 @@ CDP owns the UI entitlement policy bundle under `policies/capabilities/`. The ca
 
 **Local development:** `docker-compose.local.yml` builds `cdp-policies:local` and passes it as `POLICIES_IMAGE` at capabilities build time; optional volume-mount `./policies/capabilities/` over `/app/policies` for hot-reload. Pinned-release stacks in `docker-compose.dev.yml` use the same volume mount pattern.
 
-The bundle includes `entitlements.json`, `menu/*.cedar`, and `features/*.cedar`. The UI calls `GET /api/v1/capabilities/ui`.
+The bundle includes Cedar under `capabilities/ui/*.cedar` (see `capabilities/CONVENTIONS.md`). Capabilities API keys are Cedar entity ids (`ui::Menu::"clinician"`, etc.). The UI calls `GET /api/v1/capabilities/ui`.
 
 See [ADR 0012: UI Capabilities Control Plane](architecture/adrs/0012-ui-capabilities-control-plane.md).
 

@@ -2,6 +2,37 @@
 
 Per-version deploy steps for operators. User-visible changes: [CHANGELOG.md](CHANGELOG.md).
 
+Release images are published to `ghcr.io/neosofia/*` by CI when service tags are pushed (for example `user/v0.8.2`, `cdp-policies/v0.2.0`, CDP UI CalVer deploy). Operators redeploy pinned versions and verify — they do not build or publish images.
+
+## Database migrations
+
+Each backend service uses Alembic. How to run migrations locally and the expected revision for a tagged release are in that service's **OPERATIONS.md** and **INSTALLATION_PLAN.md**:
+
+| Service | Operations | Installation plan |
+|---------|------------|-------------------|
+| authentication | [OPERATIONS.md](https://github.com/Neosofia/authentication/blob/main/OPERATIONS.md) | [INSTALLATION_PLAN.md](https://github.com/Neosofia/authentication/blob/main/INSTALLATION_PLAN.md) |
+| user | [OPERATIONS.md](https://github.com/Neosofia/user/blob/main/OPERATIONS.md) | [INSTALLATION_PLAN.md](https://github.com/Neosofia/user/blob/main/INSTALLATION_PLAN.md) |
+| chat | [OPERATIONS.md](https://github.com/Neosofia/chat/blob/main/OPERATIONS.md) | [INSTALLATION_PLAN.md](https://github.com/Neosofia/chat/blob/main/INSTALLATION_PLAN.md) |
+| care-episode | [OPERATIONS.md](https://github.com/Neosofia/care-episode/blob/main/OPERATIONS.md) | [INSTALLATION_PLAN.md](https://github.com/Neosofia/care-episode/blob/main/INSTALLATION_PLAN.md) |
+
+**Railway (staging/production):** migrations run automatically on redeploy via `preDeployCommand = ["python -m alembic upgrade head"]` in each service's `railway.toml`. Check the deploy log for a successful migrate step; run manually only if preDeploy failed.
+
+**Local compose:** `docker-compose.dev.yml` runs a `*-migrate` sidecar before each app service (`depends_on: service_completed_successfully`).
+
+**Manual one-off:** from the service repo with `MIGRATION_DATABASE_URL` set:
+
+```bash
+uv run alembic upgrade head
+```
+
+**Verify head revision** (use the service **migration/superuser** database URL):
+
+```sql
+SELECT version_num FROM alembic_version;
+```
+
+Compare `version_num` to the expected revision in that release's service **INSTALLATION_PLAN.md** (for example user **`002`**, care-episode **`008`** at CDP UI **2026.06.16** — no new revisions in that release).
+
 ## Greenfield Step 0 — assign platform registry roles
 
 Run once per new environment **before** platform admin UI or `GET /api/v1/users` will work. Login provision creates identity only; **`roles` stays `[]`** until tier-2 slugs are assigned. Tier-1 WorkOS **`operator`** does **not** imply **`platform.admin`**. CDP `default_roles_by_actor` is UI-only and is **not** applied on login ([policies/README.md](policies/README.md)).
@@ -34,27 +65,48 @@ Run once per new environment **before** platform admin UI or `GET /api/v1/users`
 
 ---
 
-## CDP UI 2026.06.16 / care-episode v0.7.1 / user v0.8.2
+## cdp-policies v0.3.0 / capabilities v0.7.2 / CDP UI 2026.06.17
 
-**Build:** CDP UI **2026.06.16**; **authentication v0.37.0**; **user v0.8.2**; **chat v0.6.2**; **care-episode v0.7.1**; **capabilities v0.7.1**; **cdp-policies v0.2.0**.
-
-**Prerequisites:**
-
-- Publish **care-episode/v0.7.1** and **user/v0.8.2** before redeploying staging.
-- Chat and care-episode inference env configured for demo risk-summary seed (`SEED_RISK_SUMMARIES=1`, default).
+**Release pins:** **cdp-policies v0.3.0**; **capabilities v0.7.2**; CDP UI **2026.06.17** (other backend pins unchanged from **2026.06.16**).
 
 **Deploy:**
 
-1. Deploy **care-episode v0.7.1** and **user v0.8.2**.
-2. Deploy CDP UI **2026.06.16** after backend services are healthy.
+1. Publish **`cdp-policies/v0.3.0`** (CI builds `ghcr.io/neosofia/cdp-policies:v0.3.0`).
+2. Redeploy **capabilities v0.7.2** (Dockerfile pins `POLICIES_IMAGE=ghcr.io/neosofia/cdp-policies:v0.3.0`).
+3. Redeploy CDP UI **2026.06.17** after capabilities is healthy.
+
+**Post-deploy verification:**
+
+1. `GET /health` on capabilities reports **0.7.2**.
+2. CDP footer reports **UI 2026.06.17**.
+3. Signed-in operator: **Admin** and **Debug** menus visible; `GET /api/v1/capabilities/ui` returns keys like `ui::Menu::"operator"` (not legacy `ui:menu:operator`).
+4. Signed-in clinician: **Patients** menu and roster load; entitlement keys use Cedar entity ids.
+
+**Evidence:** Capabilities health JSON; sample capabilities/ui response; operator and clinician menu screenshots.
+
+---
+
+## CDP UI 2026.06.16 / care-episode v0.7.1 / user v0.8.2
+
+**Release pins:** CDP UI **2026.06.16**; **authentication v0.37.0**; **user v0.8.2**; **chat v0.6.2**; **care-episode v0.7.1**; **capabilities v0.7.1**; **cdp-policies v0.2.0**.
+
+**Prerequisites:**
+
+- Chat and care-episode inference env configured (demo seed replays the final patient turn through care-episode after chat SQL seed).
+
+**Deploy:**
+
+1. Redeploy **care-episode v0.7.1** and **user v0.8.2** ([Database migrations](#database-migrations) — automated on Railway redeploy; no new revisions in this release).
+2. Redeploy CDP UI **2026.06.16** after backend services are healthy.
 
 **Post-deploy verification:**
 
 1. `GET /health` on care-episode reports **0.7.1** and user **0.8.2**.
-2. CDP footer reports **UI 2026.06.16**.
-3. Clinician dashboard lists catalog patients with last-chat timestamps and risk summary icons (mix of low/medium/high after seed).
-4. Demo workspace bootstrap completes without 403 on recovery create.
-5. Re-run `scripts/seed_demo_platform.py` on staging with operator/clinician JWT; confirm `risk-summaries: 12 ok`.
+2. `SELECT version_num FROM alembic_version` on user and care-episode Postgres reports **`002`** and **`008`** ([Database migrations](#database-migrations)).
+3. CDP footer reports **UI 2026.06.16**.
+4. Clinician dashboard lists catalog patients with last-chat timestamps and risk summary icons (mix of low/medium/high after seed).
+5. Demo workspace bootstrap completes without 403 on recovery create.
+6. Re-run `scripts/seed_demo_platform.py` on staging with operator/clinician JWT; confirm `risk-summaries: 12 ok`.
 
 **Evidence:** Health JSON version fields; clinician roster screenshot; seed script output.
 
@@ -62,19 +114,16 @@ Run once per new environment **before** platform admin UI or `GET /api/v1/users`
 
 ## CDP UI 2026.06.15 / capabilities v0.7.1 / chat v0.6.2
 
-**Build:** CDP UI **2026.06.15**; **authentication v0.37.0**; **user v0.8.1**; **chat v0.6.2**; **care-episode v0.7.0**; **capabilities v0.7.1**; **cdp-policies v0.2.0**.
+**Release pins:** CDP UI **2026.06.15**; **authentication v0.37.0**; **user v0.8.1**; **chat v0.6.2**; **care-episode v0.7.0**; **capabilities v0.7.1**; **cdp-policies v0.2.0**.
 
 **Prerequisites:**
 
-- Publish **chat/v0.6.2** and **capabilities/v0.7.1** before redeploying staging.
-- Capabilities build uses **`POLICIES_IMAGE=ghcr.io/neosofia/cdp-policies:v0.2.0`**.
-- CDP UI build includes staging `VITE_*_API_URL` values for authentication, capabilities, user, chat, care-episode, and template.
+- Staging `VITE_*_API_URL` values for authentication, capabilities, user, chat, care-episode, and template.
 
 **Deploy:**
 
-1. Deploy **chat v0.6.2** and run existing migrations/pre-deploy command.
-2. Deploy **capabilities v0.7.1** with the pinned policy bundle image.
-3. Deploy CDP UI **2026.06.15** after backend services are healthy.
+1. Redeploy **chat v0.6.2** and **capabilities v0.7.1** ([Database migrations](#database-migrations) — automated on redeploy; no new chat revisions in this release).
+2. Redeploy CDP UI **2026.06.15** after backend services are healthy.
 
 **Post-deploy verification:**
 
@@ -90,18 +139,12 @@ Run once per new environment **before** platform admin UI or `GET /api/v1/users`
 
 ## cdp-policies v0.2.0 / user v0.8.1
 
-**Build:** **cdp-policies v0.2.0**; **user v0.8.1** (other backend pins unchanged from **2026.06.14**).
-
-**Prerequisites:**
-
-- Publish **cdp-policies/v0.2.0** (adds `policies/user/cedar/` — platform, site, sponsor Cedar moved from user repo).
-- Rebuild **user** with `USER_PRODUCT_POLICIES_IMAGE=ghcr.io/neosofia/cdp-policies:v0.2.0` (Dockerfile default).
-- Rebuild **capabilities** with `POLICIES_IMAGE=ghcr.io/neosofia/cdp-policies:v0.2.0` when bumping the capabilities Dockerfile pin.
+**Release pins:** **cdp-policies v0.2.0**; **user v0.8.1**; **capabilities** redeploy when bumping to this bundle (other backend pins unchanged from **2026.06.14**).
 
 **Deploy:**
 
-1. Pull `ghcr.io/neosofia/cdp-policies:v0.2.0`.
-2. Deploy **user v0.8.1**; redeploy **capabilities** after repinning `POLICIES_IMAGE` to v0.2.0.
+1. Redeploy **user v0.8.1** (image bundles `cdp-policies v0.2.0`).
+2. Redeploy **capabilities** when moving to the v0.2.0 policy bundle pin.
 
 **Post-deploy verification:**
 
@@ -114,17 +157,16 @@ Run once per new environment **before** platform admin UI or `GET /api/v1/users`
 
 ## CDP UI 2026.06.14 (authorization middleware v0.7.1)
 
-**Build:** CDP UI **2026.06.14**; **authentication v0.37.0**; **user v0.8.0**; **chat v0.6.0**; **care-episode v0.7.0**; **capabilities v0.7.0**; **cdp-policies v0.1.0**.
+**Release pins:** CDP UI **2026.06.14**; **authentication v0.37.0**; **user v0.8.0**; **chat v0.6.0**; **care-episode v0.7.0**; **capabilities v0.7.0**; **cdp-policies v0.1.0**.
 
 **Prerequisites:**
 
-- Publish **cdp-policies/v0.1.0** before rebuilding **capabilities** and **user** (capabilities pins **`POLICIES_IMAGE`**; user pins **`USER_PRODUCT_POLICIES_IMAGE`**).
-- Deploy all five backend services; migrations to head on authentication, user, chat, and care-episode databases.
+- [Database migrations](#database-migrations) to head on authentication, user, chat, and care-episode databases.
 
 **Deploy:**
 
-1. Pull `ghcr.io/neosofia/authentication:v0.37.0`, `ghcr.io/neosofia/user:v0.8.0`, `ghcr.io/neosofia/chat:v0.6.0`, `ghcr.io/neosofia/care-episode:v0.7.0`, and `ghcr.io/neosofia/capabilities:v0.7.0`.
-2. Deploy CDP UI **2026.06.14** after backend images are live.
+1. Redeploy **authentication v0.37.0**, **user v0.8.0**, **chat v0.6.0**, **care-episode v0.7.0**, and **capabilities v0.7.0**.
+2. Redeploy CDP UI **2026.06.14** after backend services are healthy.
 
 **Post-deploy verification:**
 
@@ -141,12 +183,12 @@ Run once per new environment **before** platform admin UI or `GET /api/v1/users`
 
 ## CDP UI 2026.06.11 (chat v0.4.0 client)
 
-**Build:** CDP UI **2026.06.11**; compose pin **chat v0.4.0**
+**Release pins:** CDP UI **2026.06.11**; **chat v0.4.0**.
 
 **Deploy:**
 
-1. Deploy chat **v0.4.0** per [chat INSTALLATION_PLAN](https://github.com/Neosofia/chat/blob/main/INSTALLATION_PLAN.md).
-2. Deploy CDP UI **2026.06.11** in the same change window.
+1. Redeploy **chat v0.4.0** per [chat INSTALLATION_PLAN](https://github.com/Neosofia/chat/blob/main/INSTALLATION_PLAN.md).
+2. Redeploy CDP UI **2026.06.11** in the same change window.
 
 **Verify:**
 
@@ -156,17 +198,17 @@ Run once per new environment **before** platform admin UI or `GET /api/v1/users`
 
 ## CDP UI 2026.06.10 (authorization middleware v0.4.23)
 
-**Build identifiers:** CDP UI **2026.06.10**; **authentication v0.33.0**; **user v0.7.0**; **chat v0.3.0**; **care-episode v0.3.0**; **capabilities v0.6.0**; **cdp-user-policies v0.2.1** unchanged.
+**Release pins:** CDP UI **2026.06.10**; **authentication v0.33.0**; **user v0.7.0**; **chat v0.3.0**; **care-episode v0.3.0**; **capabilities v0.6.0**; **cdp-user-policies v0.2.1** unchanged.
 
 **Prerequisites:**
 
-- Deploy all five backend services; run migrations to head on authentication, user, chat, and care-episode databases.
-- UI build includes `VITE_*_API_URL` values for authentication, capabilities, user, chat, care-episode, and template.
+- [Database migrations](#database-migrations) to head on authentication, user, chat, and care-episode databases.
+- Staging `VITE_*_API_URL` values for authentication, capabilities, user, chat, care-episode, and template.
 
 **Deploy:**
 
-1. Pull `ghcr.io/neosofia/authentication:v0.33.0`, `ghcr.io/neosofia/user:v0.7.0`, `ghcr.io/neosofia/chat:v0.3.0`, `ghcr.io/neosofia/care-episode:v0.3.0`, and `ghcr.io/neosofia/capabilities:v0.6.0`.
-2. Deploy CDP UI **2026.06.10** after backend images are live.
+1. Redeploy **authentication v0.33.0**, **user v0.7.0**, **chat v0.3.0**, **care-episode v0.3.0**, and **capabilities v0.6.0**.
+2. Redeploy CDP UI **2026.06.10** after backend services are healthy.
 
 **Post-deploy verification:**
 
@@ -181,17 +223,17 @@ Run once per new environment **before** platform admin UI or `GET /api/v1/users`
 
 ## CDP UI 2026.06.05 (chat v0.2.2 / care-episode v0.2.3)
 
-**Build identifiers:** CDP UI **2026.06.05**; **chat v0.2.2**; **care-episode v0.2.3**.
+**Release pins:** CDP UI **2026.06.05**; **chat v0.2.2**; **care-episode v0.2.3**.
 
 **Prerequisites:**
 
-- Deploy **chat v0.2.2** and **care-episode v0.2.3**; run migrations to head on both databases.
-- UI build includes `VITE_CHAT_API_URL` and `VITE_CARE_EPISODE_API_URL` pointing at the deployed services.
+- [Database migrations](#database-migrations) to head on chat and care-episode databases.
+- Staging `VITE_CHAT_API_URL` and `VITE_CARE_EPISODE_API_URL` point at the deployed services.
 
 **Deploy:**
 
-1. Pull `ghcr.io/neosofia/chat:v0.2.2` and `ghcr.io/neosofia/care-episode:v0.2.3`.
-2. Deploy CDP UI **2026.06.05** after backend images are live.
+1. Redeploy **chat v0.2.2** and **care-episode v0.2.3**.
+2. Redeploy CDP UI **2026.06.05** after backend services are healthy.
 
 **Post-deploy verification:**
 
@@ -206,11 +248,11 @@ Run once per new environment **before** platform admin UI or `GET /api/v1/users`
 
 ## CDP UI 2026.06.05 (user v0.6.9 authz patch)
 
-**Build identifiers:** **user v0.6.9**; **cdp-user-policies v0.2.1** unchanged.
+**Release pins:** **user v0.6.9**; **cdp-user-policies v0.2.1** unchanged.
 
 **Deploy:**
 
-1. Deploy **user v0.6.9** (same policy bundle and `ROLE_CATALOG_OVERLAY` as v0.6.8).
+1. Redeploy **user v0.6.9**.
 
 **Post-deploy verification:**
 
@@ -218,23 +260,21 @@ Run once per new environment **before** platform admin UI or `GET /api/v1/users`
 
 ## CDP UI 2026.06.05 (provisioning patch)
 
-**Build identifiers:** **user v0.6.8**; **cdp-user-policies v0.2.1**; CDP UI **2026.06.05** unchanged unless repinned.
+**Release pins:** **user v0.6.8**; **cdp-user-policies v0.2.1**; CDP UI **2026.06.05** unchanged unless repinned.
 
 **Prerequisites:**
 
-- Publish **cdp-user-policies v0.2.1** and rebuild **user v0.6.8** with that pin.
 - Authentication **service registry** `user` row: **HTTPS** `base_url` (not `http://user.railway.internal:…`).
 
-**Pre-deploy:**
+**Pre-deploy configuration:**
 
 - Set `ROLE_CATALOG_OVERLAY=/app/policies/role-catalog.json` on the user service (cloud).
 - Optional: set `USER_SERVICE_BASE_URL` on authentication to the same HTTPS user URL for future migration `005` runs.
 
 **Deploy:**
 
-1. Tag and publish **cdp-user-policies/v0.2.1**; wait for GHCR image.
-2. Deploy **user v0.6.8** (Dockerfile pins v0.2.1).
-3. Update Authentication `services.base_url` for `user` to HTTPS if still on internal HTTP.
+1. Redeploy **user v0.6.8**.
+2. Update Authentication `services.base_url` for `user` to HTTPS if still on internal HTTP.
 
 **Post-deploy verification:**
 
@@ -247,25 +287,19 @@ Run once per new environment **before** platform admin UI or `GET /api/v1/users`
 
 ## CDP UI 2026.06.05
 
-**Build identifiers:** CDP UI **2026.06.05** (CalVer); **authentication v0.32.2**; **user v0.6.7**; **care-episode v0.2.2**; **cdp-user-policies v0.2.0**.
+**Release pins:** CDP UI **2026.06.05**; **authentication v0.32.2**; **user v0.6.7**; **care-episode v0.2.2**; **cdp-user-policies v0.2.0**.
 
 **Prerequisites:**
 
-- Deploy **authentication v0.32.2**, **user v0.6.7**, and **care-episode v0.2.2**.
-- Publish **cdp-user-policies v0.2.0** and rebuild the user service image with `CDP_USER_POLICIES_IMAGE=ghcr.io/neosofia/cdp-user-policies:v0.2.0` (or pin that tag in the user Dockerfile before build).
-- Run care-episode migration **004** (`last_activity` on sessions).
+- Care-episode migration **004** (`last_activity` on sessions) — see [care-episode INSTALLATION_PLAN](https://github.com/Neosofia/care-episode/blob/main/INSTALLATION_PLAN.md) and [Database migrations](#database-migrations).
 - WorkOS tier-1 actors for demo users: **operator**, **clinician**, **patient** (and **study** when testing sponsor roles).
-
-**Pre-deploy:**
-
-- Set `VITE_*_API_URL` values for the UI build, including `VITE_CARE_EPISODE_API_URL`.
-- Pull `ghcr.io/neosofia/authentication:v0.32.2`, `ghcr.io/neosofia/user:v0.6.7`, and `ghcr.io/neosofia/care-episode:v0.2.2` before updating compose stacks.
+- Staging `VITE_*_API_URL` values, including `VITE_CARE_EPISODE_API_URL`.
 
 **Deploy:**
 
-1. Run authentication, user, and care-episode migrations to head.
-2. Tag and publish **cdp-user-policies/v0.2.0** from CDP; rebuild **user** if the image was built before that tag existed.
-3. Deploy CDP UI build **2026.06.05** with updated `VITE_*` configuration.
+1. [Database migrations](#database-migrations) to head on authentication, user, and care-episode (automated on Railway redeploy).
+2. Redeploy **authentication v0.32.2**, **user v0.6.7**, and **care-episode v0.2.2**.
+3. Redeploy CDP UI **2026.06.05**.
 
 **Post-deploy verification:**
 
@@ -281,22 +315,19 @@ Run once per new environment **before** platform admin UI or `GET /api/v1/users`
 
 ## CDP UI 2026.06.04
 
-**Build identifiers:** CDP UI **2026.06.04** (CalVer); **authentication v0.32.2**; **user v0.6.5**.
+**Release pins:** CDP UI **2026.06.04**; **authentication v0.32.2**; **user v0.6.5**.
 
 **Prerequisites:**
 
-- Deploy **authentication v0.32.2** and **user v0.6.5** (User migration `002` adds `tos_accepted_at`).
+- User migration **002** adds `tos_accepted_at` — expected `alembic_version.version_num` **`002`** on user Postgres ([Database migrations](#database-migrations)).
 - WorkOS **`operator`** role for platform admin testers.
-
-**Pre-deploy:**
-
-- Set `VITE_AUTH_API_URL`, `VITE_USER_API_URL`, and other `VITE_*_API_URL` values for the UI build.
-- Rebuild or pull `ghcr.io/neosofia/authentication:v0.32.2` and `ghcr.io/neosofia/user:v0.6.5` before updating `docker-compose.dev.yml` stacks.
+- Staging `VITE_AUTH_API_URL`, `VITE_USER_API_URL`, and other `VITE_*_API_URL` values.
 
 **Deploy:**
 
-1. Run authentication and user migrations to head.
-2. Deploy CDP UI build **2026.06.04** with updated `VITE_*` configuration.
+1. [Database migrations](#database-migrations) to head on authentication and user (automated on Railway redeploy).
+2. Redeploy **authentication v0.32.2** and **user v0.6.5**.
+3. Redeploy CDP UI **2026.06.04**.
 
 **Post-deploy verification:**
 
@@ -312,20 +343,17 @@ Run once per new environment **before** platform admin UI or `GET /api/v1/users`
 
 ## CDP UI v0.2.0
 
-**Build identifiers:** CDP UI build **v0.2.0**; **authentication v0.30.0**; **user v0.2.0**.
+**Release pins:** CDP UI **v0.2.0**; **authentication v0.30.0**; **user v0.2.0**.
 
 **Prerequisites:**
 
 - Authentication and User services deployed per their installation plans for the same tags.
 - WorkOS **`operator`** role assigned for registry/admin testers.
-
-**Pre-deploy:**
-
-- Set `VITE_USER_API_URL` to the public User API URL in the UI build environment (alongside other `VITE_*_API_URL` values).
+- Staging `VITE_USER_API_URL` (alongside other `VITE_*_API_URL` values).
 
 **Deploy:**
 
-1. Build and deploy CDP UI v0.2.0 with updated `VITE_*` configuration.
+1. Redeploy CDP UI **v0.2.0**.
 
 **Post-deploy verification:**
 
@@ -335,5 +363,5 @@ Run once per new environment **before** platform admin UI or `GET /api/v1/users`
 
 **Evidence:**
 
-- Build config record showing `VITE_USER_API_URL` (no secrets).
+- Deploy config record showing `VITE_USER_API_URL` (no secrets).
 - Screenshots or test script output for Admin → Users list and successful role save.

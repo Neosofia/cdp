@@ -25,6 +25,7 @@ import {
   type UserRegistryRecord,
 } from '@/lib/appTypes';
 import { fetchRoleEntitlements, prefetchEntitlementsInBackground } from '@/lib/entitlements';
+import { uiResource } from '@/lib/uiCapability';
 import { fetchRoleCatalog, roleCatalogForUi, type RoleCatalogSnapshot } from '@/lib/roleCatalogApi';
 import {
   buildSessionRoleChoices,
@@ -534,11 +535,11 @@ export function useAuthSession(options: UseAuthSessionOptions = {}) {
     if (!roleEntitlements) {
       return;
     }
-    if (!roleEntitlements['ui:menu:patient'] && selectedSection === 'Patient') {
+    if (!roleEntitlements[uiResource('Menu', 'patient')] && selectedSection === 'Patient') {
       onBeforeNavigate?.();
       navigate(DEFAULT_APP_ROUTE, 'replace');
     }
-    if (!roleEntitlements['ui:menu:clinician'] && selectedSection === 'Clinician') {
+    if (!roleEntitlements[uiResource('Menu', 'clinician')] && selectedSection === 'Clinician') {
       onBeforeNavigate?.();
       navigate(DEFAULT_APP_ROUTE, 'replace');
     }
