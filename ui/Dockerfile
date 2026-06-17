@@ -20,6 +20,7 @@ ARG VITE_CAPABILITIES_API_URL=http://localhost:8019
 ARG VITE_USER_API_URL=http://localhost:8018
 ARG VITE_CHAT_API_URL=http://localhost:8001
 ARG VITE_CARE_EPISODE_API_URL=http://localhost:8015
+ARG VITE_NOTIFICATION_API_URL=http://localhost:8005
 ARG VITE_TEMPLATE_API_URL=http://localhost:8900
 
 RUN pnpm run build

@@ -59,6 +59,11 @@ SERVICES_TO_SEED = [
         "slug": "python-template",
         "base_url": "http://python-template:8900",
     },
+    {
+        "name": "Notification Service",
+        "slug": "notification",
+        "base_url": "http://notification:8005",  # cloud: https://<notification-public-host>
+    },
 ]
 
 

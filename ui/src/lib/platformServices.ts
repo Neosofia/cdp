@@ -6,6 +6,7 @@ export type PlatformServiceId =
   | 'capabilities'
   | 'chat'
   | 'care-episode'
+  | 'notification'
   | 'template';
 
 export type PlatformServiceDefinition = {
@@ -31,6 +32,7 @@ export const PLATFORM_SERVICES: PlatformServiceDefinition[] = [
   { id: 'capabilities', label: 'capabilities', resolveApiBase: envApiBase('VITE_CAPABILITIES_API_URL') },
   { id: 'chat', label: 'chat', resolveApiBase: envApiBase('VITE_CHAT_API_URL') },
   { id: 'care-episode', label: 'care-episode', resolveApiBase: envApiBase('VITE_CARE_EPISODE_API_URL') },
+  { id: 'notification', label: 'notification', resolveApiBase: envApiBase('VITE_NOTIFICATION_API_URL') },
   { id: 'template', label: 'python-template', resolveApiBase: envApiBase('VITE_TEMPLATE_API_URL') },
 ];
 
