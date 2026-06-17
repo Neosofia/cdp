@@ -14,6 +14,8 @@ export interface AppRoute {
   section: AppSection;
   action: string | null;
   clinicianPatientUuid: string | null;
+  /** Deep link from escalation email — selects episode history on patient detail. */
+  clinicianEpisodeUuid: string | null;
   clinicianListFilters: ClinicianListFilters;
 }
 
@@ -46,6 +48,7 @@ export const DEFAULT_APP_ROUTE: AppRoute = {
   section: '',
   action: null,
   clinicianPatientUuid: null,
+  clinicianEpisodeUuid: null,
   clinicianListFilters: DEFAULT_CLINICIAN_LIST_FILTERS,
 };
 
@@ -140,6 +143,21 @@ function clinicianFilterQuery(filters: ClinicianListFilters): string {
   return params.toString();
 }
 
+function clinicianRouteQuery(route: AppRoute): string {
+  const params = new URLSearchParams();
+  const filterQuery = clinicianFilterQuery(route.clinicianListFilters);
+  if (filterQuery) {
+    for (const [key, value] of new URLSearchParams(filterQuery)) {
+      params.set(key, value);
+    }
+  }
+  const episodeUuid = route.clinicianEpisodeUuid?.trim();
+  if (episodeUuid) {
+    params.set('episode_uuid', episodeUuid);
+  }
+  return params.toString();
+}
+
 export function pathForAppRoute(route: AppRoute): string {
   if (!route.section) {
     return '/';
@@ -153,7 +171,7 @@ export function pathForAppRoute(route: AppRoute): string {
   }
 
   if (route.section === 'Clinician' && route.action === 'Patients') {
-    const query = clinicianFilterQuery(route.clinicianListFilters);
+    const query = clinicianRouteQuery(route);
     const suffix = query ? `?${query}` : '';
     if (route.clinicianPatientUuid) {
       return `/clinician/patients/${route.clinicianPatientUuid}${suffix}`;
@@ -179,6 +197,7 @@ export function readAppRoute(location: Location = window.location): AppRoute {
   const segments = location.pathname.split('/').filter(Boolean);
   const search = new URLSearchParams(location.search);
   const clinicianListFilters = parseClinicianListFilters(search);
+  const clinicianEpisodeUuid = search.get('episode_uuid')?.trim() || null;
 
   if (segments.length === 0) {
     return { ...DEFAULT_APP_ROUTE };
@@ -191,6 +210,7 @@ export function readAppRoute(location: Location = window.location): AppRoute {
         section: 'Patient',
         action,
         clinicianPatientUuid: null,
+        clinicianEpisodeUuid: null,
         clinicianListFilters: DEFAULT_CLINICIAN_LIST_FILTERS,
       };
     }
@@ -202,6 +222,7 @@ export function readAppRoute(location: Location = window.location): AppRoute {
       section: 'Clinician',
       action: 'Patients',
       clinicianPatientUuid: patientUuid,
+      clinicianEpisodeUuid,
       clinicianListFilters,
     };
   }
@@ -211,6 +232,7 @@ export function readAppRoute(location: Location = window.location): AppRoute {
       section: 'Admin',
       action: 'Services',
       clinicianPatientUuid: null,
+      clinicianEpisodeUuid: null,
       clinicianListFilters: DEFAULT_CLINICIAN_LIST_FILTERS,
     };
   }
@@ -219,6 +241,7 @@ export function readAppRoute(location: Location = window.location): AppRoute {
       section: 'Admin',
       action: 'Users',
       clinicianPatientUuid: null,
+      clinicianEpisodeUuid: null,
       clinicianListFilters: DEFAULT_CLINICIAN_LIST_FILTERS,
     };
   }
@@ -228,6 +251,7 @@ export function readAppRoute(location: Location = window.location): AppRoute {
       section: 'Debug',
       action: 'Test API endpoints',
       clinicianPatientUuid: null,
+      clinicianEpisodeUuid: null,
       clinicianListFilters: DEFAULT_CLINICIAN_LIST_FILTERS,
     };
   }

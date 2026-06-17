@@ -31,7 +31,35 @@ uv run alembic upgrade head
 SELECT version_num FROM alembic_version;
 ```
 
-Compare `version_num` to the expected revision in that release's service **INSTALLATION_PLAN.md** (for example user **`002`**, care-episode **`012`** at CDP UI **2026.06.19**).
+Compare `version_num` to the expected revision in that release's service **INSTALLATION_PLAN.md** (for example user **`002`**, care-episode **`012`** at CDP UI **2026.06.20**).
+
+## CDP UI 2026.06.20 / care-episode v0.8.2
+
+**Release pins:** CDP UI **2026.06.20**; **care-episode v0.8.2** (other backend pins unchanged from **2026.06.19** unless your environment already tracks newer tags).
+
+**Prerequisites**
+
+- **`FRONTEND_URL`** on care-episode set to the CDP UI base URL (clinical risk alert deep links).
+- Notification service registered when **`RISK_ESCALATION_ENABLED`** is true.
+
+**Deploy steps**
+
+1. Tag and push **care-episode v0.8.2**; wait for GHCR image publish.
+2. Redeploy **care-episode** on Railway (no new migration; preDeploy should report head **`012`**).
+3. Push **CDP UI 2026.06.20** to the Railway-connected branch (or redeploy UI service).
+
+**Post-deploy verification**
+
+1. `GET /health` on care-episode reports **0.8.2**; `alembic_version` is **`012`**.
+2. UI footer shows **2026.06.20**.
+3. Escalation email deep link opens clinician patient detail with the correct episode selected.
+4. Staging E2E green.
+
+**Evidence**
+
+- Care-episode health **0.8.2**; UI footer **2026.06.20**; staging E2E green.
+
+---
 
 ## CDP UI 2026.06.19 / care-episode v0.8.1
 

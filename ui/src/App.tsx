@@ -83,6 +83,7 @@ export default function App() {
     section: selectedSection,
     action: selectedAction,
     clinicianPatientUuid,
+    clinicianEpisodeUuid,
     clinicianListFilters,
   } = route;
 
@@ -153,6 +154,7 @@ export default function App() {
       section: 'Clinician',
       action: 'Patients',
       clinicianPatientUuid: patientUuid,
+      clinicianEpisodeUuid: null,
       clinicianListFilters: filters,
     });
   };
@@ -163,6 +165,7 @@ export default function App() {
       section: 'Patient',
       action,
       clinicianPatientUuid: null,
+      clinicianEpisodeUuid: null,
       clinicianListFilters: DEFAULT_CLINICIAN_LIST_FILTERS,
     });
   };
@@ -173,6 +176,7 @@ export default function App() {
       section,
       action,
       clinicianPatientUuid: routeOverrides?.clinicianPatientUuid ?? null,
+      clinicianEpisodeUuid: routeOverrides?.clinicianEpisodeUuid ?? null,
       clinicianListFilters: routeOverrides?.clinicianListFilters ?? DEFAULT_CLINICIAN_LIST_FILTERS,
     });
   };
@@ -183,6 +187,7 @@ export default function App() {
       section: 'Debug',
       action: 'Test API endpoints',
       clinicianPatientUuid: null,
+      clinicianEpisodeUuid: null,
       clinicianListFilters: DEFAULT_CLINICIAN_LIST_FILTERS,
     });
   };
@@ -216,6 +221,7 @@ export default function App() {
       section: 'Debug',
       action: 'Test API endpoints',
       clinicianPatientUuid: null,
+      clinicianEpisodeUuid: null,
       clinicianListFilters: DEFAULT_CLINICIAN_LIST_FILTERS,
     });
     const token = tokenInfo?.raw ?? (await fetchSessionData());
@@ -363,7 +369,11 @@ export default function App() {
               <PatientChat
                 token={tokenInfo.raw}
                 activeActor={activeActor}
-                patientName={profile ? `${profile.first_name} ${profile.last_name}` : undefined}
+                patientName={
+                  profile
+                    ? [profile.first_name, profile.last_name].filter(Boolean).join(' ').trim() || undefined
+                    : undefined
+                }
                 patientUuid={profile?.uuid}
                 tenantName={profile?.tenant_name}
               />
@@ -399,6 +409,7 @@ export default function App() {
                 error={patientsError}
                 onRetry={reload}
                 selectedPatientUuid={clinicianPatientUuid}
+                selectedEpisodeUuid={clinicianEpisodeUuid}
                 listFilters={clinicianListFilters}
                 onListFiltersChange={(filters) => navigateClinicianPatients(null, filters)}
                 onSelectPatient={(patientUuid) => navigateClinicianPatients(patientUuid, clinicianListFilters)}

@@ -1,10 +1,10 @@
 import { defineConfig, devices } from '@playwright/test';
-import dotenv from 'dotenv';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 
-const rootDir = path.dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: path.join(rootDir, 'e2e', '.env') });
+import { e2eAppBaseUrl, e2eLocalPort, e2eRemoteBaseUrl } from './e2e/helpers/env';
+
+const baseURL = e2eAppBaseUrl();
+const serveLocalProdBuild = !e2eRemoteBaseUrl();
+const localServePort = e2eLocalPort();
 
 export default defineConfig({
   testDir: './e2e',
@@ -18,10 +18,19 @@ export default defineConfig({
     timeout: 30_000,
   },
   use: {
-    baseURL: process.env.E2E_BASE_URL ?? 'http://localhost:5173',
+    baseURL,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },
+  webServer: serveLocalProdBuild
+    ? {
+        // Same path as ui/Dockerfile: tsc -b && vite build, then serve -s dist.
+        command: `pnpm run build && pnpm exec serve -s dist -l ${localServePort}`,
+        url: baseURL,
+        reuseExistingServer: false,
+        timeout: 180_000,
+      }
+    : undefined,
   projects: [
     {
       name: 'chromium',

@@ -1,5 +1,13 @@
 # Changelog
 
+## [2026.06.20]
+
+### Changed
+
+- Patient chat sends optional `patient_display_name` to care-episode for greeting context (labels still sourced from User registry in the UI).
+- Clinician patient detail reads `episode_uuid` from the URL query string (escalation email deep links).
+- Local Playwright runs use a production build (`pnpm run build` + `serve -s dist`) instead of the Vite dev server.
+
 ## [2026.06.19]
 
 ### Changed

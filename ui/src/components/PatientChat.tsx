@@ -62,11 +62,12 @@ const CARE_TEAM_INTERVENTION_MESSAGE =
 export default function PatientChat({
   token,
   activeActor,
-  patientName: _patientName,
+  patientName,
   patientUuid,
   tenantName: _tenantName,
 }: Props) {
   const pv = usePatientViewStyles();
+  const greetingName = patientName?.trim() || undefined;
   const canLoadHistory = Boolean(CHAT_API && patientUuid);
   const [interactions, setInteractions] = useState<ChatInteraction[]>([]);
   const [activeInteractionUuid, setActiveInteractionUuid] = useState<string | null>(null);
@@ -177,7 +178,7 @@ export default function PatientChat({
 
         let items = itemsResult;
         if (items.length === 0) {
-          const created = await createChatInteraction(token, activeActor, patientUuid);
+          const created = await createChatInteraction(token, activeActor, patientUuid, greetingName);
           if (cancelled) return;
           items = [created];
         }
@@ -354,7 +355,7 @@ export default function PatientChat({
     setError(null);
     setLoadingInteractions(true);
     try {
-      const created = await createChatInteraction(token, activeActor, patientUuid);
+      const created = await createChatInteraction(token, activeActor, patientUuid, greetingName);
       setInteractions(prev => [created, ...prev]);
       setActiveInteractionUuid(created.chat_interaction_uuid);
       setLoadingHistory(true);
@@ -415,6 +416,7 @@ export default function PatientChat({
         {
           sender_uuid: patientUuid,
           content: text,
+          ...(greetingName ? { patient_display_name: greetingName } : {}),
         },
       );
       if (result.intervention || !result.assistant_message) {

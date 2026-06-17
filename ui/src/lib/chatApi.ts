@@ -268,7 +268,14 @@ export async function createChatInteraction(
   token: string,
   activeActor: string,
   userUuid: string,
+  patientDisplayName?: string,
 ): Promise<ChatInteraction> {
+  const body: Record<string, string> = {};
+  const name = patientDisplayName?.trim();
+  if (name) {
+    body.patient_display_name = name;
+  }
+
   const res = await platformApiFetch(
     `${CARE_EPISODE_API}/api/v1/care-episodes/${userUuid}/chat/interactions`,
     token,
@@ -276,6 +283,7 @@ export async function createChatInteraction(
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
     },
   );
 
@@ -299,6 +307,7 @@ export async function loadPatientChatHistory(
 export interface PatientCompletionInput {
   content: string;
   sender_uuid?: string;
+  patient_display_name?: string;
 }
 
 export interface PatientCompletionResult {

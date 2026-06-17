@@ -95,6 +95,7 @@ interface Props {
   listFilters?: ClinicianListFilters;
   onListFiltersChange?: (filters: ClinicianListFilters) => void;
   selectedPatientUuid?: string | null;
+  selectedEpisodeUuid?: string | null;
   onSelectPatient: (patientUuid: string | null) => void;
   tenantUuid?: string | null;
   tenantName?: string | null;
@@ -1036,6 +1037,7 @@ function SessionDetail({
   clinicianDisplayName,
   clinicianRoleLabel,
   clinicianUuid,
+  preferredEpisodeUuid,
   onEpisodeChanged,
   saveNotice,
   recordsOpen,
@@ -1049,6 +1051,7 @@ function SessionDetail({
   clinicianDisplayName?: string;
   clinicianRoleLabel?: string;
   clinicianUuid?: string | null;
+  preferredEpisodeUuid?: string | null;
   onEpisodeChanged: () => void;
   saveNotice?: string | null;
   recordsOpen: boolean;
@@ -1100,8 +1103,9 @@ function SessionDetail({
   }, [token, activeActor, patient.patientUuid]);
 
   useEffect(() => {
-    void reloadEpisodeHistory();
-  }, [reloadEpisodeHistory]);
+    const preferred = preferredEpisodeUuid?.trim();
+    void reloadEpisodeHistory(preferred ? { selectEpisodeUuid: preferred } : undefined);
+  }, [reloadEpisodeHistory, preferredEpisodeUuid]);
 
   const selectedHistoryEntry = useMemo(
     () => episodeHistory.find((entry) => entry.episode_uuid === selectedHistoryUuid) ?? null,
@@ -1599,6 +1603,7 @@ export default function ClinicianActivePatients({
   listFilters,
   onListFiltersChange,
   selectedPatientUuid,
+  selectedEpisodeUuid,
   onSelectPatient,
   tenantUuid,
   tenantName: _tenantName,
@@ -1727,6 +1732,7 @@ export default function ClinicianActivePatients({
           clinicianDisplayName={clinicianDisplayName}
           clinicianRoleLabel={clinicianRoleLabel}
           clinicianUuid={clinicianUuid}
+          preferredEpisodeUuid={selectedEpisodeUuid}
           onEpisodeChanged={onRetry ?? (() => {})}
           saveNotice={saveNotice}
           recordsOpen={recordsOpen}

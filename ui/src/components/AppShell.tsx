@@ -606,6 +606,7 @@ export default function AppShell({
                               section: 'Clinician',
                               action: 'Patients',
                               clinicianPatientUuid: null,
+                              clinicianEpisodeUuid: null,
                               clinicianListFilters,
                             })}
                             onClick={(e) => {
@@ -665,6 +666,7 @@ export default function AppShell({
                               section: 'Debug',
                               action: 'Test API endpoints',
                               clinicianPatientUuid: null,
+                              clinicianEpisodeUuid: null,
                               clinicianListFilters: DEFAULT_CLINICIAN_LIST_FILTERS,
                             })}
                             onClick={(e) => {
