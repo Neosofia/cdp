@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, type ReactNode } from 'react';
 import { setupTracing } from './otel';
 import ServiceManagement from '@/components/ServiceManagement';
 import UserManagement from '@/components/UserManagement';
@@ -47,6 +47,7 @@ try {
 export default function App() {
   const { isCorporate } = useUiTheme();
   const [testResult, setTestResult] = useState<DebugTestResult | null>(null);
+  const [clinicianBreadcrumbTrailing, setClinicianBreadcrumbTrailing] = useState<ReactNode>(null);
   const clearTestResult = useCallback(() => setTestResult(null), []);
 
   const session = useAuthSession({ onBeforeNavigate: clearTestResult });
@@ -92,7 +93,7 @@ export default function App() {
     error: patientsError,
     reload,
     enrollInPostCare,
-  } = usePatientRegistry(tokenInfo?.raw, activeActor, sessionTenantUuid);
+  } = usePatientRegistry(tokenInfo?.raw, activeActor, sessionTenantUuid, profile?.tenant_name);
 
   const showPatientMenu = activeRoleEntitlements[uiResource('Menu', 'patient')];
   const showClinicianMenu = activeRoleEntitlements[uiResource('Menu', 'clinician')];
@@ -104,6 +105,8 @@ export default function App() {
     : null;
   const isClinicianPatientList =
     selectedSection === 'Clinician' && selectedAction === 'Patients' && !clinicianPatientUuid;
+  const isClinicianPatientDetail =
+    Boolean(clinicianPatient) && selectedSection === 'Clinician' && selectedAction === 'Patients';
   const pageTitle =
     clinicianPatient && selectedSection === 'Clinician'
       ? clinicianPatient.displayName
@@ -113,7 +116,7 @@ export default function App() {
     clinicianPatient && selectedSection === 'Clinician'
       ? `${clinicianPatient.displayCode} · ${clinicianPatient.surgery} · Day ${clinicianPatient.daysPostOp} post-op · Recovery ${clinicianPatient.recoveryId}`
       : null;
-  const showPageHeading = !isClinicianPatientList;
+  const showPageHeading = !isClinicianPatientList && !isClinicianPatientDetail;
   const adminSectionCrumbIsLink = Boolean(selectedAction);
 
   const applyRoute = useCallback(
@@ -327,6 +330,7 @@ export default function App() {
         onSessionRoleChange={handleSessionRoleChange}
         onLogout={() => void handleLogout()}
         onSignInAgain={handleSignInAgain}
+        breadcrumbTrailing={clinicianBreadcrumbTrailing}
       >
         {tokenInfo && (
           <div
@@ -399,6 +403,7 @@ export default function App() {
                 onListFiltersChange={(filters) => navigateClinicianPatients(null, filters)}
                 onSelectPatient={(patientUuid) => navigateClinicianPatients(patientUuid, clinicianListFilters)}
                 tenantUuid={sessionTenantUuid}
+                tenantName={profile?.tenant_name}
                 onEnrollInPostCare={async (input) => {
                   await enrollInPostCare(input);
                 }}
@@ -428,6 +433,7 @@ export default function App() {
                       procedure_date: input.procedure_date,
                       recovery_id: input.recovery_id,
                       risk_level: input.risk_level,
+                      care_window_days: input.care_window_days,
                     });
                   } catch (err) {
                     const detail = err instanceof Error ? err.message : String(err);
@@ -435,6 +441,7 @@ export default function App() {
                   }
                   reload();
                 }}
+                onBreadcrumbTrailingChange={setClinicianBreadcrumbTrailing}
               />
             ) : selectedSection === 'Debug' ? (
               <DebugApiPanel

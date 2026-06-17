@@ -164,6 +164,10 @@ export function sortChatMessagesBySentAt(messages: ChatMessage[]): ChatMessage[]
   });
 }
 
+export function listableChatInteractions(interactions: ChatInteraction[]): ChatInteraction[] {
+  return interactions.filter(interaction => interaction.message_count > 0);
+}
+
 export function formatChatInteractionLabel(interaction: ChatInteraction): string {
   if (interaction.preview) {
     return interaction.preview;
@@ -257,7 +261,7 @@ export async function listChatInteractions(
   }
 
   const body = (await res.json()) as { items?: ChatInteraction[] };
-  return body.items ?? [];
+  return listableChatInteractions(body.items ?? []);
 }
 
 export async function createChatInteraction(

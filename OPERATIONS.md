@@ -21,6 +21,7 @@ cp .authentication.env.sample .authentication.env
 cp .authentication-postgres.env.sample .authentication-postgres.env
 cp .capabilities.env.sample .capabilities.env
 cp .template.env.sample .template.env
+cp .notification.env.sample .notification.env
 cp .user.env.sample .user.env
 cp .user-postgres.env.sample .user-postgres.env
 cp ui/.env.sample ui/.env
@@ -113,7 +114,7 @@ docker compose -f docker-compose.dev.yml up -d --build
 ./scripts/compose-logs-json.sh docker-compose.dev.yml
 ```
 
-Then access the platform at localhost:5173 (UI). Default API ports (8000 + spec number): Authentication **8014**, User **8018** (spec 018), Capabilities **8019**. Python template demo **8900** (outside the spec port range). In `ui/.env`, `VITE_TEMPLATE_API_URL` must point at the template service (**8900**), not the user service (**8018**).
+Then access the platform at localhost:5173 (UI). Default API ports (8000 + spec number): Authentication **8014**, User **8018** (spec 018), Capabilities **8019**, Notification **8005** (spec 005). Python template demo **8900** (outside the spec port range). In `ui/.env`, `VITE_TEMPLATE_API_URL` must point at the template service (**8900**), not the user service (**8018**). Set `RESEND_API_KEY` in `.notification.env` and include `http://localhost:5173` in `CORS_ORIGINS` so the operator service-health panel can reach notification.
 
 ### Full stack from local service checkouts
 

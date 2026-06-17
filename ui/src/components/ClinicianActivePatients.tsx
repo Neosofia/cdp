@@ -1,16 +1,19 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useScrollToBottom } from '@/lib/useScrollToBottom';
 import {
-  ArrowLeftIcon,
+  ArchiveBoxXMarkIcon,
+  ArrowPathIcon,
+  ChatBubbleLeftRightIcon,
   ChevronDownIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
+  DocumentTextIcon,
   MagnifyingGlassIcon,
   PaperAirplaneIcon,
   PencilSquareIcon,
+  SparklesIcon,
   UserGroupIcon,
   SignalIcon,
   UserPlusIcon,
+  ClockIcon,
 } from '@heroicons/react/24/outline';
 import { Badge } from '@/components/ui/badge';
 import ChatMessageContent from '@/components/ChatMessageContent';
@@ -28,6 +31,7 @@ import { cn } from '@/lib/utils';
 import { usePatientViewStyles } from '@/lib/patientViewStyles';
 import PatientRecordsPanel from '@/components/PatientRecordsPanel';
 import PatientEnrollSheet from '@/components/PatientEnrollSheet';
+import NewCareEpisodeSheet from '@/components/NewCareEpisodeSheet';
 import RiskSummaryHint from '@/components/RiskSummaryHint';
 import ProcedurePicker from '@/components/ProcedurePicker';
 import SpawnDatePicker from '@/components/SpawnDatePicker';
@@ -38,9 +42,17 @@ import {
   createChatMessage,
   formatChatInteractionActivityDate,
   formatChatInteractionLabel,
+  interactionsWithIntervention,
   type ChatInteraction,
 } from '@/lib/chatApi';
-import { listCareEpisodeRecords } from '@/lib/careEpisodeApi';
+import {
+  bulkCloseCareEpisodeRecoveries,
+  closeCareEpisodeRecovery,
+  listCareEpisodeHistory,
+  listCareEpisodeRecords,
+  reopenCareEpisodeRecovery,
+  type CareEpisodeHistoryEntry,
+} from '@/lib/careEpisodeApi';
 import {
   chatMessageToTranscriptLine,
   listPatientChatInteractions,
@@ -57,13 +69,16 @@ import {
   riskForRecovery,
   sortPatientRecoveriesByRiskAndRecency,
   registryUsersNotYetEnrolled,
+  DEFAULT_CARE_WINDOW_DAYS,
   type ActivePatientRecovery,
   type ClinicianActivityFilter,
+  type ClinicianEpisodeStatusFilter,
   type ClinicianListFilters,
   type ClinicianRiskFilter,
   type RegistryPatientUser,
 } from '@/lib/demoPatients';
 import type { PostCareEnrollmentInput } from '@/lib/postCareEnrollment';
+import { clinicianTranscriptBubbleLayout } from '@/lib/chatBubbleLayout';
 
 interface Props {
   patients: ActivePatientRecovery[];
@@ -82,8 +97,10 @@ interface Props {
   selectedPatientUuid?: string | null;
   onSelectPatient: (patientUuid: string | null) => void;
   tenantUuid?: string | null;
+  tenantName?: string | null;
   onEnrollInPostCare: (input: PostCareEnrollmentInput) => Promise<void>;
   onEditEnrollment: (input: EditEnrollmentInput) => Promise<void>;
+  onBreadcrumbTrailingChange?: (node: ReactNode | null) => void;
 }
 
 export interface EditEnrollmentInput {
@@ -98,24 +115,7 @@ export interface EditEnrollmentInput {
   recovery_id: string;
   risk_level: string;
   tenant_uuid: string;
-}
-
-function transcriptSpeakerLabel(
-  role: PatientTranscriptLine['role'],
-  clinicianName?: string,
-): string {
-  if (role === 'patient') {
-    return 'Patient';
-  }
-  if (role === 'clinician') {
-    return clinicianName?.trim() || 'Clinician';
-  }
-  return 'Care assistant';
-}
-
-/** Clinician view: patient inbound on the left; care team outbound on the right. */
-function isPatientInboundMessage(role: PatientTranscriptLine['role']): boolean {
-  return role === 'patient';
+  care_window_days: number;
 }
 
 const RISK_FILTER_OPTIONS: { value: ClinicianRiskFilter; label: string }[] = [
@@ -131,8 +131,16 @@ const ACTIVITY_FILTER_OPTIONS: { value: ClinicianActivityFilter; label: string }
   { value: 'this-week', label: 'This week' },
 ];
 
-/** Fixed columns: patient · days post-op · last chat · risk (+ edit action). */
+const EPISODE_STATUS_FILTER_OPTIONS: { value: ClinicianEpisodeStatusFilter; label: string }[] = [
+  { value: 'active', label: 'Open episodes' },
+  { value: 'closed', label: 'Closed episodes' },
+  { value: 'all', label: 'All episodes' },
+];
+
+/** Fixed columns: select · patient · days post-op · last chat · risk (+ edit action). */
 const PATIENT_ROW_GRID =
+  'grid w-full grid-cols-[1.75rem_minmax(0,1fr)_4.5rem_7rem_5.5rem_2rem] items-center gap-x-3';
+const PATIENT_ROW_GRID_NO_SELECT =
   'grid w-full grid-cols-[minmax(0,1fr)_4.5rem_7rem_5.5rem_2rem] items-center gap-x-4';
 
 function FilterDropdown<T extends string>({
@@ -178,8 +186,15 @@ function PatientListFilters({
   filters: ClinicianListFilters;
   onChange: (filters: ClinicianListFilters) => void;
 }) {
+  const pv = usePatientViewStyles();
   return (
-    <div className="flex shrink-0 items-center gap-2">
+    <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+      <FilterDropdown
+        label="Episode"
+        value={filters.episodeStatus}
+        options={EPISODE_STATUS_FILTER_OPTIONS}
+        onSelect={(episodeStatus) => onChange({ ...filters, episodeStatus })}
+      />
       <FilterDropdown
         label="Risk"
         value={filters.risk}
@@ -192,6 +207,38 @@ function PatientListFilters({
         options={ACTIVITY_FILTER_OPTIONS}
         onSelect={(activity) => onChange({ ...filters, activity })}
       />
+      <label className={cn('flex items-center gap-1.5 text-xs', pv.subText)}>
+        <span className="whitespace-nowrap">Min days post-op</span>
+        <Input
+          type="number"
+          min={0}
+          value={filters.minDaysPostOp ?? ''}
+          onChange={(event) => {
+            const parsed = Number.parseInt(event.target.value, 10);
+            onChange({
+              ...filters,
+              minDaysPostOp: Number.isFinite(parsed) && parsed > 0 ? parsed : null,
+            });
+          }}
+          className={cn('h-8 w-16 px-2', pv.inputClass)}
+        />
+      </label>
+      <label className={cn('flex items-center gap-1.5 text-xs', pv.subText)}>
+        <span className="whitespace-nowrap">Min days since chat</span>
+        <Input
+          type="number"
+          min={0}
+          value={filters.minDaysSinceChat ?? ''}
+          onChange={(event) => {
+            const parsed = Number.parseInt(event.target.value, 10);
+            onChange({
+              ...filters,
+              minDaysSinceChat: Number.isFinite(parsed) && parsed > 0 ? parsed : null,
+            });
+          }}
+          className={cn('h-8 w-16 px-2', pv.inputClass)}
+        />
+      </label>
     </div>
   );
 }
@@ -204,8 +251,9 @@ function patientListEmptyMessage(
   if (debouncedSearch.trim()) {
     return 'No patients match your search.';
   }
-  if (listFilters.risk !== 'all' || listFilters.activity !== 'all') {
-    return 'No patients match these filters. Clear risk or chat filters to see more.';
+  if (listFilters.risk !== 'all' || listFilters.activity !== 'all' || listFilters.episodeStatus !== 'active'
+    || listFilters.minDaysPostOp !== null || listFilters.minDaysSinceChat !== null) {
+    return 'No patients match these filters. Clear filters to see more.';
   }
   if (rosterCount === 0) {
     return 'No patients on your roster yet. Select Enroll to start post-care monitoring.';
@@ -224,6 +272,10 @@ function PatientList({
   onSelect,
   onEdit,
   onEnroll,
+  token,
+  activeActor,
+  clinicianUuid,
+  onBulkClosed,
 }: {
   patients: ActivePatientRecovery[];
   selfUuid?: string | null;
@@ -235,12 +287,20 @@ function PatientList({
   onSelect: (uuid: string) => void;
   onEdit: (patient: ActivePatientRecovery) => void;
   onEnroll: () => void;
+  token: string;
+  activeActor: string;
+  clinicianUuid?: string | null;
+  onBulkClosed: () => void;
 }) {
   const pv = usePatientViewStyles();
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [page, setPage] = useState(1);
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const [bulkMode, setBulkMode] = useState(false);
+  const [selectedUuids, setSelectedUuids] = useState<Set<string>>(new Set());
+  const [bulkClosing, setBulkClosing] = useState(false);
+  const [bulkError, setBulkError] = useState<string | null>(null);
   useEffect(() => {
     const timer = window.setInterval(() => setNowMs(Date.now()), 30_000);
     return () => window.clearInterval(timer);
@@ -253,6 +313,7 @@ function PatientList({
 
   useEffect(() => {
     setPage(1);
+    setSelectedUuids(new Set());
   }, [debouncedSearch, listFilters]);
 
   const filtered = useMemo(() => {
@@ -260,6 +321,55 @@ function PatientList({
     const searched = filterPatientRecoveries(byFilter, debouncedSearch);
     return sortPatientRecoveriesByRiskAndRecency(searched);
   }, [patients, listFilters, nowMs, debouncedSearch]);
+
+  const selectablePatients = useMemo(
+    () => filtered.filter((patient) => patient.episodeStatus === 'active'),
+    [filtered],
+  );
+
+  const allVisibleSelected = selectablePatients.length > 0
+    && selectablePatients.every((patient) => selectedUuids.has(patient.patientUuid));
+
+  const toggleSelectAll = () => {
+    if (allVisibleSelected) {
+      setSelectedUuids(new Set());
+      return;
+    }
+    setSelectedUuids(new Set(selectablePatients.map((patient) => patient.patientUuid)));
+  };
+
+  const togglePatientSelected = (patientUuid: string) => {
+    setSelectedUuids((previous) => {
+      const next = new Set(previous);
+      if (next.has(patientUuid)) {
+        next.delete(patientUuid);
+      } else {
+        next.add(patientUuid);
+      }
+      return next;
+    });
+  };
+
+  const closeSelectedEpisodes = async () => {
+    if (selectedUuids.size === 0) return;
+    setBulkClosing(true);
+    setBulkError(null);
+    try {
+      await bulkCloseCareEpisodeRecoveries(
+        token,
+        activeActor,
+        [...selectedUuids],
+        clinicianUuid ?? undefined,
+      );
+      setSelectedUuids(new Set());
+      setBulkMode(false);
+      onBulkClosed();
+    } catch (closeError) {
+      setBulkError(closeError instanceof Error ? closeError.message : 'Failed to close episodes');
+    } finally {
+      setBulkClosing(false);
+    }
+  };
 
   const { items: pagePatients, total, totalPages, page: safePage } = useMemo(
     () => paginatePatientRecoveries(filtered, page, PATIENT_LIST_PAGE_SIZE),
@@ -286,21 +396,49 @@ function PatientList({
             <UserGroupIcon className="h-5 w-5" />
             Patients
           </CardTitle>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={onEnroll}
-            className={pv.outlineButton}
-          >
-            <UserPlusIcon className="h-4 w-4 mr-1.5" />
-            Enroll
-          </Button>
+          <div className="flex items-center gap-2">
+            {bulkMode ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={bulkClosing || selectedUuids.size === 0}
+                onClick={() => void closeSelectedEpisodes()}
+                className={pv.outlineButton}
+              >
+                <ArchiveBoxXMarkIcon className="h-4 w-4 mr-1.5" />
+                Close {selectedUuids.size || ''} selected
+              </Button>
+            ) : null}
+            <Button
+              type="button"
+              size="sm"
+              variant={bulkMode ? 'default' : 'outline'}
+              onClick={() => {
+                setBulkMode((value) => !value);
+                setSelectedUuids(new Set());
+                setBulkError(null);
+              }}
+              className={bulkMode ? undefined : pv.outlineButton}
+            >
+              {bulkMode ? 'Done' : 'Manage'}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={onEnroll}
+              className={pv.outlineButton}
+            >
+              <UserPlusIcon className="h-4 w-4 mr-1.5" />
+              Enroll
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="p-0 flex flex-col">
         <div
-          className={cn('px-6 py-3 border-b shrink-0', pv.isCorporate ? 'border-slate-200' : '')}
+          className={cn('px-6 py-3 border-b shrink-0 space-y-3', pv.isCorporate ? 'border-slate-200' : '')}
           style={pv.isCorporate ? undefined : { borderColor: 'rgba(34,211,238,0.08)' }}
         >
           <div className="flex items-center gap-2 min-w-0">
@@ -313,8 +451,20 @@ function PatientList({
                 className={cn('h-9 w-full pl-9', pv.inputClass)}
               />
             </div>
-            <PatientListFilters filters={listFilters} onChange={onListFiltersChange} />
           </div>
+          <PatientListFilters filters={listFilters} onChange={onListFiltersChange} />
+          {bulkError ? <p className="text-xs text-red-400">{bulkError}</p> : null}
+          {bulkMode && selectablePatients.length > 0 ? (
+            <label className={cn('flex items-center gap-2 text-xs', pv.subText)}>
+              <input
+                type="checkbox"
+                checked={allVisibleSelected}
+                onChange={toggleSelectAll}
+                className="size-4 rounded border-slate-500"
+              />
+              Select all {selectablePatients.length} open episode{selectablePatients.length === 1 ? '' : 's'} matching filters
+            </label>
+          ) : null}
         </div>
         {error ? (
           <div
@@ -350,51 +500,80 @@ function PatientList({
         >
           {pagePatients.map(p => (
             <li key={p.patientUuid}>
-              <button
-                type="button"
-                onClick={() => onSelect(p.patientUuid)}
+              <div
                 className={cn(
-                  PATIENT_ROW_GRID,
-                  'text-left px-6 py-4 transition-colors',
+                  bulkMode ? PATIENT_ROW_GRID : PATIENT_ROW_GRID_NO_SELECT,
+                  'px-6 py-4 transition-colors',
                   pv.rowHover,
                 )}
               >
-                <div className="min-w-0 overflow-hidden">
-                  <div className={cn('font-semibold text-sm flex items-center gap-2 min-w-0', pv.bodyText)}>
-                    <span className="truncate">{p.displayName}</span>
-                    {selfUuid && p.patientUuid === selfUuid ? (
-                      <Badge
-                        variant="outline"
-                        className="text-[10px] font-semibold shrink-0"
-                        style={pv.demoBadgeStyle}
-                      >
-                        Self (demo)
-                      </Badge>
+                {bulkMode ? (
+                  <div className="flex items-center justify-center">
+                    <input
+                      type="checkbox"
+                      checked={selectedUuids.has(p.patientUuid)}
+                      disabled={p.episodeStatus !== 'active'}
+                      onChange={() => togglePatientSelected(p.patientUuid)}
+                      aria-label={`Select ${p.displayName}`}
+                      className="size-4 rounded border-slate-500"
+                    />
+                  </div>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => onSelect(p.patientUuid)}
+                  className={cn(
+                    'min-w-0 text-left',
+                    bulkMode ? 'col-span-4 grid grid-cols-[minmax(0,1fr)_4.5rem_7rem_5.5rem] items-center gap-x-3' : 'col-span-4 grid grid-cols-[minmax(0,1fr)_4.5rem_7rem_5.5rem] items-center gap-x-3',
+                  )}
+                >
+                  <div className="min-w-0 overflow-hidden">
+                    <div className={cn('font-semibold text-sm flex items-center gap-2 min-w-0', pv.bodyText)}>
+                      <span className="truncate">{p.displayName}</span>
+                      {p.episodeStatus === 'closed' ? (
+                        <Badge variant="outline" className="text-[10px] font-semibold shrink-0">
+                          Closed
+                        </Badge>
+                      ) : null}
+                      {selfUuid && p.patientUuid === selfUuid ? (
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] font-semibold shrink-0"
+                          style={pv.demoBadgeStyle}
+                        >
+                          Self (demo)
+                        </Badge>
+                      ) : null}
+                    </div>
+                    <div className={cn('font-mono text-xs mt-0.5 truncate', pv.isCorporate ? 'text-slate-600' : 'text-cyan-300')}>
+                      {p.displayCode}
+                    </div>
+                    <div className={cn('text-sm mt-0.5 truncate', pv.mutedText)}>{p.surgery}</div>
+                    {p.tenantName ? (
+                      <div className={cn('text-[10px] mt-0.5 truncate uppercase tracking-wide', pv.subText)}>
+                        {p.tenantName}
+                      </div>
                     ) : null}
                   </div>
-                  <div className={cn('font-mono text-xs mt-0.5 truncate', pv.isCorporate ? 'text-slate-600' : 'text-cyan-300')}>
-                    {p.displayCode}
+                  <div className="w-[4.5rem] text-center shrink-0">
+                    <div className={cn('text-lg font-bold tabular-nums', pv.bodyText)}>{p.daysPostOp}</div>
+                    <div className={cn('text-[10px] uppercase tracking-widest leading-tight', pv.subText)}>days</div>
                   </div>
-                  <div className={cn('text-sm mt-0.5 truncate', pv.mutedText)}>{p.surgery}</div>
-                </div>
-                <div className="w-[4.5rem] text-center shrink-0">
-                  <div className={cn('text-lg font-bold tabular-nums', pv.bodyText)}>{p.daysPostOp}</div>
-                  <div className={cn('text-[10px] uppercase tracking-widest leading-tight', pv.subText)}>days</div>
-                </div>
-                <div className={cn('w-[7rem] shrink-0 flex items-center gap-1.5 text-xs min-w-0', pv.subText)}>
-                  <SignalIcon className={cn('h-4 w-4 shrink-0', pv.isCorporate ? 'text-green-600' : 'text-green-400')} />
-                  <span className="truncate">{formatRelativeActivity(p.lastChatAt, nowMs)}</span>
-                </div>
-                <div className="w-[6.5rem] shrink-0 flex items-center justify-center gap-1">
-                  <Badge
-                    variant="outline"
-                    className="text-[10px] whitespace-nowrap"
-                    style={pv.riskBadge(riskForRecovery(p))}
-                  >
-                    {riskForRecovery(p)} risk
-                  </Badge>
-                  <RiskSummaryHint summary={p.riskSummary} />
-                </div>
+                  <div className={cn('w-[7rem] shrink-0 flex items-center gap-1.5 text-xs min-w-0', pv.subText)}>
+                    <SignalIcon className={cn('h-4 w-4 shrink-0', pv.isCorporate ? 'text-green-600' : 'text-green-400')} />
+                    <span className="truncate">{formatRelativeActivity(p.lastChatAt, nowMs)}</span>
+                  </div>
+                  <div className="w-[6.5rem] shrink-0 flex items-center justify-center gap-1">
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] whitespace-nowrap"
+                      style={pv.riskBadge(riskForRecovery(p))}
+                    >
+                      {riskForRecovery(p)} risk
+                    </Badge>
+                    <RiskSummaryHint summary={p.riskSummary} />
+                  </div>
+                </button>
                 <div className="w-8 shrink-0 flex justify-end">
                   <Button
                     type="button"
@@ -410,7 +589,7 @@ function PatientList({
                     <PencilSquareIcon className="h-4 w-4" />
                   </Button>
                 </div>
-              </button>
+              </div>
             </li>
           ))}
         </ul>
@@ -454,6 +633,10 @@ function PatientList({
   );
 }
 
+function transcriptHasClinicianMessage(messages: PatientTranscriptLine[]): boolean {
+  return messages.some(message => message.role === 'clinician');
+}
+
 function TranscriptPanel({
   patient,
   messages,
@@ -463,6 +646,7 @@ function TranscriptPanel({
   onSendClinicianMessage,
   clinicianDisplayName,
   clinicianRoleLabel,
+  interventionThreadUuids,
   canCompose,
   loading,
   error,
@@ -477,6 +661,7 @@ function TranscriptPanel({
   onSendClinicianMessage: (content: string) => Promise<void>;
   clinicianDisplayName?: string;
   clinicianRoleLabel?: string;
+  interventionThreadUuids: Set<string>;
   canCompose: boolean;
   loading: boolean;
   error: string | null;
@@ -493,18 +678,10 @@ function TranscriptPanel({
     messages.length,
     lastMessageId,
   ]);
-  const activeIndex = interactions.findIndex(
-    interaction => interaction.chat_interaction_uuid === activeInteractionUuid,
-  );
-  const activeInteraction = activeIndex >= 0 ? interactions[activeIndex] : null;
-  const canGoOlder = activeIndex >= 0 && activeIndex < interactions.length - 1;
-  const canGoNewer = activeIndex > 0;
-  const sessionLabel = activeInteraction
-    ? formatChatInteractionLabel(activeInteraction)
-    : 'No conversation';
-  const sessionDate = activeInteraction
-    ? formatChatInteractionActivityDate(activeInteraction)
-    : '';
+  const showSidebar = interactions.length >= 2;
+  const activeThreadHasIntervention = activeInteractionUuid
+    ? interventionThreadUuids.has(activeInteractionUuid) || transcriptHasClinicianMessage(messages)
+    : false;
 
   const focusComposeInput = useCallback(() => {
     queueMicrotask(() => {
@@ -520,6 +697,14 @@ function TranscriptPanel({
     }
   }, [canCompose, sending, loading, focusComposeInput]);
 
+  const selectInteraction = (interactionUuid: string) => {
+    if (interactionUuid === activeInteractionUuid || sending) {
+      return;
+    }
+    onSelectInteraction(interactionUuid);
+    focusComposeInput();
+  };
+
   const submitReply = async () => {
     const text = draft.trim();
     if (!text || sending || !canCompose) {
@@ -534,113 +719,180 @@ function TranscriptPanel({
     }
   };
 
-  return (
-    <Card
-      className={cn('gap-0 py-0 flex min-h-0 flex-1 flex-col overflow-hidden', pv.cardClass)}
-      {...(pv.cardStyle ? { style: pv.cardStyle } : {})}
-    >
-      <CardHeader className={cn('py-3 shrink-0', pv.headerClass)} style={pv.headerStyle}>
-        <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            disabled={!canGoOlder}
-            onClick={() => {
-              if (!canGoOlder) return;
-              onSelectInteraction(interactions[activeIndex + 1].chat_interaction_uuid);
-            }}
-            className={cn('shrink-0 disabled:opacity-30', pv.ghostButton)}
-            aria-label="Older conversation"
-          >
-            <ChevronLeftIcon className="h-4 w-4" />
-          </Button>
-          <div className="min-w-0 flex-1 text-center">
-            <CardTitle className={cn('text-sm font-medium truncate normal-case tracking-normal', pv.bodyText)}>
-              {sessionLabel}
-            </CardTitle>
-            {sessionDate ? (
-              <p className={cn('text-xs mt-0.5', pv.mutedText)}>{sessionDate}</p>
-            ) : null}
-          </div>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            disabled={!canGoNewer}
-            onClick={() => {
-              if (!canGoNewer) return;
-              onSelectInteraction(interactions[activeIndex - 1].chat_interaction_uuid);
-            }}
-            className={cn('shrink-0 disabled:opacity-30', pv.ghostButton)}
-            aria-label="Newer conversation"
-          >
-            <ChevronRightIcon className="h-4 w-4" />
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent className="flex min-h-0 flex-1 flex-col overflow-hidden p-0">
+  const conversationsSidebar = showSidebar ? (
+    <div className={pv.conversationsPanelWrapClass}>
+      <aside
+        className={pv.conversationsPanelClass}
+        style={pv.conversationsPanelStyle}
+      >
         <div
-          ref={scrollRef}
-          className={cn(
-            'min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-y-contain px-3 py-3 pb-6',
-            pv.chatScrollClass,
-          )}
+          className={pv.conversationsPanelHeaderClass}
+          style={pv.conversationsPanelHeaderStyle}
         >
-          {loading && messages.length === 0 ? (
-            <p className={cn('text-sm text-center py-8', pv.mutedText)}>Loading chat transcript…</p>
-          ) : null}
-          {error ? (
-            <p className="text-sm text-red-400 text-center py-8">{error}</p>
-          ) : null}
-          {!loading && !error && messages.length === 0 ? (
-            <p className={cn('text-sm text-center py-8', pv.mutedText)}>No messages in this conversation yet.</p>
-          ) : null}
-          {messages.map(msg => {
-            const inbound = isPatientInboundMessage(msg.role);
-            return (
-            <div
-              key={msg.id}
-              className={cn('flex', inbound ? 'justify-start' : 'justify-end')}
-            >
-              <div
-                className={cn(
-                  'max-w-[92%] rounded-xl px-3 py-2 text-sm leading-relaxed',
-                  inbound ? cn('rounded-bl-sm', pv.chatBubbleInboundClass) : cn('rounded-br-sm', pv.chatBubbleOutboundClass),
-                )}
-                style={inbound ? pv.chatBubbleInbound() : pv.chatBubbleOutbound()}
-              >
-                <div className="text-[9px] uppercase tracking-widest mb-1 opacity-60">
-                  {transcriptSpeakerLabel(msg.role, clinicianDisplayName)} · {msg.time}
-                </div>
-                <ChatMessageContent
-                  content={msg.content}
-                  markdown={!inbound}
-                  surface={inbound ? 'light' : 'dark'}
-                />
-              </div>
-            </div>
-            );
-          })}
+          <p className={cn('text-xs font-semibold uppercase tracking-widest', pv.mutedText)}>Conversations</p>
         </div>
-        {canCompose ? (
-          <div
-            className={cn('shrink-0 border-t px-3 py-3 space-y-2', pv.formFooterClass)}
-            style={pv.formFooterStyle}
-          >
-            <div className="min-w-0 text-center">
-              <p className={cn('text-sm font-medium truncate', pv.bodyText)}>
-                {clinicianDisplayName?.trim() || 'Clinician'}
-              </p>
-              {clinicianRoleLabel ? (
-                <p className={cn('text-xs mt-0.5', pv.mutedText)}>{clinicianRoleLabel}</p>
+        <nav className={pv.conversationsPanelNavClass}>
+        {interactions.map(interaction => {
+          const isActive = interaction.chat_interaction_uuid === activeInteractionUuid;
+          const activityDate = formatChatInteractionActivityDate(interaction);
+          const threadHasIntervention = interventionThreadUuids.has(interaction.chat_interaction_uuid);
+          return (
+            <button
+              key={interaction.chat_interaction_uuid}
+              type="button"
+              onClick={() => selectInteraction(interaction.chat_interaction_uuid)}
+              disabled={loading || sending}
+              className={cn(
+                'w-full text-left rounded-lg px-3 py-2 text-sm transition-colors border',
+                isActive
+                  ? pv.conversationActive
+                  : threadHasIntervention
+                    ? pv.conversationIntervention
+                    : pv.conversationIdle,
+              )}
+            >
+              <span className="flex items-start gap-2 min-w-0">
+                <span className="block truncate font-medium flex-1 min-w-0">
+                  {formatChatInteractionLabel(interaction)}
+                </span>
+                {threadHasIntervention ? (
+                  <span
+                    className={cn(
+                      'shrink-0 inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide',
+                      pv.careTeamBadgeClass,
+                    )}
+                    title="Care team is responding in this conversation"
+                  >
+                    <UserGroupIcon className="h-3 w-3" aria-hidden />
+                    Care team
+                  </span>
+                ) : null}
+              </span>
+              {activityDate ? (
+                <span className="block text-[10px] mt-1 opacity-60">{activityDate}</span>
               ) : null}
-            </div>
-            {composeError ? (
-              <p className="text-xs text-red-400 text-center">{composeError}</p>
+            </button>
+          );
+        })}
+        </nav>
+      </aside>
+    </div>
+  ) : null;
+
+  return (
+    <div className={pv.chatLayoutClass}>
+      <Card
+        className={cn('flex-1 min-w-0 h-full min-h-0 flex flex-col overflow-hidden', pv.chatCardClass)}
+        {...(pv.cardStyle ? { style: pv.cardStyle } : {})}
+      >
+        <CardHeader className={pv.chatCardHeaderClass} style={pv.headerStyle}>
+          <CardTitle
+            className={cn('text-lg flex items-center gap-2', pv.titleClass)}
+            style={pv.titleStyle}
+          >
+            <ChatBubbleLeftRightIcon className="h-5 w-5" />
+            Patient chat
+            {activeThreadHasIntervention ? (
+              <span
+                className={cn(
+                  'text-[10px] font-semibold uppercase tracking-widest px-2 py-0.5 rounded-md ml-2',
+                  pv.careTeamBadgeClass,
+                )}
+              >
+                Care team active
+              </span>
             ) : null}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0 flex flex-1 flex-col min-h-0 overflow-hidden">
+          <div
+            ref={scrollRef}
+            className={cn(
+              'flex-1 min-h-0 overflow-y-auto overscroll-y-contain px-4 py-4 pb-6 space-y-4',
+              pv.chatScrollClass,
+            )}
+          >
+            {loading && messages.length === 0 ? (
+              <div className="flex justify-center py-8">
+                <p className={cn('text-sm', pv.mutedText)}>Loading chat transcript…</p>
+              </div>
+            ) : null}
+            {error ? (
+              <p className="text-sm text-red-400 text-center py-8">{error}</p>
+            ) : null}
+            {!loading && !error && messages.length === 0 ? (
+              <p className={cn('text-sm text-center py-8', pv.mutedText)}>No messages in this conversation yet.</p>
+            ) : null}
+            {messages.map(msg => {
+              const layout = clinicianTranscriptBubbleLayout(msg.role);
+              const clinicianName = clinicianDisplayName?.trim() || 'Clinician';
+              return (
+                <div
+                  key={msg.id}
+                  className={cn('flex', layout.alignEnd ? 'justify-end' : 'justify-start')}
+                >
+                  <div
+                    className={cn(
+                      'max-w-[85%] rounded-2xl px-4 py-3 text-base leading-relaxed',
+                      layout.useUserBubble
+                        ? cn(pv.chatBubbleUserClass, layout.tailClass)
+                        : cn(pv.chatBubbleAssistantClass, layout.tailClass),
+                      layout.offsetClass,
+                    )}
+                    style={layout.useUserBubble ? pv.chatBubbleUser() : pv.chatBubbleAssistant()}
+                  >
+                    {layout.showSparkles ? (
+                      <SparklesIcon
+                        className={cn(
+                          'h-4 w-4 mb-1.5 inline-block mr-1.5',
+                          pv.isCorporate ? 'text-violet-600' : '',
+                        )}
+                        style={pv.isCorporate ? undefined : { color: '#a855f7' }}
+                      />
+                    ) : null}
+                    {msg.role === 'clinician' ? (
+                      <div className="text-xs mb-1.5 leading-snug">
+                        <span className={cn('font-medium', pv.isCorporate ? 'text-slate-100' : 'text-cyan-100')}>
+                          {clinicianName}
+                        </span>
+                        {clinicianRoleLabel ? (
+                          <span className={pv.isCorporate ? 'text-slate-300' : 'text-cyan-200/80'}>
+                            {` · ${clinicianRoleLabel}`}
+                          </span>
+                        ) : null}
+                      </div>
+                    ) : null}
+                    <ChatMessageContent
+                      content={msg.content}
+                      markdown={layout.markdown}
+                      surface={layout.useUserBubble ? 'dark' : 'light'}
+                    />
+                    <div
+                      className={cn(
+                        'text-[10px] mt-2 text-right',
+                        pv.isCorporate
+                          ? layout.useUserBubble
+                            ? 'text-slate-300'
+                            : 'text-slate-500'
+                          : 'opacity-50',
+                      )}
+                    >
+                      {msg.time}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {composeError ? (
+            <p className="px-4 pb-2 text-xs text-red-400">{composeError}</p>
+          ) : null}
+
+          {canCompose ? (
             <form
-              className="flex gap-2"
+              className={cn('flex gap-2 p-4 shrink-0', pv.chatCardFooterClass, pv.formFooterClass)}
+              style={pv.formFooterStyle}
               onSubmit={event => {
                 event.preventDefault();
                 void submitReply();
@@ -657,14 +909,13 @@ function TranscriptPanel({
                   }
                 }}
                 placeholder="Reply to patient…"
-                disabled={loading}
-                className={cn('flex-1 h-9', pv.inputClass)}
+                disabled={loading || sending}
+                className={cn('flex-1 h-10', pv.inputClass)}
                 autoComplete="off"
               />
               <Button
                 type="button"
                 variant="outline"
-                size="icon"
                 onClick={() => void submitReply()}
                 disabled={loading || sending || !draft.trim()}
                 className={cn('chat-send-button', pv.sendButtonClass)}
@@ -674,10 +925,108 @@ function TranscriptPanel({
                 <PaperAirplaneIcon className="h-4 w-4" />
               </Button>
             </form>
-          </div>
-        ) : null}
-      </CardContent>
-    </Card>
+          ) : null}
+        </CardContent>
+      </Card>
+      {conversationsSidebar}
+    </div>
+  );
+}
+
+function historyRiskLevel(level: string): 'High' | 'Medium' | 'Low' {
+  const normalized = level.trim().toLowerCase();
+  if (normalized === 'high') return 'High';
+  if (normalized === 'medium') return 'Medium';
+  return 'Low';
+}
+
+function formatHistoryClosedAt(value: string | null | undefined): string {
+  if (!value) return 'discharged';
+  const parsed = Date.parse(value);
+  if (!Number.isFinite(parsed)) return 'discharged';
+  return new Date(parsed).toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
+function formatHistoryOptionLabel(entry: CareEpisodeHistoryEntry): string {
+  if (entry.is_current && entry.status === 'active') {
+    return `Current — ${entry.surgery} · ${entry.procedure_date}`;
+  }
+  if (entry.is_current && entry.status === 'closed') {
+    return `Last discharge — ${entry.surgery} · ${formatHistoryClosedAt(entry.closed_at)}`;
+  }
+  return `${entry.surgery} · ${entry.procedure_date} · ${formatHistoryClosedAt(entry.closed_at)}`;
+}
+
+function daysPostOpFromProcedureDate(procedureDate: string): number {
+  const procedureMs = Date.parse(`${procedureDate.trim()}T12:00:00`);
+  if (!Number.isFinite(procedureMs)) {
+    return 0;
+  }
+  const todayMs = Date.parse(`${new Date().toISOString().slice(0, 10)}T12:00:00`);
+  return Math.max(0, Math.floor((todayMs - procedureMs) / (24 * 60 * 60 * 1000)));
+}
+
+function PatientBreadcrumbChrome({
+  episodeHistory,
+  selectedHistoryUuid,
+  historyLoading,
+  onSelectEpisode,
+  onOpenRecords,
+  onEditPatient,
+  outlineButtonClass,
+  inputClass,
+}: {
+  episodeHistory: CareEpisodeHistoryEntry[];
+  selectedHistoryUuid: string;
+  historyLoading: boolean;
+  onSelectEpisode: (episodeUuid: string) => void;
+  onOpenRecords: () => void;
+  onEditPatient: () => void;
+  outlineButtonClass: string;
+  inputClass: string;
+}) {
+  return (
+    <div className="flex items-center gap-2 shrink-0">
+      {episodeHistory.length > 0 ? (
+        <select
+          className={cn('h-8 min-w-[14rem] max-w-[20rem] rounded-md border px-2 text-xs', inputClass)}
+          value={selectedHistoryUuid}
+          disabled={historyLoading}
+          onChange={(event) => onSelectEpisode(event.target.value)}
+          aria-label="Care episode"
+        >
+          {episodeHistory.map((entry) => (
+            <option key={entry.episode_uuid} value={entry.episode_uuid}>
+              {formatHistoryOptionLabel(entry)}
+            </option>
+          ))}
+        </select>
+      ) : null}
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        className={outlineButtonClass}
+        onClick={onOpenRecords}
+      >
+        <DocumentTextIcon className="h-4 w-4 mr-1.5" />
+        Records
+      </Button>
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        className={outlineButtonClass}
+        onClick={onEditPatient}
+        aria-label="Edit patient profile"
+      >
+        <PencilSquareIcon className="h-4 w-4" />
+      </Button>
+    </div>
   );
 }
 
@@ -688,9 +1037,12 @@ function SessionDetail({
   clinicianDisplayName,
   clinicianRoleLabel,
   clinicianUuid,
-  onBack,
-  onEdit,
+  onEpisodeChanged,
   saveNotice,
+  recordsOpen,
+  onRecordsOpenChange,
+  onEditPatient,
+  onBreadcrumbTrailingChange,
 }: {
   patient: ActivePatientRecovery;
   token: string;
@@ -698,9 +1050,12 @@ function SessionDetail({
   clinicianDisplayName?: string;
   clinicianRoleLabel?: string;
   clinicianUuid?: string | null;
-  onBack: () => void;
-  onEdit: (patient: ActivePatientRecovery) => void;
+  onEpisodeChanged: () => void;
   saveNotice?: string | null;
+  recordsOpen: boolean;
+  onRecordsOpenChange: (open: boolean) => void;
+  onEditPatient: () => void;
+  onBreadcrumbTrailingChange?: (node: ReactNode | null) => void;
 }) {
   const pv = usePatientViewStyles();
   const [interactions, setInteractions] = useState<ChatInteraction[]>([]);
@@ -713,6 +1068,118 @@ function SessionDetail({
   const [patientRecords, setPatientRecords] = useState<MedicalRecord[]>([]);
   const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
   const [recordsLoading, setRecordsLoading] = useState(true);
+  const [episodeStatus, setEpisodeStatus] = useState(patient.episodeStatus);
+  const [lifecycleBusy, setLifecycleBusy] = useState(false);
+  const [lifecycleError, setLifecycleError] = useState<string | null>(null);
+  const [interventionThreadUuids, setInterventionThreadUuids] = useState<Set<string>>(() => new Set());
+  const [episodeHistory, setEpisodeHistory] = useState<CareEpisodeHistoryEntry[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [selectedHistoryUuid, setSelectedHistoryUuid] = useState('');
+  const [newEpisodeOpen, setNewEpisodeOpen] = useState(false);
+
+  const reloadEpisodeHistory = useCallback(async (options?: { selectEpisodeUuid?: string }) => {
+    setHistoryLoading(true);
+    try {
+      const items = await listCareEpisodeHistory(token, activeActor, patient.patientUuid);
+      setEpisodeHistory(items);
+      setSelectedHistoryUuid((previous) => {
+        const preferred = options?.selectEpisodeUuid?.trim();
+        if (preferred && items.some((item) => item.episode_uuid === preferred)) {
+          return preferred;
+        }
+        if (options?.selectEpisodeUuid !== undefined) {
+          return items.find((item) => item.is_current)?.episode_uuid ?? items[0]?.episode_uuid ?? '';
+        }
+        if (items.some((item) => item.episode_uuid === previous)) {
+          return previous;
+        }
+        return items.find((item) => item.is_current)?.episode_uuid ?? items[0]?.episode_uuid ?? '';
+      });
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, [token, activeActor, patient.patientUuid]);
+
+  useEffect(() => {
+    void reloadEpisodeHistory();
+  }, [reloadEpisodeHistory]);
+
+  const selectedHistoryEntry = useMemo(
+    () => episodeHistory.find((entry) => entry.episode_uuid === selectedHistoryUuid) ?? null,
+    [episodeHistory, selectedHistoryUuid],
+  );
+  const showHistorySelect = episodeHistory.length > 1
+    || episodeHistory.some((entry) => !entry.is_current);
+  const liveEpisode = useMemo(
+    () => episodeHistory.find((entry) => entry.is_current && entry.status === 'active') ?? null,
+    [episodeHistory],
+  );
+  const managingEpisode = useMemo(() => {
+    if (liveEpisode) {
+      return liveEpisode;
+    }
+    return episodeHistory.find((entry) => entry.is_current) ?? episodeHistory[0] ?? null;
+  }, [episodeHistory, liveEpisode]);
+  const viewingManagingEpisode = Boolean(
+    managingEpisode && selectedHistoryEntry?.episode_uuid === managingEpisode.episode_uuid,
+  );
+  const showLifecycleActions = !showHistorySelect || viewingManagingEpisode;
+  const viewingLiveEpisode = Boolean(
+    liveEpisode && selectedHistoryEntry?.episode_uuid === liveEpisode.episode_uuid,
+  );
+  const showDischargeSummary = Boolean(
+    selectedHistoryEntry?.status === 'closed'
+    && !viewingLiveEpisode
+    && episodeHistory.length > 1,
+  );
+  const headerDaysPostOp = selectedHistoryEntry
+    ? daysPostOpFromProcedureDate(selectedHistoryEntry.procedure_date)
+    : patient.daysPostOp;
+  const headerRisk = selectedHistoryEntry
+    ? historyRiskLevel(selectedHistoryEntry.risk_level)
+    : riskForRecovery(patient);
+  const headerEpisodeClosed = selectedHistoryEntry
+    ? selectedHistoryEntry.status === 'closed'
+    : episodeStatus === 'closed';
+
+  const breadcrumbCallbacksRef = useRef({
+    onOpenRecords: () => onRecordsOpenChange(true),
+    onEditPatient,
+  });
+  breadcrumbCallbacksRef.current = {
+    onOpenRecords: () => onRecordsOpenChange(true),
+    onEditPatient,
+  };
+
+  useEffect(() => {
+    if (!onBreadcrumbTrailingChange) {
+      return undefined;
+    }
+    onBreadcrumbTrailingChange(
+      <PatientBreadcrumbChrome
+        episodeHistory={episodeHistory}
+        selectedHistoryUuid={selectedHistoryUuid}
+        historyLoading={historyLoading}
+        onSelectEpisode={setSelectedHistoryUuid}
+        onOpenRecords={() => breadcrumbCallbacksRef.current.onOpenRecords()}
+        onEditPatient={() => breadcrumbCallbacksRef.current.onEditPatient()}
+        outlineButtonClass={pv.outlineButton}
+        inputClass={pv.inputClass}
+      />,
+    );
+    return () => onBreadcrumbTrailingChange(null);
+  }, [
+    episodeHistory,
+    selectedHistoryUuid,
+    historyLoading,
+    onBreadcrumbTrailingChange,
+    pv.outlineButton,
+    pv.inputClass,
+  ]);
+
+  useEffect(() => {
+    setEpisodeStatus(patient.episodeStatus);
+  }, [patient.episodeStatus, patient.patientUuid]);
 
   useEffect(() => {
     let cancelled = false;
@@ -778,6 +1245,41 @@ function SessionDetail({
   }, [token, activeActor, patient.patientUuid]);
 
   useEffect(() => {
+    if (interactions.length < 2) {
+      return;
+    }
+
+    let cancelled = false;
+    const interactionUuids = interactions.map(interaction => interaction.chat_interaction_uuid);
+
+    void interactionsWithIntervention(token, activeActor, patient.patientUuid, interactionUuids).then(
+      engaged => {
+        if (!cancelled) {
+          setInterventionThreadUuids(engaged);
+        }
+      },
+    );
+
+    return () => {
+      cancelled = true;
+    };
+  }, [interactions, token, activeActor, patient.patientUuid]);
+
+  useEffect(() => {
+    if (!activeInteractionUuid || !transcriptHasClinicianMessage(transcript)) {
+      return;
+    }
+    setInterventionThreadUuids(previous => {
+      if (previous.has(activeInteractionUuid)) {
+        return previous;
+      }
+      const next = new Set(previous);
+      next.add(activeInteractionUuid);
+      return next;
+    });
+  }, [transcript, activeInteractionUuid]);
+
+  useEffect(() => {
     setComposeError(null);
   }, [activeInteractionUuid]);
 
@@ -822,7 +1324,55 @@ function SessionDetail({
     setSelectedRecordId(record?.id ?? null);
   };
 
-  const canCompose = Boolean(activeInteractionUuid && clinicianUuid);
+  const canCompose = Boolean(activeInteractionUuid && clinicianUuid && episodeStatus === 'active');
+
+  const handleEpisodeClose = async () => {
+    if (!managingEpisode?.episode_uuid) {
+      setLifecycleError('No care episode to close');
+      return;
+    }
+    setLifecycleBusy(true);
+    setLifecycleError(null);
+    try {
+      const result = await closeCareEpisodeRecovery(
+        token,
+        activeActor,
+        managingEpisode.episode_uuid,
+        clinicianUuid ?? undefined,
+      );
+      setEpisodeStatus(result.status ?? 'closed');
+      onEpisodeChanged();
+      void reloadEpisodeHistory();
+    } catch (error) {
+      setLifecycleError(error instanceof Error ? error.message : 'Failed to close episode');
+    } finally {
+      setLifecycleBusy(false);
+    }
+  };
+
+  const handleEpisodeReopen = async () => {
+    if (!managingEpisode?.episode_uuid) {
+      setLifecycleError('No care episode to reopen');
+      return;
+    }
+    setLifecycleBusy(true);
+    setLifecycleError(null);
+    try {
+      const result = await reopenCareEpisodeRecovery(
+        token,
+        activeActor,
+        managingEpisode.episode_uuid,
+        clinicianUuid ?? undefined,
+      );
+      setEpisodeStatus(result.status ?? 'active');
+      onEpisodeChanged();
+      void reloadEpisodeHistory();
+    } catch (error) {
+      setLifecycleError(error instanceof Error ? error.message : 'Failed to reopen episode');
+    } finally {
+      setLifecycleBusy(false);
+    }
+  };
 
   const handleSendClinicianMessage = async (content: string) => {
     if (!activeInteractionUuid || !clinicianUuid) {
@@ -871,54 +1421,166 @@ function SessionDetail({
           {saveNotice}
         </p>
       ) : null}
-      <div className="shrink-0 flex items-center justify-between">
-        <Button
-          type="button"
-          variant="ghost"
-          onClick={onBack}
-          className={cn('w-fit', pv.ghostButton)}
-        >
-          <ArrowLeftIcon className="h-4 w-4 mr-1.5" />
-          Back to list
-        </Button>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          className={pv.outlineButton}
-          onClick={() => onEdit(patient)}
-        >
-          <PencilSquareIcon className="h-4 w-4" />
-        </Button>
-      </div>
-      <div className="grid min-h-0 flex-1 gap-4 overflow-hidden lg:grid-cols-2">
-        <div className="flex min-h-0 flex-col overflow-hidden">
-          <TranscriptPanel
-            patient={patient}
-            messages={transcript}
-            interactions={interactions}
-            activeInteractionUuid={activeInteractionUuid}
-            onSelectInteraction={setActiveInteractionUuid}
-            onSendClinicianMessage={handleSendClinicianMessage}
-            clinicianDisplayName={clinicianDisplayName}
-            clinicianRoleLabel={clinicianRoleLabel}
-            canCompose={canCompose}
-            loading={transcriptLoading}
-            error={transcriptError}
-            composeError={composeError}
-            sending={sendingReply}
-          />
+      <div
+        className={cn(
+          'shrink-0 rounded-lg border px-4 py-3',
+          pv.isCorporate ? 'border-slate-200 bg-slate-50' : 'border-cyan-500/20 bg-cyan-500/5',
+        )}
+      >
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 min-w-0">
+          <p className={cn('text-base font-semibold truncate', pv.bodyText)}>
+            {patient.displayName}
+            {patient.displayCode ? (
+              <span className={cn('ml-1.5 font-mono text-xs font-normal', pv.mutedText)}>
+                ({patient.displayCode})
+              </span>
+            ) : null}
+          </p>
+          <span className={cn('text-sm tabular-nums', pv.bodyText)}>{headerDaysPostOp}d post-op</span>
+          {headerEpisodeClosed ? (
+            <Badge variant="outline" className="text-[10px]">Closed</Badge>
+          ) : null}
+          {patient.tenantName ? (
+            <span className={cn('text-[10px] uppercase tracking-wide', pv.subText)}>{patient.tenantName}</span>
+          ) : null}
+          <div className="flex flex-wrap items-center gap-2 ml-auto">
+            <Badge variant="outline" className="text-[10px]" style={pv.riskBadge(headerRisk)}>
+              {headerRisk} risk
+            </Badge>
+            <RiskSummaryHint summary={patient.riskSummary} />
+            {showLifecycleActions && episodeStatus === 'closed' ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className={pv.outlineButton}
+                onClick={() => setNewEpisodeOpen(true)}
+              >
+                <UserPlusIcon className="h-4 w-4 mr-1.5" />
+                New episode
+              </Button>
+            ) : null}
+            {showLifecycleActions && episodeStatus === 'active' ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={lifecycleBusy}
+                onClick={() => void handleEpisodeClose()}
+                className={pv.outlineButton}
+              >
+                <ArchiveBoxXMarkIcon className="h-4 w-4 mr-1.5" />
+                Close episode
+              </Button>
+            ) : null}
+            {showLifecycleActions && episodeStatus === 'closed' ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={lifecycleBusy}
+                onClick={() => void handleEpisodeReopen()}
+                className={pv.outlineButton}
+              >
+                <ArrowPathIcon className="h-4 w-4 mr-1.5" />
+                Reopen episode
+              </Button>
+            ) : null}
+          </div>
         </div>
-        <div className="flex min-h-0 flex-col overflow-hidden">
-          <PatientRecordsPanel
-            records={patientRecords}
-            embedded
-            selectedId={selectedRecordId}
-            onSelectRecord={handleSelectRecord}
-            loading={recordsLoading}
-          />
-        </div>
       </div>
+      {lifecycleError ? <p className="text-xs text-red-400 shrink-0">{lifecycleError}</p> : null}
+      {showDischargeSummary && selectedHistoryEntry ? (
+        <div
+          className={cn(
+            'shrink-0 rounded-lg border px-4 py-2 text-sm',
+            pv.isCorporate ? 'border-slate-200 bg-white' : 'border-slate-700/60 bg-slate-900/40',
+          )}
+        >
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+            <div className="flex items-center gap-1.5 font-medium">
+              <ClockIcon className={cn('h-4 w-4', pv.mutedText)} />
+              <span className={pv.bodyText}>Discharge summary</span>
+            </div>
+            {selectedHistoryEntry.closed_at ? (
+              <span className={pv.mutedText}>
+                Closed {formatHistoryClosedAt(selectedHistoryEntry.closed_at)}
+              </span>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+      {showHistorySelect && !viewingManagingEpisode ? (
+        <p className={cn('text-sm shrink-0', pv.mutedText)}>
+          Viewing a prior discharge for review. Select the current episode above to
+          manage the live care episode.
+        </p>
+      ) : null}
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <TranscriptPanel
+          patient={patient}
+          messages={transcript}
+          interactions={interactions}
+          activeInteractionUuid={activeInteractionUuid}
+          onSelectInteraction={setActiveInteractionUuid}
+          onSendClinicianMessage={handleSendClinicianMessage}
+          clinicianDisplayName={clinicianDisplayName}
+          clinicianRoleLabel={clinicianRoleLabel}
+          interventionThreadUuids={interventionThreadUuids}
+          canCompose={canCompose}
+          loading={transcriptLoading}
+          error={transcriptError}
+          composeError={composeError}
+          sending={sendingReply}
+        />
+      </div>
+      <Sheet open={recordsOpen} onOpenChange={onRecordsOpenChange}>
+        <SheetContent
+          side="right"
+          className={cn(
+            'gap-0 overflow-hidden p-0',
+            'w-[75vw] max-w-[75vw] data-[side=right]:w-[75vw] data-[side=right]:max-w-[75vw] data-[side=right]:sm:max-w-[75vw]',
+            pv.isCorporate ? 'bg-white' : 'bg-slate-950',
+          )}
+        >
+          <SheetHeader
+            className={cn(
+              'shrink-0 border-b px-6 pt-6 pb-4',
+              pv.isCorporate ? 'border-slate-200' : 'border-slate-700/60',
+            )}
+          >
+            <SheetTitle className={cn('pr-8', pv.titleClass)}>Medical records</SheetTitle>
+          </SheetHeader>
+          <div className="min-h-0 flex-1 overflow-hidden px-6 pb-6 pt-4">
+            <PatientRecordsPanel
+              records={patientRecords}
+              embedded
+              selectedId={selectedRecordId}
+              onSelectRecord={handleSelectRecord}
+              loading={recordsLoading}
+            />
+          </div>
+        </SheetContent>
+      </Sheet>
+      {patient.tenantUuid ? (
+        <NewCareEpisodeSheet
+          open={newEpisodeOpen}
+          onOpenChange={setNewEpisodeOpen}
+          patientUuid={patient.patientUuid}
+          displayCode={patient.displayCode}
+          displayName={patient.displayName}
+          tenantUuid={patient.tenantUuid}
+          clinicianUuid={clinicianUuid}
+          token={token}
+          activeActor={activeActor}
+          onStarted={(episodeUuid) => {
+            setEpisodeStatus('active');
+            setLifecycleError(null);
+            onEpisodeChanged();
+            void reloadEpisodeHistory({ selectEpisodeUuid: episodeUuid });
+          }}
+        />
+      ) : null}
     </div>
   );
 }
@@ -940,11 +1602,14 @@ export default function ClinicianActivePatients({
   selectedPatientUuid,
   onSelectPatient,
   tenantUuid,
+  tenantName: _tenantName,
   onEnrollInPostCare,
   onEditEnrollment,
+  onBreadcrumbTrailingChange,
 }: Props) {
   const formStyles = useUserFormStyles();
   const [enrollOpen, setEnrollOpen] = useState(false);
+  const [recordsOpen, setRecordsOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [editingPatient, setEditingPatient] = useState<ActivePatientRecovery | null>(null);
   const [editDisplayCode, setEditDisplayCode] = useState('');
@@ -954,6 +1619,7 @@ export default function ClinicianActivePatients({
   const [editSelectedProcedureId, setEditSelectedProcedureId] = useState<string | null>(null);
   const [editProcedureDate, setEditProcedureDate] = useState('');
   const [editRecoveryId, setEditRecoveryId] = useState('');
+  const [editCareWindowDays, setEditCareWindowDays] = useState(String(DEFAULT_CARE_WINDOW_DAYS));
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
   const [saveNotice, setSaveNotice] = useState<string | null>(null);
@@ -981,6 +1647,7 @@ export default function ClinicianActivePatients({
     setEditSelectedProcedureId(procedureIdForSurgeryName(patientToEdit.surgery ?? ''));
     setEditProcedureDate(patientToEdit.procedureDate ?? new Date().toISOString().slice(0, 10));
     setEditRecoveryId(patientToEdit.recoveryId ?? '');
+    setEditCareWindowDays(String(patientToEdit.careWindowDays ?? DEFAULT_CARE_WINDOW_DAYS));
     setEditError(null);
     setEditOpen(true);
   };
@@ -1008,6 +1675,11 @@ export default function ClinicianActivePatients({
       setEditError('Patient email is required to save name updates.');
       return;
     }
+    const careDays = Number.parseInt(editCareWindowDays, 10);
+    if (!Number.isFinite(careDays) || careDays <= 0) {
+      setEditError('Care window must be a positive number of days.');
+      return;
+    }
     setEditSaving(true);
     setEditError(null);
     try {
@@ -1024,6 +1696,7 @@ export default function ClinicianActivePatients({
         recovery_id: editRecoveryId.trim(),
         risk_level: editingPatient.riskLevel.toLowerCase(),
         tenant_uuid: matchedUser?.tenant_uuid ?? '',
+        care_window_days: careDays,
       });
       setSaveNotice('Patient profile saved.');
       closeEditSheet();
@@ -1036,6 +1709,16 @@ export default function ClinicianActivePatients({
     ? patients.find(p => p.patientUuid === selectedPatientUuid)
     : null;
 
+  useEffect(() => {
+    if (!patient) {
+      onBreadcrumbTrailingChange?.(null);
+    }
+  }, [patient, onBreadcrumbTrailingChange]);
+
+  useEffect(() => {
+    setRecordsOpen(false);
+  }, [patient?.patientUuid]);
+
   return (
     <div className={cn('flex flex-col gap-3', patient && 'min-h-0 flex-1 overflow-hidden')}>
       {patient ? (
@@ -1046,9 +1729,12 @@ export default function ClinicianActivePatients({
           clinicianDisplayName={clinicianDisplayName}
           clinicianRoleLabel={clinicianRoleLabel}
           clinicianUuid={clinicianUuid}
-          onBack={() => onSelectPatient(null)}
-          onEdit={openEditSheet}
+          onEpisodeChanged={onRetry ?? (() => {})}
           saveNotice={saveNotice}
+          recordsOpen={recordsOpen}
+          onRecordsOpenChange={setRecordsOpen}
+          onEditPatient={() => openEditSheet(patient)}
+          onBreadcrumbTrailingChange={onBreadcrumbTrailingChange}
         />
       ) : (
         <PatientList
@@ -1062,6 +1748,10 @@ export default function ClinicianActivePatients({
           onSelect={onSelectPatient}
           onEdit={openEditSheet}
           onEnroll={() => setEnrollOpen(true)}
+          token={token}
+          activeActor={activeActor}
+          clinicianUuid={clinicianUuid}
+          onBulkClosed={onRetry ?? (() => {})}
         />
       )}
       <Sheet open={editOpen} onOpenChange={(nextOpen) => (nextOpen ? setEditOpen(true) : closeEditSheet())}>
@@ -1108,6 +1798,19 @@ export default function ClinicianActivePatients({
             <div>
               <label className={formStyles.fieldLabelClass}>Recovery ID</label>
               <Input value={editRecoveryId ?? ''} onChange={(event) => setEditRecoveryId(event.target.value)} className={formStyles.inputClass} />
+            </div>
+            <div>
+              <label className={formStyles.fieldLabelClass} htmlFor="edit-care-window">
+                Care window (days)
+              </label>
+              <Input
+                id="edit-care-window"
+                type="number"
+                min={1}
+                className={formStyles.inputClass}
+                value={editCareWindowDays}
+                onChange={(event) => setEditCareWindowDays(event.target.value)}
+              />
             </div>
             {editError ? <p className="text-sm text-red-400">{editError}</p> : null}
             <div className="flex items-center gap-3 pt-2">

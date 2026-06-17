@@ -44,3 +44,6 @@ coverage.xml
 
 # macOS
 .DS_Store
+
+# Local scratch notes (not for commit)
+tmp/

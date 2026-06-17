@@ -2,10 +2,16 @@
 
 ## [2026.06.18]
 
+### Added
+
+- Clinician **care episode lifecycle** — close and reopen the active episode, start a new procedure, episode history selector, and bulk close from the patient roster.
+- Playwright **E2E** harness (`ui/e2e/`) for clinician close/reopen on seeded catalog patient **DEMO-123**.
+
 ### Changed
 
 - Session tokens refresh every **15 minutes** (half the 30-minute access token lifetime) instead of once near expiry, with refocus catch-up when the tab returns from the background.
 - Chat and care-episode API calls retry once after **401** following a silent token refresh.
+- Care-episode client uses episode-scoped routes (`/episodes`, `PATCH /{episode_uuid}`) aligned with **care-episode v0.8.0**.
 
 ### Fixed
 

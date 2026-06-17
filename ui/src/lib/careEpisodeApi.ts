@@ -13,7 +13,11 @@ export interface CareEpisodeInviteResult {
   invite_token?: string;
 }
 
+export type CareEpisodeStatus = 'active' | 'closed';
+
 export interface CareEpisodeRecovery {
+  episode_uuid?: string;
+  patient_uuid?: string;
   user_uuid: string;
   display_code: string;
   display_name: string;
@@ -23,6 +27,10 @@ export interface CareEpisodeRecovery {
   recovery_id: string;
   risk_level: string | null;
   risk_summary?: string | null;
+  status?: CareEpisodeStatus;
+  tenant_uuid?: string;
+  closed_at?: string | null;
+  care_window_days?: number;
 }
 
 export interface UpsertCareEpisodeRecoveryInput {
@@ -34,6 +42,8 @@ export interface UpsertCareEpisodeRecoveryInput {
   procedure_date: string;
   recovery_id: string;
   risk_level: string;
+  reactivate?: boolean;
+  care_window_days?: number;
 }
 
 export interface CareEpisodeRecord {
@@ -88,16 +98,17 @@ export async function listCareEpisodeRecoveries(
   token: string,
   activeActor: string,
   tenantUuid?: string | null,
-  options?: { includeTenantFilter?: boolean },
+  options?: { includeTenantFilter?: boolean; status?: CareEpisodeStatus | 'all' },
 ): Promise<CareEpisodeRecovery[]> {
   if (!CARE_EPISODE_API) return [];
   const params = new URLSearchParams();
   const includeTenantFilter = options?.includeTenantFilter ?? true;
   if (tenantUuid && includeTenantFilter) params.set('tenant_uuid', tenantUuid);
+  if (options?.status && options.status !== 'all') params.set('status', options.status);
   const query = params.toString();
   let res: Response;
   try {
-    res = await fetch(`${CARE_EPISODE_API}/api/v1/care-episodes/recoveries${query ? `?${query}` : ''}`, {
+    res = await fetch(`${CARE_EPISODE_API}/api/v1/care-episodes${query ? `?${query}` : ''}`, {
       headers: { Authorization: `Bearer ${token}`, 'X-Active-Actor': activeActor },
     });
   } catch {
@@ -117,6 +128,10 @@ export async function listCareEpisodeRecoveries(
     recovery_id: item.recovery_id,
     risk_level: item.risk_level,
     risk_summary: item.risk_summary ?? null,
+    status: item.status ?? 'active',
+    tenant_uuid: item.tenant_uuid,
+    closed_at: item.closed_at ?? null,
+    care_window_days: item.care_window_days,
   }));
 }
 
@@ -211,7 +226,7 @@ export async function upsertCareEpisodeRecovery(
   input: UpsertCareEpisodeRecoveryInput,
 ): Promise<void> {
   if (!CARE_EPISODE_API) return;
-  const res = await fetch(`${CARE_EPISODE_API}/api/v1/care-episodes/recoveries`, {
+  const res = await fetch(`${CARE_EPISODE_API}/api/v1/care-episodes`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -224,6 +239,190 @@ export async function upsertCareEpisodeRecovery(
     const body = await res.text().catch(() => '');
     throw new Error(`Failed to upsert care episode recovery: HTTP ${res.status}${body ? ` ${body}` : ''}`);
   }
+}
+
+export interface PatchCareEpisodeInput {
+  status?: CareEpisodeStatus;
+  care_window_days?: number;
+  changed_by_uuid?: string;
+}
+
+export async function patchCareEpisode(
+  token: string,
+  activeActor: string,
+  episodeUuid: string,
+  input: PatchCareEpisodeInput,
+): Promise<CareEpisodeRecovery> {
+  if (!CARE_EPISODE_API) {
+    throw new Error('Care episode service is not configured');
+  }
+  const res = await fetch(`${CARE_EPISODE_API}/api/v1/care-episodes/${episodeUuid}`, {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'X-Active-Actor': activeActor,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(input),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const message = typeof body.message === 'string' ? body.message : `HTTP ${res.status}`;
+    throw new Error(message);
+  }
+  return body as CareEpisodeRecovery;
+}
+
+export async function getCareEpisode(
+  token: string,
+  activeActor: string,
+  episodeUuid: string,
+): Promise<CareEpisodeHistoryEntry | null> {
+  if (!CARE_EPISODE_API) return null;
+  const res = await fetch(`${CARE_EPISODE_API}/api/v1/care-episodes/${episodeUuid}`, {
+    headers: { Authorization: `Bearer ${token}`, 'X-Active-Actor': activeActor },
+  });
+  if (!res.ok) return null;
+  return (await res.json()) as CareEpisodeHistoryEntry;
+}
+
+export async function listCareEpisodes(
+  token: string,
+  activeActor: string,
+  patientUuid: string,
+): Promise<CareEpisodeHistoryEntry[]> {
+  if (!CARE_EPISODE_API) return [];
+  const res = await fetch(`${CARE_EPISODE_API}/api/v1/care-episodes/${patientUuid}/episodes`, {
+    headers: { Authorization: `Bearer ${token}`, 'X-Active-Actor': activeActor },
+  });
+  if (!res.ok) return [];
+  const body = (await res.json()) as { items?: CareEpisodeHistoryEntry[] };
+  return body.items ?? [];
+}
+
+/** @deprecated Use listCareEpisodes */
+export async function listCareEpisodeHistory(
+  token: string,
+  activeActor: string,
+  patientUuid: string,
+): Promise<CareEpisodeHistoryEntry[]> {
+  return listCareEpisodes(token, activeActor, patientUuid);
+}
+
+/** @deprecated Use patchCareEpisode with status closed */
+export async function closeCareEpisodeRecovery(
+  token: string,
+  activeActor: string,
+  episodeUuid: string,
+  changedByUuid?: string,
+): Promise<CareEpisodeRecovery> {
+  return patchCareEpisode(token, activeActor, episodeUuid, {
+    status: 'closed',
+    changed_by_uuid: changedByUuid,
+  });
+}
+
+/** @deprecated Use patchCareEpisode with status active */
+export async function reopenCareEpisodeRecovery(
+  token: string,
+  activeActor: string,
+  episodeUuid: string,
+  changedByUuid?: string,
+): Promise<CareEpisodeRecovery> {
+  return patchCareEpisode(token, activeActor, episodeUuid, {
+    status: 'active',
+    changed_by_uuid: changedByUuid,
+  });
+}
+
+export interface BulkCloseCareEpisodesResult {
+  closed: string[];
+  skipped: string[];
+  count: number;
+}
+
+export interface CareEpisodeHistoryEntry {
+  episode_uuid: string;
+  patient_uuid: string;
+  display_code: string;
+  display_name: string;
+  surgery: string;
+  procedure_date: string;
+  recovery_id: string;
+  risk_level: string;
+  status: CareEpisodeStatus;
+  closed_at?: string | null;
+  tenant_uuid?: string;
+  is_current: boolean;
+  care_window_days?: number;
+}
+
+export interface StartNewCareEpisodeInput {
+  patient_uuid: string;
+  tenant_uuid: string;
+  display_code: string;
+  display_name: string;
+  surgery: string;
+  procedure_date: string;
+  recovery_id: string;
+  risk_level: string;
+  changed_by_uuid?: string;
+  care_window_days?: number;
+}
+
+export async function startNewCareEpisode(
+  token: string,
+  activeActor: string,
+  input: StartNewCareEpisodeInput,
+): Promise<CareEpisodeRecovery> {
+  if (!CARE_EPISODE_API) {
+    throw new Error('Care episode service is not configured');
+  }
+  const { patient_uuid: patientUuid, ...body } = input;
+  const res = await fetch(`${CARE_EPISODE_API}/api/v1/care-episodes/${patientUuid}/episodes`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'X-Active-Actor': activeActor,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+  const responseBody = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const message = typeof responseBody.message === 'string' ? responseBody.message : `HTTP ${res.status}`;
+    throw new Error(message);
+  }
+  return responseBody as CareEpisodeRecovery;
+}
+
+export async function bulkCloseCareEpisodeRecoveries(
+  token: string,
+  activeActor: string,
+  patientUuids: string[],
+  changedByUuid?: string,
+): Promise<BulkCloseCareEpisodesResult> {
+  if (!CARE_EPISODE_API) {
+    throw new Error('Care episode service is not configured');
+  }
+  const res = await fetch(`${CARE_EPISODE_API}/api/v1/care-episodes/bulk-close`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'X-Active-Actor': activeActor,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      patient_uuids: patientUuids,
+      changed_by_uuid: changedByUuid,
+    }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const message = typeof body.message === 'string' ? body.message : `HTTP ${res.status}`;
+    throw new Error(message);
+  }
+  return body as BulkCloseCareEpisodesResult;
 }
 
 export async function upsertCareEpisodeRecords(

@@ -131,6 +131,8 @@ export async function enrollPatientInPostCare(
         procedure_date: input.procedure_date.trim(),
         recovery_id: recoveryId,
         risk_level: 'low',
+        reactivate: true,
+        care_window_days: input.care_window_days,
       });
       demoOnlyEpisode = false;
     }

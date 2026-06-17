@@ -104,6 +104,17 @@ export function usePatientViewStyles() {
         borderLeft: '1px solid rgba(34,211,238,0.12)',
       };
 
+  const conversationsPanelStyle: CSSProperties | undefined = isCorporate
+    ? undefined
+    : {
+        background: 'rgba(5,5,15,0.92)',
+        borderColor: 'rgba(34,211,238,0.18)',
+      };
+
+  const conversationsPanelHeaderStyle: CSSProperties | undefined = isCorporate
+    ? undefined
+    : { borderColor: 'rgba(34,211,238,0.12)' };
+
   const alertStyle: CSSProperties | undefined = isCorporate
     ? undefined
     : {
@@ -121,6 +132,16 @@ export function usePatientViewStyles() {
       ? '!bg-white !text-slate-900 border border-slate-300 shadow-sm !ring-slate-300'
       : '',
     cardStyle,
+    chatLayoutClass: 'flex h-full min-h-0 w-full gap-3 p-3',
+    chatCardClass: isCorporate
+      ? '!rounded-lg !ring-0 !bg-white border border-slate-200 shadow-sm gap-0 py-0'
+      : '!rounded-lg !ring-0 gap-0 py-0',
+    chatCardHeaderClass: isCorporate
+      ? '!rounded-t-lg border-b border-slate-200 bg-slate-50 py-4 shrink-0'
+      : 'border-b py-4 shrink-0',
+    chatCardFooterClass: isCorporate
+      ? '!rounded-b-lg border-t border-slate-200 bg-slate-50'
+      : 'border-t',
     headerClass: isCorporate ? 'border-b border-slate-200 bg-slate-50' : '',
     headerStyle,
     titleClass: isCorporate ? 'text-slate-800' : '',
@@ -158,6 +179,16 @@ export function usePatientViewStyles() {
     sheetStyle,
     sidebarClass: isCorporate ? 'border-l border-slate-200 !bg-slate-50' : '',
     sidebarStyle,
+    conversationsPanelWrapClass: 'shrink-0 w-64 flex min-h-0 flex-col self-stretch',
+    conversationsPanelClass: isCorporate
+      ? 'flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm'
+      : 'flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border',
+    conversationsPanelStyle,
+    conversationsPanelHeaderClass: isCorporate
+      ? 'shrink-0 border-b border-slate-200 bg-slate-50 px-3 py-3'
+      : 'shrink-0 border-b px-3 py-3',
+    conversationsPanelHeaderStyle,
+    conversationsPanelNavClass: 'flex-1 min-h-0 overflow-y-auto overscroll-y-contain p-3 space-y-1.5',
     alertClass: isCorporate ? 'border border-amber-300 bg-amber-50' : 'rounded-xl',
     alertStyle,
     alertText: isCorporate ? 'text-amber-950' : 'text-amber-100/90',

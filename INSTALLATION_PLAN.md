@@ -31,7 +31,34 @@ uv run alembic upgrade head
 SELECT version_num FROM alembic_version;
 ```
 
-Compare `version_num` to the expected revision in that release's service **INSTALLATION_PLAN.md** (for example user **`002`**, care-episode **`008`** at CDP UI **2026.06.16** — no new revisions in that release).
+Compare `version_num` to the expected revision in that release's service **INSTALLATION_PLAN.md** (for example user **`002`**, care-episode **`011`** at CDP UI **2026.06.18**).
+
+## CDP UI 2026.06.18 / care-episode v0.8.0
+
+**Release pins:** CDP UI **2026.06.18**; **care-episode v0.8.0** (other backend pins unchanged from **2026.06.17** unless your environment already tracks newer tags).
+
+**Prerequisites**
+
+- Staging `VITE_*_API_URL` values point at the redeployed public service URLs.
+- Demo catalog seeded (`scripts/seed_demo_platform.py`) if verifying clinician episode lifecycle.
+
+**Deploy**
+
+1. Tag and push **care-episode v0.8.0**; wait for GHCR image publish.
+2. Redeploy **care-episode** on Railway (migrations **009**–**011** run via preDeploy).
+3. Redeploy **CDP UI** with build/version **2026.06.18**.
+
+**Verify**
+
+1. `GET /health` on care-episode reports **0.8.0**; `alembic_version` is **`011`**.
+2. Clinician can close and reopen **DEMO-123** from the patient detail view (or run `pnpm test:e2e` from `cdp/ui` against staging with `E2E_BASE_URL` / `E2E_AUTH_BASE_URL` set).
+3. Cross-tenant care-episode list or patch for a clinician returns **403**.
+
+**Evidence**
+
+- Care-episode health **0.8.0**; UI footer shows **2026.06.18**; E2E or manual close/reopen succeeds on staging.
+
+---
 
 ## Greenfield Step 0 — assign platform registry roles
 

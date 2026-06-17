@@ -38,14 +38,14 @@ function CorporateSplashPage() {
 
       <main className="flex w-full flex-1 flex-col items-center justify-center px-6 py-12 text-center md:px-10">
         <p className="mb-4 text-sm font-medium uppercase tracking-widest text-slate-500">
-          Coordinated post-discharge care
+          Post-operative care, simplified
         </p>
         <h1 className="max-w-3xl text-4xl font-semibold leading-tight text-slate-900 md:text-5xl">
-          Post Discharge Care Platform
+          Neosofia Clinical Care Platform
         </h1>
         <p className="mt-6 max-w-2xl text-base leading-relaxed text-slate-600 md:text-lg">
-          Secure clinical workflows for care teams, patients, and authorized operators. Manage care
-          episodes, communications, and operational tasks within your organization&apos;s tenant.
+          Patients recover at home with clear guidance when symptoms change. Clinicians start each
+          shift with who needs attention first—not another inbox to dig through.
         </p>
 
         <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row">
@@ -57,9 +57,18 @@ function CorporateSplashPage() {
 
         <div className="mt-14 grid w-full max-w-3xl grid-cols-1 gap-4 sm:grid-cols-3">
           {[
-            { title: 'Role-based access', body: 'Entitlements aligned to clinical and operational roles.' },
-            { title: 'Audit-ready workflows', body: 'Structured actions with authorization at every step.' },
-            { title: 'Tenant isolation', body: 'Organization-scoped data and configuration boundaries.' },
+            {
+              title: 'For patients',
+              body: 'Ask questions, get practical next steps, and know when to call your care team—tied to your procedure, not a generic chatbot.',
+            },
+            {
+              title: 'For clinicians',
+              body: 'Your active panel ranked by risk and open sessions, so the chart that matters is one click away.',
+            },
+            {
+              title: 'One workspace',
+              body: 'Conversation, records, and risk summaries side by side—no tab-hopping to understand what happened.',
+            },
           ].map((item) => (
             <div
               key={item.title}

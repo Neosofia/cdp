@@ -379,7 +379,7 @@ def _seed_care_episode(
         persona = clinical_persona_code(patient)
         _request_json(
             "POST",
-            f"{api_url}/api/v1/care-episodes/recoveries",
+            f"{api_url}/api/v1/care-episodes",
             headers,
             {
                 "patient_uuid": patient_uuid,
@@ -637,6 +637,7 @@ def _reset_catalog_recovery_risk_levels(cur, patients: list[dict]) -> int:
             UPDATE care_episode_recoveries
             SET risk_level = %s
             WHERE patient_uuid = %s::uuid
+              AND status = 'active'
             """,
             (risk_level, patient["uuid"]),
         )

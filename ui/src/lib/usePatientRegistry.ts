@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   displayNameForUser,
   mergePatientRecoveries,
+  DEFAULT_CARE_WINDOW_DAYS,
   riskLevelFromApi,
   sortPatientRecoveriesByRiskAndRecency,
   type ActivePatientRecovery,
@@ -70,6 +71,7 @@ function isRegistryPatient(user: RegistryPatientUser): boolean {
 function recoveryFromCareEpisode(
   care: CareEpisodeRecovery,
   user?: RegistryPatientUser,
+  tenantName?: string | null,
 ): ActivePatientRecovery {
   return {
     patientUuid: care.user_uuid,
@@ -82,6 +84,10 @@ function recoveryFromCareEpisode(
     lastChatAt: null,
     riskLevel: riskLevelFromApi(care.risk_level),
     riskSummary: care.risk_summary ?? null,
+    episodeStatus: care.status ?? 'active',
+    tenantUuid: care.tenant_uuid ?? user?.tenant_uuid ?? null,
+    tenantName: tenantName ?? null,
+    careWindowDays: care.care_window_days ?? DEFAULT_CARE_WINDOW_DAYS,
   };
 }
 
@@ -116,6 +122,7 @@ export function usePatientRegistry(
   token: string | undefined,
   activeActor: string,
   tenantUuid?: string | null,
+  tenantName?: string | null,
 ): PatientRegistryState {
   const [patients, setPatients] = useState<ActivePatientRecovery[]>([]);
   const [registryUsers, setRegistryUsers] = useState<RegistryPatientUser[]>([]);
@@ -189,6 +196,10 @@ export function usePatientRegistry(
               recoveryId: care.recovery_id,
               riskLevel: riskLevelFromApi(care.risk_level),
               riskSummary: care.risk_summary ?? existing.riskSummary ?? null,
+              episodeStatus: care.status ?? 'active',
+              tenantUuid: care.tenant_uuid ?? existing.tenantUuid ?? tenantUuid ?? null,
+              tenantName: existing.tenantName ?? tenantName ?? null,
+              careWindowDays: care.care_window_days ?? existing.careWindowDays ?? DEFAULT_CARE_WINDOW_DAYS,
             });
             continue;
           }
@@ -196,7 +207,7 @@ export function usePatientRegistry(
           // Clinician roster should include active episodes even if registry role is not patient.self.
           mergedByUuid.set(
             care.user_uuid,
-            recoveryFromCareEpisode(care, usersByUuid.get(care.user_uuid)),
+            recoveryFromCareEpisode(care, usersByUuid.get(care.user_uuid), tenantName),
           );
         }
 
@@ -225,7 +236,7 @@ export function usePatientRegistry(
     return () => {
       cancelled = true;
     };
-  }, [token, activeActor, tenantUuid, reloadToken]);
+  }, [token, activeActor, tenantUuid, tenantName, reloadToken]);
 
   return { patients, registryUsers, loading, error, reload, enrollInPostCare };
 }

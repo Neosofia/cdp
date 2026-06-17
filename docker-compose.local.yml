@@ -5,7 +5,7 @@
 # Do NOT pin GHCR release images here (ghcr.io/neosofia/*:v*).
 # Do NOT `include: docker-compose.dev.yml` — dev compose is for pinned releases only.
 # Every runnable application service must use a `build:` + `image: neosofia/*:local` anchor
-# (authentication, capabilities, user, chat, care-episode, python-template, ui).
+# (authentication, capabilities, user, chat, care-episode, notification, python-template, ui).
 #
 # The only exceptions are infrastructure images (postgres:18) and build-only helpers
 # (cdp-policies:local — scratch bundle consumed at capabilities and user image build time).
@@ -20,6 +20,7 @@
 #   ../user
 #   ../chat
 #   ../care-episode
+#   ../notification
 #   ../templates/python/service
 #   ./ui
 #   ./policies  (cdp-policies image for capabilities and user builds)
@@ -76,6 +77,12 @@ x-care-episode-local: &care_episode_local
     dockerfile: Dockerfile
     target: runtime
   image: neosofia/care-episode:local
+
+x-notification-local: &notification_local
+  build:
+    context: ../notification
+    dockerfile: Dockerfile
+  image: neosofia/notification:local
 
 services:
   # Policy-only image (FROM scratch). Build before capabilities/user:
@@ -208,6 +215,8 @@ services:
     env_file:
       - ./.user.env
     volumes:
+      - ./policies/user/role-catalog.json:/app/policies/role-catalog.json:ro
+      - ./policies/user/cedar:/app/policies/cdp:ro
       - ../templates/sql/audit:/app/audit-templates:ro
     command: ["python", "-m", "alembic", "upgrade", "head"]
     depends_on:
@@ -220,6 +229,9 @@ services:
     container_name: cdp-user
     env_file:
       - ./.user.env
+    volumes:
+      - ./policies/user/role-catalog.json:/app/policies/role-catalog.json:ro
+      - ./policies/user/cedar:/app/policies/cdp:ro
     ports:
       - "8018:8018"
     depends_on:
@@ -315,6 +327,20 @@ services:
         condition: service_healthy
     restart: "no"
 
+  notification:
+    <<: *notification_local
+    container_name: cdp-notification
+    env_file:
+      - ./.notification.env
+    ports:
+      - "8005:8005"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8005/health', timeout=3)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
   care-episode:
     <<: *care_episode_local
     container_name: cdp-care-episode
@@ -342,7 +368,7 @@ services:
   ui:
     build:
       context: ./ui
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
     image: cdp-ui:local
     container_name: cdp-ui
     depends_on:
@@ -352,8 +378,18 @@ services:
         condition: service_healthy
       user:
         condition: service_healthy
+      chat:
+        condition: service_healthy
+      care-episode:
+        condition: service_healthy
+    volumes:
+      - ./ui:/app
+      - ./policies/user/role-catalog.json:/app/policies/user/role-catalog.json:ro
+      - /app/node_modules
     ports:
       - "5173:5173"
+    env_file:
+      - ./ui/.env
 
 volumes:
   authentication_postgres_data:

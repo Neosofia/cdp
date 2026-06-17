@@ -1,6 +1,7 @@
 import {
   DEFAULT_CLINICIAN_LIST_FILTERS,
   type ClinicianActivityFilter,
+  type ClinicianEpisodeStatusFilter,
   type ClinicianListFilters,
   type ClinicianRiskFilter,
 } from '@/lib/demoPatients';
@@ -31,12 +32,14 @@ const PATIENT_SLUG_ACTION: Record<string, PatientAction> = {
 const RISK_FILTERS = new Set<ClinicianRiskFilter>(['all', 'high-risk', 'medium-risk']);
 const ACTIVITY_FILTERS = new Set<ClinicianActivityFilter>(['all', 'active-30m', 'chats-today', 'this-week']);
 
+const EPISODE_STATUS_FILTERS = new Set<ClinicianEpisodeStatusFilter>(['active', 'closed', 'all']);
+
 /** Legacy single `filter` query values from dashboard deep links. */
 const LEGACY_FILTER_MAP: Record<string, ClinicianListFilters> = {
-  'high-risk': { risk: 'high-risk', activity: 'all' },
-  'pending-reviews': { risk: 'medium-risk', activity: 'all' },
-  'active-sessions': { risk: 'all', activity: 'chats-today' },
-  'active-patients': { risk: 'all', activity: 'active-30m' },
+  'high-risk': { ...DEFAULT_CLINICIAN_LIST_FILTERS, risk: 'high-risk' },
+  'pending-reviews': { ...DEFAULT_CLINICIAN_LIST_FILTERS, risk: 'medium-risk' },
+  'active-sessions': { ...DEFAULT_CLINICIAN_LIST_FILTERS, activity: 'chats-today' },
+  'active-patients': { ...DEFAULT_CLINICIAN_LIST_FILTERS, activity: 'active-30m' },
 };
 
 export const DEFAULT_APP_ROUTE: AppRoute = {
@@ -90,19 +93,30 @@ function currentPath(): string {
 function parseClinicianListFilters(search: URLSearchParams): ClinicianListFilters {
   const riskParam = search.get('risk');
   const activityParam = search.get('activity');
+  const episodeStatusParam = search.get('episode');
+  const minDaysPostOpParam = search.get('min_days_post_op');
+  const minDaysSinceChatParam = search.get('min_days_since_chat');
   const legacyParam = search.get('filter');
 
   if (legacyParam && LEGACY_FILTER_MAP[legacyParam] && !riskParam && !activityParam) {
     return LEGACY_FILTER_MAP[legacyParam];
   }
 
+  const minDaysPostOp = minDaysPostOpParam ? Number.parseInt(minDaysPostOpParam, 10) : null;
+  const minDaysSinceChat = minDaysSinceChatParam ? Number.parseInt(minDaysSinceChatParam, 10) : null;
+
   return {
     risk: RISK_FILTERS.has(riskParam as ClinicianRiskFilter)
       ? (riskParam as ClinicianRiskFilter)
-      : 'all',
+      : DEFAULT_CLINICIAN_LIST_FILTERS.risk,
     activity: ACTIVITY_FILTERS.has(activityParam as ClinicianActivityFilter)
       ? (activityParam as ClinicianActivityFilter)
-      : 'all',
+      : DEFAULT_CLINICIAN_LIST_FILTERS.activity,
+    episodeStatus: EPISODE_STATUS_FILTERS.has(episodeStatusParam as ClinicianEpisodeStatusFilter)
+      ? (episodeStatusParam as ClinicianEpisodeStatusFilter)
+      : DEFAULT_CLINICIAN_LIST_FILTERS.episodeStatus,
+    minDaysPostOp: Number.isFinite(minDaysPostOp) && minDaysPostOp! > 0 ? minDaysPostOp : null,
+    minDaysSinceChat: Number.isFinite(minDaysSinceChat) && minDaysSinceChat! > 0 ? minDaysSinceChat : null,
   };
 }
 
@@ -113,6 +127,15 @@ function clinicianFilterQuery(filters: ClinicianListFilters): string {
   }
   if (filters.activity !== 'all') {
     params.set('activity', filters.activity);
+  }
+  if (filters.episodeStatus !== DEFAULT_CLINICIAN_LIST_FILTERS.episodeStatus) {
+    params.set('episode', filters.episodeStatus);
+  }
+  if (filters.minDaysPostOp !== null) {
+    params.set('min_days_post_op', String(filters.minDaysPostOp));
+  }
+  if (filters.minDaysSinceChat !== null) {
+    params.set('min_days_since_chat', String(filters.minDaysSinceChat));
   }
   return params.toString();
 }

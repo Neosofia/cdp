@@ -56,6 +56,7 @@ export interface AppShellProps {
   onLogout: () => void;
   onSignInAgain: () => void;
   footer?: ReactNode;
+  breadcrumbTrailing?: ReactNode;
   children: ReactNode;
 }
 
@@ -92,6 +93,7 @@ export default function AppShell({
   onLogout,
   onSignInAgain,
   footer,
+  breadcrumbTrailing,
   children,
 }: AppShellProps) {
   const {
@@ -565,8 +567,9 @@ export default function AppShell({
         )}
       >
         <div className={cn('shrink-0', fillViewport ? 'mb-4' : 'mb-6')}>
-          <Breadcrumb className="pt-1 pb-2 mb-2">
-            <BreadcrumbList>
+          <div className="flex items-center gap-3 min-w-0">
+            <Breadcrumb className="min-w-0 flex-1 py-0">
+              <BreadcrumbList>
               {isDashboard ? (
                 <BreadcrumbItem>
                   <BreadcrumbPage>Dashboard</BreadcrumbPage>
@@ -690,6 +693,10 @@ export default function AppShell({
               )}
             </BreadcrumbList>
           </Breadcrumb>
+          {breadcrumbTrailing ? (
+            <div className="flex items-center gap-2 shrink-0">{breadcrumbTrailing}</div>
+          ) : null}
+          </div>
 
           {showPageHeading ? (
             <h1

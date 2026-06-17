@@ -33,6 +33,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
+import { patientThreadBubbleLayout } from '@/lib/chatBubbleLayout';
 import { usePatientViewStyles } from '@/lib/patientViewStyles';
 
 const CHAT_API = import.meta.env.VITE_CHAT_API_URL;
@@ -54,6 +55,9 @@ interface Props {
 
 const ASSISTANT_UNAVAILABLE_MESSAGE =
   'The care assistant is temporarily unavailable. You can still read past messages, but new assistant replies are paused.';
+
+const CARE_TEAM_INTERVENTION_MESSAGE =
+  'Your care team is responding in this conversation. The care assistant is paused here — you can still message your clinicians.';
 
 export default function PatientChat({
   token,
@@ -185,23 +189,18 @@ export default function PatientChat({
         if (selected) {
           const history = await loadPatientChatHistory(token, activeActor, patientUuid, selected);
           if (cancelled) return;
-          if (history.length > 0) {
-            setMessages(history);
-          } else if (assistantReady) {
+          setMessages(history);
+          if (history.length === 0 && assistantReady) {
             try {
               setMessages(await primeNewSession(selected));
             } catch (primeError) {
               if (isAssistantUnavailableError(primeError)) {
                 setAssistantAvailable(false);
-                setError(ASSISTANT_UNAVAILABLE_MESSAGE);
                 setMessages([]);
               } else {
                 throw primeError;
               }
             }
-          } else {
-            setError(ASSISTANT_UNAVAILABLE_MESSAGE);
-            setMessages([]);
           }
         } else {
           setMessages([]);
@@ -365,14 +364,12 @@ export default function PatientChat({
         } catch (primeError) {
           if (isAssistantUnavailableError(primeError)) {
             setAssistantAvailable(false);
-            setError(ASSISTANT_UNAVAILABLE_MESSAGE);
             setMessages([]);
           } else {
             throw primeError;
           }
         }
       } else {
-        setError(ASSISTANT_UNAVAILABLE_MESSAGE);
         setMessages([]);
       }
     } catch (e) {
@@ -387,7 +384,7 @@ export default function PatientChat({
 
   const sendMessage = async () => {
     const text = input.trim();
-    if (!text || sending) return;
+    if (!text || sending || !canSendMessages) return;
 
     const userMsg: ChatMessage = {
       id: crypto.randomUUID(),
@@ -406,7 +403,6 @@ export default function PatientChat({
     try {
       if (!CHAT_API || !patientUuid || !activeInteractionUuid) {
         setAssistantAvailable(false);
-        setError(ASSISTANT_UNAVAILABLE_MESSAGE);
         setMessages(prev => prev.filter(message => message.id !== userMsg.id));
         return;
       }
@@ -437,7 +433,6 @@ export default function PatientChat({
     } catch (e) {
       if (isAssistantUnavailableError(e)) {
         setAssistantAvailable(false);
-        setError(ASSISTANT_UNAVAILABLE_MESSAGE);
         setMessages(prev => prev.filter(message => message.id !== userMsg.id));
       } else {
         const msg = e instanceof Error ? e.message : 'Failed to get a response';
@@ -451,17 +446,18 @@ export default function PatientChat({
   };
 
   const conversationsSidebar = showSidebar ? (
-    <aside
-      className={cn('w-64 shrink-0 flex flex-col min-h-0 overflow-hidden', pv.sidebarClass)}
-      style={pv.sidebarStyle}
-    >
-      <div
-        className={cn('px-3 py-3 border-b', pv.isCorporate ? 'border-slate-200 bg-white' : '')}
-        style={pv.isCorporate ? undefined : { borderColor: 'rgba(34,211,238,0.12)' }}
+    <div className={pv.conversationsPanelWrapClass}>
+      <aside
+        className={pv.conversationsPanelClass}
+        style={pv.conversationsPanelStyle}
       >
-        <p className={cn('text-xs font-semibold uppercase tracking-widest', pv.mutedText)}>Conversations</p>
-      </div>
-      <nav className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain py-2 px-2 space-y-1">
+        <div
+          className={pv.conversationsPanelHeaderClass}
+          style={pv.conversationsPanelHeaderStyle}
+        >
+          <p className={cn('text-xs font-semibold uppercase tracking-widest', pv.mutedText)}>Conversations</p>
+        </div>
+        <nav className={pv.conversationsPanelNavClass}>
         {interactions.map(interaction => {
           const isActive = interaction.chat_interaction_uuid === activeInteractionUuid;
           const activityDate = formatChatInteractionActivityDate(interaction);
@@ -504,17 +500,18 @@ export default function PatientChat({
             </button>
           );
         })}
-      </nav>
-    </aside>
+        </nav>
+      </aside>
+    </div>
   ) : null;
 
   return (
-    <div className="flex h-full min-h-0 w-full overflow-hidden">
+    <div className={pv.chatLayoutClass}>
       <Card
-        className={cn('gap-0 py-0 flex-1 min-w-0 h-full min-h-0 flex flex-col overflow-hidden', pv.cardClass)}
+        className={cn('flex-1 min-w-0 h-full min-h-0 flex flex-col overflow-hidden', pv.chatCardClass)}
         {...(pv.cardStyle ? { style: pv.cardStyle } : {})}
       >
-        <CardHeader className={cn('py-4', pv.headerClass)} style={pv.headerStyle}>
+        <CardHeader className={pv.chatCardHeaderClass} style={pv.headerStyle}>
           <div className="flex items-center justify-between gap-3">
             <CardTitle
               className={cn('text-lg flex items-center gap-2', pv.titleClass)}
@@ -548,6 +545,24 @@ export default function PatientChat({
             )}
           </div>
         </CardHeader>
+        {humanInterventionActive ? (
+          <div
+            className={cn('shrink-0 border-b px-4 py-2.5', pv.alertClass)}
+            style={pv.alertStyle}
+            role="status"
+          >
+            <p className={cn('text-xs leading-relaxed', pv.alertText)}>{CARE_TEAM_INTERVENTION_MESSAGE}</p>
+          </div>
+        ) : null}
+        {!humanInterventionActive && !assistantAvailable && canLoadHistory && !loadingHistory ? (
+          <div
+            className={cn('shrink-0 border-b px-4 py-2.5', pv.alertClass)}
+            style={pv.alertStyle}
+            role="status"
+          >
+            <p className={cn('text-xs leading-relaxed', pv.alertText)}>{ASSISTANT_UNAVAILABLE_MESSAGE}</p>
+          </div>
+        ) : null}
         <CardContent className="p-0 flex flex-1 flex-col min-h-0 overflow-hidden">
           <div
             ref={scrollRef}
@@ -562,6 +577,7 @@ export default function PatientChat({
               </div>
             )}
             {messages.map(msg => {
+              const layout = patientThreadBubbleLayout(msg.role, msg.senderType);
               const clinicianLabel =
                 msg.role === 'assistant' && msg.senderType === 'clinician'
                   ? clinicianBubbleLabel(msg)
@@ -574,20 +590,21 @@ export default function PatientChat({
               return (
               <div
                 key={msg.id}
-                className={cn('flex', msg.role === 'user' ? 'justify-end' : 'justify-start')}
+                className={cn('flex', layout.alignEnd ? 'justify-end' : 'justify-start')}
               >
                 <div
                   className={cn(
                     'max-w-[85%] rounded-2xl px-4 py-3 text-base leading-relaxed',
-                    msg.role === 'user'
-                      ? cn(pv.chatBubbleUserClass, 'rounded-br-md')
-                      : cn(pv.chatBubbleAssistantClass, 'rounded-bl-md'),
+                    layout.useUserBubble
+                      ? cn(pv.chatBubbleUserClass, layout.tailClass)
+                      : cn(pv.chatBubbleAssistantClass, layout.tailClass),
+                    layout.offsetClass,
                   )}
                   style={
-                    msg.role === 'user' ? pv.chatBubbleUser() : pv.chatBubbleAssistant()
+                    layout.useUserBubble ? pv.chatBubbleUser() : pv.chatBubbleAssistant()
                   }
                 >
-                  {msg.role === 'assistant' && msg.senderType === 'ai_agent' && (
+                  {layout.showSparkles ? (
                     <SparklesIcon
                       className={cn(
                         'h-4 w-4 mb-1.5 inline-block mr-1.5',
@@ -595,10 +612,21 @@ export default function PatientChat({
                       )}
                       style={pv.isCorporate ? undefined : { color: '#a855f7' }}
                     />
-                  )}
+                  ) : null}
                   {clinicianLabel ? (
                     <div className="text-xs mb-1.5 leading-snug">
-                      <span className={cn('font-medium', pv.isCorporate ? 'text-slate-800' : 'text-cyan-200/90')}>
+                      <span
+                        className={cn(
+                          'font-medium',
+                          layout.useUserBubble
+                            ? pv.isCorporate
+                              ? 'text-slate-100'
+                              : 'text-cyan-100'
+                            : pv.isCorporate
+                              ? 'text-slate-800'
+                              : 'text-cyan-200/90',
+                        )}
+                      >
                         {clinicianName}
                       </span>
                       {clinicianRole ? (
@@ -608,14 +636,14 @@ export default function PatientChat({
                   ) : null}
                   <ChatMessageContent
                     content={msg.content}
-                    markdown={msg.role === 'assistant'}
-                    surface={msg.role === 'user' ? 'dark' : 'light'}
+                    markdown={layout.markdown}
+                    surface={layout.useUserBubble ? 'dark' : 'light'}
                   />
                   <div
                     className={cn(
                       'text-[10px] mt-2 text-right',
                       pv.isCorporate
-                        ? msg.role === 'user'
+                        ? layout.useUserBubble
                           ? 'text-slate-300'
                           : 'text-slate-500'
                         : 'opacity-50',
@@ -627,39 +655,6 @@ export default function PatientChat({
               </div>
               );
             })}
-            {!humanInterventionActive && !assistantAvailable && canLoadHistory && !loadingHistory ? (
-              <div className={cn('mx-auto max-w-md px-4 py-3 text-center', pv.alertClass)} style={pv.alertStyle}>
-                <p className={cn('text-xs leading-relaxed', pv.alertText)}>
-                  {ASSISTANT_UNAVAILABLE_MESSAGE}
-                </p>
-              </div>
-            ) : null}
-            {humanInterventionActive ? (
-              <div
-                className={cn('mx-auto max-w-md px-4 py-3 text-center space-y-2', pv.alertClass)}
-                style={pv.alertStyle}
-              >
-                <p className={cn('text-xs leading-relaxed', pv.alertText)}>
-                  Your care team is responding directly in this conversation. The care assistant is
-                  paused here — you can still message your clinicians, and this thread stays in your
-                  conversations list.
-                </p>
-                <p className={cn('text-xs leading-relaxed', pv.mutedText)}>
-                  To chat with the care assistant, start a new conversation.
-                </p>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => void startNewChat()}
-                  disabled={sending || loadingInteractions}
-                  className={pv.outlineButton}
-                >
-                  <SparklesIcon className="h-4 w-4 mr-1.5" />
-                  New chat with assistant
-                </Button>
-              </div>
-            ) : null}
             {sending && !humanInterventionActive ? (
               <div className="flex justify-start">
                 <div
@@ -685,7 +680,7 @@ export default function PatientChat({
           )}
 
           <form
-            className={cn('flex gap-2 p-4', pv.formFooterClass)}
+            className={cn('flex gap-2 p-4 shrink-0', pv.chatCardFooterClass, pv.formFooterClass)}
             style={pv.formFooterStyle}
             onSubmit={e => {
               e.preventDefault();

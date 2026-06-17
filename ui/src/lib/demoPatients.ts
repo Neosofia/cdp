@@ -18,6 +18,11 @@ export interface RegistryPatientUser {
   roles: string[];
 }
 
+export type CareEpisodeStatus = 'active' | 'closed';
+
+/** Platform default post-discharge monitoring window (spec 015 FR-003). */
+export const DEFAULT_CARE_WINDOW_DAYS = 30;
+
 export interface ActivePatientRecovery {
   patientUuid: string;
   displayCode: string;
@@ -31,7 +36,14 @@ export interface ActivePatientRecovery {
   riskLevel: PatientRiskLevel;
   /** Rolling clinical risk summary from the care-episode risk agent, when available. */
   riskSummary?: string | null;
+  episodeStatus: CareEpisodeStatus;
+  tenantUuid?: string | null;
+  tenantName?: string | null;
+  /** Post-discharge monitoring window length in days (spec 015). */
+  careWindowDays: number;
 }
+
+export type ClinicianEpisodeStatusFilter = 'active' | 'closed' | 'all';
 
 export type ClinicianRiskFilter = 'all' | 'high-risk' | 'medium-risk';
 export type ClinicianActivityFilter = 'all' | 'active-30m' | 'chats-today' | 'this-week';
@@ -39,11 +51,17 @@ export type ClinicianActivityFilter = 'all' | 'active-30m' | 'chats-today' | 'th
 export interface ClinicianListFilters {
   risk: ClinicianRiskFilter;
   activity: ClinicianActivityFilter;
+  episodeStatus: ClinicianEpisodeStatusFilter;
+  minDaysPostOp: number | null;
+  minDaysSinceChat: number | null;
 }
 
 export const DEFAULT_CLINICIAN_LIST_FILTERS: ClinicianListFilters = {
   risk: 'all',
   activity: 'all',
+  episodeStatus: 'active',
+  minDaysPostOp: null,
+  minDaysSinceChat: null,
 };
 
 /** Live / in-session chat activity (right panel, cyan pod). */
@@ -110,6 +128,8 @@ function mergePatientRecovery(user: RegistryPatientUser): ActivePatientRecovery 
     recoveryId: clinical.recoveryId,
     lastChatAt: null,
     riskLevel: clinical.riskLevel ?? 'Low',
+    episodeStatus: 'active',
+    careWindowDays: DEFAULT_CARE_WINDOW_DAYS,
   };
 }
 
@@ -222,12 +242,21 @@ export function hasRecentChat(
   return ts > 0 && nowMs - ts <= windowMs;
 }
 
+export function daysSinceLastChat(session: ActivePatientRecovery, nowMs: number): number | null {
+  const ts = parseActivityMs(session.lastChatAt);
+  if (!ts) return null;
+  return Math.floor(Math.max(0, nowMs - ts) / (24 * 60 * 60 * 1000));
+}
+
 export function applyClinicianListFilters(
   sessions: ActivePatientRecovery[],
   filters: ClinicianListFilters,
   nowMs: number,
 ): ActivePatientRecovery[] {
   let result = sessions;
+  if (filters.episodeStatus !== 'all') {
+    result = result.filter((session) => session.episodeStatus === filters.episodeStatus);
+  }
   if (filters.risk === 'high-risk') {
     result = result.filter((session) => riskForRecovery(session) === 'High');
   } else if (filters.risk === 'medium-risk') {
@@ -240,6 +269,17 @@ export function applyClinicianListFilters(
     result = result.filter((session) => hasRecentChat(session, nowMs, CHAT_TODAY_WINDOW_MS));
   } else if (filters.activity === 'this-week') {
     result = result.filter((session) => hasRecentChat(session, nowMs, CHAT_WEEK_WINDOW_MS));
+  }
+
+  if (filters.minDaysPostOp !== null && filters.minDaysPostOp > 0) {
+    result = result.filter((session) => session.daysPostOp >= filters.minDaysPostOp!);
+  }
+
+  if (filters.minDaysSinceChat !== null && filters.minDaysSinceChat > 0) {
+    result = result.filter((session) => {
+      const days = daysSinceLastChat(session, nowMs);
+      return days === null || days >= filters.minDaysSinceChat!;
+    });
   }
 
   return result;

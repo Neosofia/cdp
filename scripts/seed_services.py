@@ -128,6 +128,12 @@ def main() -> None:
 
     print("\n--- Add these to your .env files ---\n")
     print("\n".join(env_output))
+    print(
+        "--- Notification (no S2S secret above) ---\n"
+        "Copy .notification.env.sample → .notification.env and set RESEND_API_KEY.\n"
+        "CORS_ORIGINS must include http://localhost:5173 so the CDP operator health panel "
+        "can probe GET /health from the browser.\n"
+    )
 
 
 if __name__ == "__main__":

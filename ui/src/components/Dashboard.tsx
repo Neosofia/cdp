@@ -456,11 +456,11 @@ function ClinicianDashboard({
           sub="Immediate review"
           icon={ExclamationTriangleIcon}
           accent="red"
-          onClick={() => openList({ risk: 'high-risk', activity: 'all' })}
+          onClick={() => openList({ ...DEFAULT_CLINICIAN_LIST_FILTERS, risk: 'high-risk' })}
         />
-        <StatCard label="Medium risk" value={mediumRiskCount} sub="Medium risk patients" icon={ClipboardDocumentListIcon} accent="yellow" onClick={() => openList({ risk: 'medium-risk', activity: 'all' })} />
-        <StatCard label="Chats today" value={chatsTodayCount} sub="Last 24 hours" icon={ChatBubbleLeftRightIcon} accent="purple" onClick={() => openList({ risk: 'all', activity: 'chats-today' })} />
-        <StatCard label="Active patients" value={activePatients30MinCount} sub="Last 30 minutes" icon={UserGroupIcon} accent="cyan" onClick={() => openList({ risk: 'all', activity: 'active-30m' })} />
+        <StatCard label="Medium risk" value={mediumRiskCount} sub="Medium risk patients" icon={ClipboardDocumentListIcon} accent="yellow" onClick={() => openList({ ...DEFAULT_CLINICIAN_LIST_FILTERS, risk: 'medium-risk' })} />
+        <StatCard label="Chats today" value={chatsTodayCount} sub="Last 24 hours" icon={ChatBubbleLeftRightIcon} accent="purple" onClick={() => openList({ ...DEFAULT_CLINICIAN_LIST_FILTERS, activity: 'chats-today' })} />
+        <StatCard label="Active patients" value={activePatients30MinCount} sub="Last 30 minutes" icon={UserGroupIcon} accent="cyan" onClick={() => openList({ ...DEFAULT_CLINICIAN_LIST_FILTERS, activity: 'active-30m' })} />
       </div>
 
       <div className="grid md:grid-cols-2 gap-6 items-start">
@@ -515,7 +515,7 @@ function ClinicianDashboard({
           )}
         </SectionCard>
 
-        <SectionCard title="Active chat sessions" icon={ChatBubbleLeftRightIcon} onTitleClick={() => openList({ risk: 'all', activity: 'active-30m' })}>
+        <SectionCard title="Active chat sessions" icon={ChatBubbleLeftRightIcon} onTitleClick={() => openList({ ...DEFAULT_CLINICIAN_LIST_FILTERS, activity: 'active-30m' })}>
           {activeChatSessions.length > 0 ? (
             activeChatSessions.map(s => (
               <ListItem

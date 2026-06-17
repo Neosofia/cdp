@@ -408,6 +408,16 @@ body[data-floating-ui-scroll-lock] {
   color: rgb(15 23 42);
 }
 
+[data-ui-theme="corporate"] [data-slot="badge"][data-variant="outline"] {
+  border-color: rgb(203 213 225);
+  color: rgb(51 65 85);
+}
+
+[data-ui-theme="corporate"] [data-slot="badge"][data-variant="outline"]:hover {
+  background-color: rgb(248 250 252);
+  color: rgb(15 23 42);
+}
+
 [data-ui-theme="corporate"] [data-slot="button"][data-variant="ghost"]:not([class*="!bg-white"]):not([class*="!bg-amber-50"]):not([class*="!bg-slate-900"]) {
   color: rgb(51 65 85);
 }
