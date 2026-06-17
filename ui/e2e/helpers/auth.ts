@@ -2,6 +2,12 @@ import { expect, type Page } from '@playwright/test';
 
 import { e2eEnv } from './env';
 
+const appHost = new URL(e2eEnv.baseUrl).host;
+
+function isAppShellUrl(url: URL): boolean {
+  return url.host === appHost && !url.pathname.includes('organization-selection');
+}
+
 async function acceptTermsIfPresent(page: Page): Promise<void> {
   const agreeButton = page.getByRole('button', { name: 'I Agree — Continue' });
   if (await agreeButton.isVisible().catch(() => false)) {
@@ -23,14 +29,17 @@ export async function loginThroughWorkOs(page: Page): Promise<void> {
   await passwordField.fill(e2eEnv.password());
   await page.getByRole('button', { name: 'Sign in' }).click();
 
-  await page.waitForURL(/organization-selection|localhost:5173/, { timeout: 60_000 });
-  if (/organization-selection/.test(page.url())) {
+  await page.waitForURL(
+    (url) => url.pathname.includes('organization-selection') || isAppShellUrl(url),
+    { timeout: 60_000 },
+  );
+  if (page.url().includes('organization-selection')) {
     const orgButton = page.getByRole('button', { name: e2eEnv.workosOrg, exact: true });
     await orgButton.waitFor({ state: 'visible', timeout: 30_000 });
     await orgButton.click();
   }
 
-  await page.waitForURL(/localhost:5173/, { timeout: 90_000 });
+  await page.waitForURL(isAppShellUrl, { timeout: 90_000 });
   await acceptTermsIfPresent(page);
 }
 

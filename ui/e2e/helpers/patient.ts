@@ -22,6 +22,8 @@ export async function openCatalogPatient(page: Page): Promise<void> {
   const closeEpisode = page.getByRole('button', { name: 'Close episode' });
   const reopenEpisode = page.getByRole('button', { name: 'Reopen episode' });
   const episodeSelect = page.getByRole('combobox', { name: 'Care episode' });
-  await expect(closeEpisode.or(reopenEpisode).or(episodeSelect)).toBeVisible({ timeout: 60_000 });
+  await expect(closeEpisode.or(reopenEpisode).or(episodeSelect).first()).toBeVisible({
+    timeout: 60_000,
+  });
   await expect(page.getByText('No care episode to close')).not.toBeVisible();
 }
