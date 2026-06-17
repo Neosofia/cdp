@@ -336,10 +336,6 @@ export function useAuthSession(options: UseAuthSessionOptions = {}) {
     setDemoBootstrapRunning(true);
     setDemoBootstrapError(null);
 
-    const displayName =
-      `${profile.first_name ?? ''} ${profile.last_name ?? ''}`.trim() ||
-      profile.email ||
-      'Demo Patient';
     const displayCode = profile.display_code?.trim() || `PAT-${userUuid.slice(-6).toUpperCase()}`;
 
     try {
@@ -347,7 +343,6 @@ export function useAuthSession(options: UseAuthSessionOptions = {}) {
         token,
         userUuid,
         tenantUuid,
-        displayName,
         displayCode,
         currentRoles: profile.roles,
       });

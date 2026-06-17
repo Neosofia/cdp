@@ -1,6 +1,5 @@
 import { createCareEpisodeInvite, upsertCareEpisodeRecovery } from '@/lib/careEpisodeApi';
 import {
-  displayNameForUser,
   registerPostCareEnrollment,
   type DemoPatientClinical,
   type RegistryPatientUser,
@@ -103,7 +102,6 @@ export async function enrollPatientInPostCare(
   }
 
   const displayCode = patient.display_code?.trim() || patient.uuid.slice(0, 8).toUpperCase();
-  const displayName = displayNameForUser(patient);
   const recoveryId = recoveryIdForPatient(displayCode, patient.uuid);
   const tenantUuid = resolveTenantUuid(input, patient);
   let episodeUuid: string | null = null;

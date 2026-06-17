@@ -204,7 +204,6 @@ export interface BootstrapDemoWorkspaceInput {
   token: string;
   userUuid: string;
   tenantUuid: string;
-  displayName: string;
   displayCode: string;
   currentRoles?: string[];
 }
@@ -218,7 +217,7 @@ export interface BootstrapDemoWorkspaceResult {
 export async function bootstrapDemoWorkspace(
   input: BootstrapDemoWorkspaceInput,
 ): Promise<BootstrapDemoWorkspaceResult> {
-  const { token, userUuid, tenantUuid, displayName, displayCode, currentRoles } = input;
+  const { token, userUuid, tenantUuid, displayCode, currentRoles } = input;
 
   let rolesAssigned = profileHasDemoRoles(currentRoles);
   let rolesWerePatched = false;
