@@ -8,7 +8,7 @@ The Authentication Service exists so the platform has **one authoritative place*
 
 ## How this service fits into the platform
 
-Humans authenticate through the platform identity provider (OAuth 2.0 with PKCE). After identity is verified, this service issues a short-lived signed platform token carrying user identifier, actor class, and the identity attributes downstream services need for policy evaluation. Session continuity, inactivity timeout, and password prompts are owned by the identity provider -- not re-implemented here. Logout terminates the provider session so no further platform tokens can be minted for that session.
+Humans authenticate through the platform’s external identity provider. After identity is verified, this service issues a short-lived signed platform token carrying user identifier, actor class, and the identity attributes downstream services need for policy evaluation. Session continuity, inactivity timeout, and password prompts are owned by the identity provider — not re-implemented here. Logout terminates the provider session so no further platform tokens can be minted for that session.
 
 Internal services authenticate with pre-provisioned machine credentials and receive distinguishable short-lived service tokens. Downstream services validate both human and service tokens **offline** using published signing keys -- they do not call back to this service on every request. That keeps the request path fast and avoids a single point of failure for already-authenticated traffic.
 
@@ -23,6 +23,12 @@ On successful human login, identity is synchronised to the User Service registry
 **Security and compliance reviewers** need assurance that passwords and MFA live with the identity provider, tokens are short-lived and cryptographically verifiable, authentication outcomes are auditable without credential leakage, and browser flows resist common web attacks.
 
 **Operators** need to measure login success and failure, token issuance, and service authentication without PHI, email addresses, or raw tokens appearing in logs or error surfaces.
+
+## Workflows
+
+**Human sign-in (happy path).** Given a person completes sign-in through the identity provider, when identity attributes are complete and valid, then this service issues a short-lived platform token, synchronises identity to the User registry when possible, and downstream services can verify the token locally without calling back on every request.
+
+**Sign-out.** Given a signed-in person chooses to sign out, when logout completes, then the identity-provider session ends and no new platform tokens can be issued for that session.
 
 ## Functional requirements
 

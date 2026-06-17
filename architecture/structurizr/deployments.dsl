@@ -1,192 +1,66 @@
 
     # ---------------------------------------------------------------------------
-    # Deployment model
-    # Included into workspace.dsl inside the model { } block.
-    #
-    # Single "earth" environment — one source of truth for all infrastructure.
-    # Two views slice it: DevDeployment (Proxmox on-prem) and ProdDeployment (AWS).
-    #
-    # Shared SaaS:  GitHub (Actions + GHCR), WorkOS
-    # Dev-only:     Cloudflare DNS, NetBird relay, Proxmox VE (CT 110 / 114 / 120)
-    # Prod-only:    AWS (CloudFront, API GW, VPC / ECS Fargate, RDS, Secrets Manager)
+    # Deployment model — staging on Railway (v1 operational truth)
+    # Local Docker Compose documented in CDP OPERATIONS.md (not modeled here).
     # ---------------------------------------------------------------------------
 
     deploymentEnvironment "earth" {
 
-        # -----------------------------------------------------------------
-        # Shared SaaS
-        # -----------------------------------------------------------------
-
-        github = deploymentNode "GitHub" "github.com SaaS" "SaaS" {
+        github = deploymentNode "GitHub" "Source control and CI" "SaaS" {
             tags "GitHub"
-            actions = deploymentNode "GitHub Actions" "CI/CD pipeline" "GitHub Actions" {
+            actions = deploymentNode "GitHub Actions" "Per-service CI workflows" "GitHub Actions" {
                 tags "GitHubActions"
-                ci = infrastructureNode "authentication-ci" "pytest unit + integration tests on PRs and main; weekly Trivy CVE scan" "GHA Workflow" {
-                    tags "Workflow"
-                }
-                build = infrastructureNode "authentication-build-push" "Build, test, scan, push to GHCR on authentication/* tag. Planned: manual approval gate for prod." "GHA Workflow" {
-                    tags "Workflow"
-                }
-                deploy = infrastructureNode "authentication-deploy-dev" "Pulls tagged image, retags :latest, runs docker compose up on CT 120 via self-hosted runner" "GHA Workflow" {
-                    tags "Workflow"
-                }
+                serviceCi = infrastructureNode "service-ci" "Unit tests, coverage, Trivy scan on push to main and tags" "GHA Workflow" "Workflow"
+                imagePublish = infrastructureNode "build-push" "Build and push ghcr.io/neosofia/* on service tags" "GHA Workflow" "Workflow"
             }
-            ghcr = infrastructureNode "GHCR" "GitHub Container Registry — ghcr.io/byoung/cdp/authentication" "OCI Registry" {
-                tags "GitHubRegistry"
+            ghcr = infrastructureNode "GHCR" "ghcr.io/neosofia/{service}" "OCI Registry" "GitHubRegistry"
+        }
+
+        railway = deploymentNode "Railway" "Staging PaaS — auto-deploy when CI passes" "Railway" {
+            tags "Railway"
+            cdpProject = deploymentNode "CDP Project" "production environment = staging.neosofia.tech" "Railway Project" {
+                tags "RailwayProject"
+                authSvc = containerInstance authService
+                userSvc = containerInstance userService
+                capabilitiesSvc = containerInstance capabilitiesService
+                chatSvc = containerInstance chatService
+                careEpisodeSvc = containerInstance careEpisodeService
+                notificationSvc = containerInstance notificationService
+                cdpUi = containerInstance cdpWebApp
+                authDb = infrastructureNode "authentication-db" "Postgres" "PostgreSQL" "Database"
+                userDb = infrastructureNode "user-db" "Postgres" "PostgreSQL" "Database"
+                chatDb = infrastructureNode "chat-db" "Postgres" "PostgreSQL" "Database"
+                careEpisodeDb = infrastructureNode "care-episode-db" "Postgres" "PostgreSQL" "Database"
             }
         }
 
         wosNode = deploymentNode "WorkOS" "External identity provider" "SaaS" {
             tags "SaaSNode"
-            wosSso = infrastructureNode "WorkOS SSO" "OAuth2 PKCE flows and SSO session management" "WorkOS" {
-                tags "SaaSService"
-            }
+            wosSso = infrastructureNode "WorkOS AuthKit" "Human login for staging.neosofia.tech" "WorkOS" "SaaSService"
         }
 
-        # -----------------------------------------------------------------
-        # Dev ingress
-        # -----------------------------------------------------------------
-
-        cloudflare = deploymentNode "Cloudflare" "DNS and DDoS protection" "Cloudflare" {
-            tags "Edge"
-            dns = infrastructureNode "auth.dev.cdp.neosofia.tech" "CNAME -> NetBird peer IP. Proxied for DDoS protection." "Cloudflare DNS" {
-                tags "Proxy"
-            }
+        groqNode = deploymentNode "Groq" "Inference API" "SaaS" {
+            tags "SaaSNode"
+            groqApi = infrastructureNode "Groq Completions API" "Care assistant and risk evaluation" "HTTPS API" "SaaSService"
         }
 
-        netbird = deploymentNode "NetBird" "WireGuard mesh VPN and reverse-proxy relay" "NetBird SaaS" {
-            tags "SaaSNode" "NetBirdNode"
-            nbRelay = infrastructureNode "NetBird relay" "Routes encrypted traffic from Cloudflare peer IP to CT 110 NB client" "NetBird" {
-                tags "NetBirdService"
-            }
+        resendNode = deploymentNode "Resend" "Email provider" "SaaS" {
+            tags "SaaSNode"
+            resendApi = infrastructureNode "Resend API" "Clinical alert and contact email" "HTTPS API" "SaaSService"
         }
 
-        # -----------------------------------------------------------------
-        # Dev compute — Proxmox VE on-prem
-        # -----------------------------------------------------------------
-
-        pve = deploymentNode "Proxmox VE" "On-prem bare-metal hypervisor" "Proxmox VE 9.x" {
-            tags "OnPrem"
-
-            ct110 = deploymentNode "CT 110 - netbird" "Edge LXC: NetBird client. Manually provisioned — no IaC script yet." "Debian 13" {
-                tags "LXC"
-                nbClient = infrastructureNode "NetBird client" "Joins the NetBird mesh; receives ingress from relay" "NetBird" {
-                    tags "Proxy" "NetBirdService"
-                }
-            }
-
-            ct114 = deploymentNode "CT 114 - portainer" "Ops visibility LXC  1 vCPU / 512 MiB" "Debian 13 / Docker CE" {
-                tags "LXC"
-                portainer = infrastructureNode "Portainer CE" "Container ops console. :9443 / :9000" "portainer/portainer-ce:2.39.1" {
-                    tags "OpsNode"
-                }
-            }
-
-            ct120 = deploymentNode "CT 120 - cdp-auth-dev" "Authentication LXC  2 vCPU / 4 GiB / 10.0.0.120" "Debian 13 / Docker CE" {
-                tags "LXC"
-                compose = deploymentNode "Docker Compose: authentication" "Service and its database" "Docker Compose" {
-                    tags "ComposeStack"
-                    authSvcDev = containerInstance authService {
-                        properties {
-                            "image" "ghcr.io/byoung/cdp/authentication:latest"
-                            "pull_policy" "never (pre-pulled by deploy workflow)"
-                            "port" "8000"
-                        }
-                    }
-                    postgres = infrastructureNode "cdp-auth-postgres" "Auth database — bind-mount at /var/lib/cdp-auth/postgres" "postgres:16" {
-                        tags "Database"
-                    }
-                    localstack = infrastructureNode "cdp-auth-localstack" "LocalStack Secrets Manager — seeds cdp/authentication/dev/env bundle via init hook" "localstack/localstack:4" {
-                        tags "SecretsNode"
-                    }
-                }
-                portainerAgent = infrastructureNode "Portainer Agent" "Exposes Docker socket to CT 114 on :9001" "portainer/agent:latest" {
-                    tags "OpsNode"
-                }
-            }
+        serviceCi -> railway "CI pass triggers deploy" "Railway GitHub integration" {
+            tags "CIDeploy"
         }
-
-        # -----------------------------------------------------------------
-        # Prod compute — AWS (planned)
-        # -----------------------------------------------------------------
-
-        aws = deploymentNode "AWS" "Amazon Web Services" "Cloud" {
-            tags "Cloud"
-
-            cfEdge = deploymentNode "CloudFront" "Global CDN and TLS termination" "AWS CloudFront" {
-                tags "AwsCdn"
-                cfDist = infrastructureNode "auth.cdp.example.com" "ACM certificate. WAF OWASP Top 10 rules." "CloudFront Distribution" {
-                    tags "AwsCdnNode"
-                }
-            }
-
-            vpc = deploymentNode "VPC" "Isolated private network" "AWS VPC" {
-                tags "AwsVpc"
-
-                publicSubnet = deploymentNode "Public Subnet" "Hosts NAT Gateway; no application workloads" "AWS Subnet" {
-                    tags "AwsVpc"
-                    natGw = infrastructureNode "NAT Gateway" "Provides outbound internet access for private subnet resources (GHCR pulls, WorkOS API calls)" "AWS NAT Gateway" {
-                        tags "AwsGateway"
-                    }
-                }
-
-                privateSubnet = deploymentNode "Private Subnet" "No inbound internet routes; only reachable via API GW and NAT GW" "AWS Subnet" {
-                    tags "AwsVpc"
-
-                    fargate = deploymentNode "ECS Fargate" "Serverless container runtime - no EC2 to patch" "AWS ECS Fargate" {
-                        tags "AwsCompute"
-                        authSvcProd = containerInstance authService {
-                            properties {
-                                "image" "ghcr.io/byoung/cdp/authentication:{tag}"
-                                "cpu" "512"
-                                "memory" "1024 MiB"
-                            }
-                        }
-                    }
-
-                    rds = deploymentNode "RDS" "Multi-AZ, encrypted at rest" "AWS RDS PostgreSQL 18" {
-                        tags "AwsDatabase"
-                        db = infrastructureNode "auth-db" "Authentication service database" "PostgreSQL 18" {
-                            tags "Database"
-                        }
-                    }
-                }
-            }
-
-            secretsMgr = deploymentNode "Secrets Manager" "Secure secrets at rest" "AWS Secrets Manager" {
-                tags "AwsService"
-                secretsInst = infrastructureNode "auth service secrets" "DB credentials, WorkOS client secret, JWT RS256 private key" "AWS Secrets Manager" {
-                    tags "AwsSecurityNode"
-                }
-            }
+        imagePublish -> ghcr "Push release images" "OCI push"
+        ghcr -> railway "Services pull pinned tags on deploy" "OCI pull" {
+            tags "CIDeploy"
         }
-
-        # --- CI/CD relationships (shared — visible in both views) ---
-        ci      -> build     "gates" "GHA gate"
-        build   -> ghcr      "pushes image" "OCI registry push"
-        build   -> deploy    "triggers on same tag" "workflow trigger"
-
-        # --- Dev relationships ---
-        deploy         -> authSvcDev     "docker compose up --force-recreate via self-hosted runner" "Docker Compose deploy"
-        ghcr           -> authSvcDev     "image pulled by deploy workflow before compose up" "OCI image pull"
-        dns            -> nbRelay        "CNAME → NetBird peer IP (proxied)" "DNS"
-        nbRelay        -> nbClient       "routes via WireGuard mesh" "WireGuard"
-        nbClient       -> authSvcDev     "routes to :8000" "TCP/8000"
-        portainer      -> portainerAgent "manages via agent :9001" "Portainer Agent API"
-        portainerAgent -> authSvcDev     "monitors" "Docker API"
-        authSvcDev     -> postgres       "reads/writes" "PostgreSQL"
-        authSvcDev     -> localstack     "fetches secret bundle at startup (AWS_ENDPOINT_URL)" "AWS SDK"
-        localstack     -> postgres       "init hook probes DB availability" "PostgreSQL"
-        wosSso         -> authSvcDev     "OAuth2 callback" "HTTPS"
-
-        # --- Prod relationships ---
-        cfDist         -> authSvcProd    "routes to Authentication Service" "HTTP/HTTPS"
-        authSvcProd    -> db             "reads/writes (private subnet)" "PostgreSQL"
-        authSvcProd    -> secretsInst    "reads secrets at startup (VPC endpoint)" "AWS Secrets Manager"
-        authSvcProd    -> natGw          "outbound internet traffic" "NAT"
-        natGw          -> ghcr           "pulls image on deploy" "HTTPS"
-        natGw          -> wosSso         "WorkOS API calls (OAuth2 initiation)" "HTTPS"
-        wosSso         -> authSvcProd    "OAuth2 callback (inbound via CloudFront)" "HTTPS"
+        authSvc -> authDb "Reads/writes" "PostgreSQL"
+        userSvc -> userDb "Reads/writes" "PostgreSQL"
+        chatSvc -> chatDb "Reads/writes" "PostgreSQL"
+        careEpisodeSvc -> careEpisodeDb "Reads/writes" "PostgreSQL"
+        careEpisodeSvc -> groqApi "Risk evaluation" "HTTPS"
+        chatSvc -> groqApi "Care assistant completions" "HTTPS"
+        notificationSvc -> resendApi "Send email" "HTTPS"
     }
-
-

@@ -1,17 +1,16 @@
 
-        # ---------------------------------------------------------------------------
-        # Deployment views
-        # Included into workspace.dsl inside the views { } block.
-        # ---------------------------------------------------------------------------
-
-        deployment cdp "earth" "DevDeployment" {
-            title "Authentication Service — Dev Deployment (Proxmox on-prem)"
-            include github wosNode cloudflare netbird pve
+        deployment cdp "earth" "StagingDeployment" {
+            title "CDP Staging Runtime (Railway + externals)"
+            description "Railway project, databases, and external SaaS dependencies. CI/CD is in StagingCIPipeline — deployment-node edges break Structurizr auto-layout."
+            include railway wosNode groqNode resendNode
+            exclude relationship.tag==CIDeploy
+            exclude relationship.tag==Mesh
         }
 
-        deployment cdp "earth" "ProdDeployment" {
-            title "Authentication Service — Production Deployment (AWS, planned)"
-            include github wosNode aws
+        deployment cdp "earth" "StagingCIPipeline" {
+            title "CDP Staging CI/CD (GitHub Actions → GHCR)"
+            description "Per-service CI on push to main and tags; release images to GHCR. Railway auto-deploy when checks pass (not drawn here)."
+            include github
         }
 
         styles {
@@ -25,53 +24,26 @@
                 color #ffffff
                 shape RoundedBox
             }
-            element "Registry" {
-                background #6F42C1
+            element "Railway" {
+                background #0B0D0E
                 color #ffffff
             }
-            element "OciImage" {
-                background #8A63D2
+            element "RailwayProject" {
+                background #131517
                 color #ffffff
-                shape RoundedBox
-            }
-            element "OpsNode" {
-                background #13BEF9
-                color #000000
-                shape RoundedBox
             }
             element "Database" {
                 background #336791
                 color #ffffff
                 shape Cylinder
             }
-            element "SecretsNode" {
-                background #4A235A
-                color #ffffff
-                shape RoundedBox
-            }
-            element "Proxy" {
-                background #FBAD41
-                color #000000
-                shape RoundedBox
-            }
-            element "AwsCdnNode" {
-                background #8C4FFF
-                color #ffffff
-                shape RoundedBox
-            }
-            element "AwsSecurityNode" {
-                background #FF9900
-                color #000000
-                shape RoundedBox
-            }
             element "SaaSService" {
                 background #6363F1
                 color #ffffff
                 shape RoundedBox
             }
-            element "NetBirdService" {
-                background #FF8C5A
-                color #000000
-                shape RoundedBox
+            element "SaaSNode" {
+                background #455A64
+                color #ffffff
             }
         }
