@@ -31,7 +31,34 @@ uv run alembic upgrade head
 SELECT version_num FROM alembic_version;
 ```
 
-Compare `version_num` to the expected revision in that release's service **INSTALLATION_PLAN.md** (for example user **`002`**, care-episode **`011`** at CDP UI **2026.06.18**).
+Compare `version_num` to the expected revision in that release's service **INSTALLATION_PLAN.md** (for example user **`002`**, care-episode **`012`** at CDP UI **2026.06.19**).
+
+## CDP UI 2026.06.19 / care-episode v0.8.1
+
+**Release pins:** CDP UI **2026.06.19**; **care-episode v0.8.1** (other backend pins unchanged from **2026.06.18** unless your environment already tracks newer tags).
+
+**Prerequisites**
+
+- User service registered and reachable from care-episode (patient label resolution at runtime).
+- Staging `VITE_*_API_URL` values unchanged from **2026.06.18**.
+
+**Deploy steps**
+
+1. Tag and push **care-episode v0.8.1**; wait for GHCR image publish.
+2. Redeploy **care-episode** on Railway (migration **012** runs via preDeploy).
+3. Redeploy **CDP UI** with build/version **2026.06.19**.
+
+**Post-deploy verification**
+
+1. `GET /health` on care-episode reports **0.8.1**; `alembic_version` is **`012`**.
+2. UI footer shows **2026.06.19**; clinician roster shows patient labels from User registry.
+3. Playwright E2E close/reopen for **DEMO-123** passes on staging.
+
+**Evidence**
+
+- Care-episode health **0.8.1**; UI footer **2026.06.19**; staging E2E green.
+
+---
 
 ## CDP UI 2026.06.18 / care-episode v0.8.0
 

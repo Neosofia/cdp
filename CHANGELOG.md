@@ -1,5 +1,12 @@
 # Changelog
 
+## [2026.06.19]
+
+### Changed
+
+- Care-episode upsert and start flows no longer send `display_code` or `display_name` — patient labels come from the User registry when rendering the roster and patient views.
+- Demo seed (`seed_demo_platform.py`) aligns with **care-episode v0.8.1** (migration **012**).
+
 ## [2026.06.18]
 
 ### Added

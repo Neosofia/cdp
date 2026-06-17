@@ -137,8 +137,6 @@ export default function NewCareEpisodeSheet({
       const created = await startNewCareEpisode(token, activeActor, {
         patient_uuid: patientUuid,
         tenant_uuid: tenantUuid,
-        display_code: displayCode,
-        display_name: displayName,
         surgery: procedureEntry.name,
         procedure_date: trimmedDate,
         recovery_id: recoveryId,

@@ -427,8 +427,6 @@ export default function App() {
                     await upsertCareEpisodeRecovery(tokenInfo.raw, activeActor, {
                       patient_uuid: input.patient_uuid,
                       tenant_uuid: tenantUuid,
-                      display_code: input.display_code,
-                      display_name: `${input.first_name} ${input.last_name}`.trim(),
                       surgery: input.surgery,
                       procedure_date: input.procedure_date,
                       recovery_id: input.recovery_id,

@@ -265,8 +265,6 @@ export async function bootstrapDemoWorkspace(
   await upsertCareEpisodeRecovery(token, DEMO_ACTOR, {
     patient_uuid: userUuid,
     tenant_uuid: tenantUuid,
-    display_code: personalCode,
-    display_name: displayName,
     surgery: templateRecovery.surgery,
     procedure_date: templateRecovery.procedure_date,
     recovery_id: recoveryId,

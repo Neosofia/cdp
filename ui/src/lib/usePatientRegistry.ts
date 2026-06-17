@@ -73,10 +73,11 @@ function recoveryFromCareEpisode(
   user?: RegistryPatientUser,
   tenantName?: string | null,
 ): ActivePatientRecovery {
+  const fallbackCode = care.user_uuid.slice(0, 8).toUpperCase();
   return {
     patientUuid: care.user_uuid,
-    displayCode: care.display_code,
-    displayName: user ? displayNameForUser(user) : care.display_name,
+    displayCode: user?.display_code?.trim() || fallbackCode,
+    displayName: user ? displayNameForUser(user) : fallbackCode,
     surgery: care.surgery,
     procedureDate: care.procedure_date,
     daysPostOp: care.days_post_op,

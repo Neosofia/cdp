@@ -125,8 +125,6 @@ export async function enrollPatientInPostCare(
       await upsertCareEpisodeRecovery(token, activeActor, {
         patient_uuid: patient.uuid,
         tenant_uuid: tenantUuid,
-        display_code: displayCode,
-        display_name: displayName,
         surgery: input.procedure.trim(),
         procedure_date: input.procedure_date.trim(),
         recovery_id: recoveryId,

@@ -109,7 +109,6 @@ export interface EditEnrollmentInput {
   first_name: string;
   last_name: string;
   email: string;
-  display_name: string;
   surgery: string;
   procedure_date: string;
   recovery_id: string;
@@ -1690,7 +1689,6 @@ export default function ClinicianActivePatients({
         first_name: editFirstName.trim(),
         last_name: editLastName.trim(),
         email: editEmail.trim(),
-        display_name: `${editFirstName.trim()} ${editLastName.trim()}`.trim(),
         surgery: procedureEntry.name,
         procedure_date: editProcedureDate.trim(),
         recovery_id: editRecoveryId.trim(),

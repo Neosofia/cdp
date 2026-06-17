@@ -19,8 +19,6 @@ export interface CareEpisodeRecovery {
   episode_uuid?: string;
   patient_uuid?: string;
   user_uuid: string;
-  display_code: string;
-  display_name: string;
   surgery: string;
   procedure_date: string;
   days_post_op: number;
@@ -36,8 +34,6 @@ export interface CareEpisodeRecovery {
 export interface UpsertCareEpisodeRecoveryInput {
   patient_uuid: string;
   tenant_uuid: string;
-  display_code: string;
-  display_name: string;
   surgery: string;
   procedure_date: string;
   recovery_id: string;
@@ -120,8 +116,6 @@ export async function listCareEpisodeRecoveries(
   };
   return (body.items ?? []).map(item => ({
     user_uuid: item.user_uuid ?? item.patient_uuid ?? '',
-    display_code: item.display_code,
-    display_name: item.display_name,
     surgery: item.surgery,
     procedure_date: item.procedure_date,
     days_post_op: item.days_post_op,
@@ -344,8 +338,6 @@ export interface BulkCloseCareEpisodesResult {
 export interface CareEpisodeHistoryEntry {
   episode_uuid: string;
   patient_uuid: string;
-  display_code: string;
-  display_name: string;
   surgery: string;
   procedure_date: string;
   recovery_id: string;
@@ -360,8 +352,6 @@ export interface CareEpisodeHistoryEntry {
 export interface StartNewCareEpisodeInput {
   patient_uuid: string;
   tenant_uuid: string;
-  display_code: string;
-  display_name: string;
   surgery: string;
   procedure_date: string;
   recovery_id: string;

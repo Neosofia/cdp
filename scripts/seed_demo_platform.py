@@ -384,8 +384,6 @@ def _seed_care_episode(
             {
                 "patient_uuid": patient_uuid,
                 "tenant_uuid": tenant_uuid,
-                "display_code": display_code,
-                "display_name": f"{patient['first_name']} {patient['last_name']}",
                 "surgery": clinical["surgery"],
                 "procedure_date": clinical["procedureDate"],
                 "recovery_id": clinical["recoveryId"],
