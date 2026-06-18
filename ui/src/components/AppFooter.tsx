@@ -9,16 +9,26 @@ type AppFooterProps = {
   tagline?: string;
   /** Use full viewport width (splash pages). */
   fullWidth?: boolean;
+  /** Minimal single-line footer for full-height chat views on small screens. */
+  compact?: boolean;
 };
 
-export default function AppFooter({ className, tagline, fullWidth = false }: AppFooterProps) {
+export default function AppFooter({
+  className,
+  tagline,
+  fullWidth = false,
+  compact = false,
+}: AppFooterProps) {
   const { mode, isCorporate } = useUiTheme();
 
   return (
     <footer
       id="footer"
       className={cn(
-        'shrink-0 py-4 text-xs tracking-widest uppercase',
+        'shrink-0 uppercase',
+        compact
+          ? 'py-1 text-[10px] tracking-wide md:py-4 md:text-xs md:tracking-widest'
+          : 'py-4 text-xs tracking-widest',
         isCorporate ? 'text-slate-700' : 'text-slate-600',
         className,
       )}

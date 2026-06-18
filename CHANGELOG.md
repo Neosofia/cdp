@@ -1,12 +1,26 @@
 # Changelog
 
+## [2026.06.21]
+
+### Added
+
+- Mobile **Prior conversations** sheet in clinician and patient chat.
+
+### Changed
+
+- Clinician and patient **Dashboard** and **Patient chat** use breadcrumbs only, without a duplicate page title under the shell header.
+- **Patients** roster card shows the **Patients** title again alongside manage and enroll actions.
+- Desktop patient list keeps search and inline filters on one row with even spacing above and below the filter row.
+- Clinician **Patient chat** uses tighter, balanced padding; assistant messages sit in a centered lane between patient and care-team bubbles.
+- Mobile clinician patient view groups episode selection, records, and profile edit above the chat panel.
+
 ## [2026.06.20]
 
 ### Changed
 
-- Patient chat sends optional `patient_display_name` to care-episode for greeting context (labels still sourced from User registry in the UI).
-- Clinician patient detail reads `episode_uuid` from the URL query string (escalation email deep links).
-- Local Playwright runs use a production build (`pnpm run build` + `serve -s dist`) instead of the Vite dev server.
+- Patient chat uses the patient's display name from the roster for personalised assistant greetings.
+- Clinicians opening a patient from a clinical risk alert email land on the correct care episode.
+- Risk summary on the clinician roster stays fully visible when you open it from the info icon, including on long patient lists.
 
 ## [2026.06.19]
 

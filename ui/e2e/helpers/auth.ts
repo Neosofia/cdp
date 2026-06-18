@@ -44,20 +44,44 @@ export async function loginThroughWorkOs(page: Page): Promise<void> {
 }
 
 export async function ensureClinicianRole(page: Page): Promise<void> {
-  const profileTrigger = page.getByRole('button', { name: new RegExp(e2eEnv.clinicianRoleLabel, 'i') });
-  if (await profileTrigger.isVisible().catch(() => false)) {
+  const accountMenu = page.getByRole('button', { name: /Ben Young/i });
+  await accountMenu.click();
+
+  const activeRole = page.getByRole('menuitem', {
+    name: `${e2eEnv.clinicianRoleLabel} Active`,
+    exact: true,
+  });
+  if (await activeRole.isVisible().catch(() => false)) {
+    await page.keyboard.press('Escape');
     return;
   }
 
-  const accountMenu = page.getByRole('button', { name: /Young/i });
-  await accountMenu.click();
-  const roleItem = page.getByRole('menuitem', { name: e2eEnv.clinicianRoleLabel, exact: true });
-  await roleItem.waitFor({ state: 'visible', timeout: 30_000 });
-  await roleItem.click();
-  await expect(profileTrigger).toBeVisible();
+  await page.getByRole('menuitem', { name: e2eEnv.clinicianRoleLabel, exact: true }).click();
+  await expect(page.getByRole('navigation', { name: 'breadcrumb' })).toBeVisible({
+    timeout: 30_000,
+  });
+  await expect(page.getByText('High-risk alerts')).toBeVisible({ timeout: 30_000 });
 }
 
 export async function loginAsClinician(page: Page): Promise<void> {
   await loginThroughWorkOs(page);
   await ensureClinicianRole(page);
+}
+
+export async function ensurePatientRole(page: Page): Promise<void> {
+  const accountMenu = page.getByRole('button', { name: /Ben Young/i });
+  await accountMenu.click();
+
+  const activeRole = page.getByRole('menuitem', {
+    name: `${e2eEnv.patientRoleLabel} Active`,
+    exact: true,
+  });
+  if (await activeRole.isVisible().catch(() => false)) {
+    await page.keyboard.press('Escape');
+    return;
+  }
+
+  await page.getByRole('menuitem', { name: e2eEnv.patientRoleLabel, exact: true }).click();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('button', { name: /Ben Young/i })).toBeVisible({ timeout: 30_000 });
 }

@@ -105,6 +105,22 @@ For the front-end interface, we use a distinct Dockerfile for the local developm
 
 The production image (`cdp/ui/Dockerfile`) isolates the static build into a pure runtime image hosting the `dist` directory via `serve`, dynamically responding to a provisioned `$PORT` or safely defaulting to 5173 (which ensures compatibility with deployment hosts like Railway).
 
+### Playwright E2E and visual walkthrough
+
+End-to-end tests live under `ui/e2e/`. Copy `ui/e2e/env.sample` to `ui/e2e/.env` and set `E2E_AUTH_EMAIL` / `E2E_AUTH_PASSWORD` for a clinician with access to seeded patient **DEMO-123**.
+
+| Command | Purpose |
+|---------|---------|
+| `pnpm test:e2e:install` | Install Chromium for Playwright (once per machine) |
+| `pnpm test:e2e` | Clinician workflow on **desktop** (1366×768 low bar) |
+| `pnpm test:e2e:rwd` | Same flows on **mobile** (iPhone 12 profile, Chromium) |
+| `pnpm test:e2e:all` | Both projects |
+| `pnpm walkthrough:visual` | Capture mobile + desktop screenshots and regenerate `ui/test-results/walkthrough.html` |
+
+**Local runs** build and serve production `dist/` on port **5173** by default. Stop the Vite dev container first (`docker compose -f docker-compose.local.yml stop ui`) or set `E2E_SKIP_BUILD=1` and `E2E_APP_PORT=5173` to reuse the dev server. Do not set `E2E_BASE_URL` to localhost — use `E2E_BASE_URL` only for staging/production targets.
+
+Walkthrough PNGs are stored in `ui/test-results/walkthrough/` (outside Playwright’s wiped output dir). Open the gallery at `ui/test-results/walkthrough.html`. Steps include clinician and patient dashboards, patient roster workflows, and chat. Mobile captures use iPhone 12 (390×664 @ 3×); desktop uses 1366×768 @ 2×. The gallery scales mobile display width for side-by-side readability (~22% of desktop width).
+
 ## Start the Full Stack
 
 Once you have generated all your environment variables, you can bring up the whole platform locally with this command:

@@ -10,12 +10,12 @@ import {
   PaperAirplaneIcon,
   PencilSquareIcon,
   SparklesIcon,
-  UserGroupIcon,
   SignalIcon,
   UserPlusIcon,
   ClockIcon,
 } from '@heroicons/react/24/outline';
 import { Badge } from '@/components/ui/badge';
+import ChatBubbleMetaRow from '@/components/ChatBubbleMetaRow';
 import ChatMessageContent from '@/components/ChatMessageContent';
 import { Button } from '@/components/ui/button';
 import {
@@ -26,12 +26,15 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
 import { usePatientViewStyles } from '@/lib/patientViewStyles';
 import PatientRecordsPanel from '@/components/PatientRecordsPanel';
 import PatientEnrollSheet from '@/components/PatientEnrollSheet';
 import NewCareEpisodeSheet from '@/components/NewCareEpisodeSheet';
+import ConversationListItems from '@/components/ConversationListItems';
+import EpisodeSelector from '@/components/EpisodeSelector';
+import PriorConversationsSheet from '@/components/PriorConversationsSheet';
 import RiskSummaryHint from '@/components/RiskSummaryHint';
 import ProcedurePicker from '@/components/ProcedurePicker';
 import SpawnDatePicker from '@/components/SpawnDatePicker';
@@ -40,8 +43,6 @@ import { useUserFormStyles } from '@/components/userFormStyles';
 import type { MedicalRecord } from '@/lib/patientRecordsData';
 import {
   createChatMessage,
-  formatChatInteractionActivityDate,
-  formatChatInteractionLabel,
   interactionsWithIntervention,
   type ChatInteraction,
 } from '@/lib/chatApi';
@@ -138,28 +139,33 @@ const EPISODE_STATUS_FILTER_OPTIONS: { value: ClinicianEpisodeStatusFilter; labe
 ];
 
 /** Fixed columns: select · patient · days post-op · last chat · risk (+ edit action). */
-const PATIENT_ROW_GRID =
-  'grid w-full grid-cols-[1.75rem_minmax(0,1fr)_4.5rem_7rem_5.5rem_2rem] items-center gap-x-3';
-const PATIENT_ROW_GRID_NO_SELECT =
-  'grid w-full grid-cols-[minmax(0,1fr)_4.5rem_7rem_5.5rem_2rem] items-center gap-x-4';
+const PATIENT_ROW_GRID_COLS =
+  'grid-cols-[1.75rem_minmax(0,1fr)_4.5rem_7rem_5.5rem_2rem]';
+const PATIENT_ROW_GRID_NO_SELECT_COLS =
+  'grid-cols-[minmax(0,1fr)_4.5rem_7rem_5.5rem_2rem]';
 
 function FilterDropdown<T extends string>({
   label,
   value,
   options,
   onSelect,
+  fullWidth = false,
 }: {
   label: string;
   value: T;
   options: readonly { value: T; label: string }[];
   onSelect: (value: T) => void;
+  fullWidth?: boolean;
 }) {
   const pv = usePatientViewStyles();
   const currentLabel = options.find((option) => option.value === value)?.label ?? label;
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger className={pv.filterTriggerClass} aria-label={`${label}: ${currentLabel}`}>
+      <DropdownMenuTrigger
+        className={cn(pv.filterTriggerClass, fullWidth && 'w-full justify-between')}
+        aria-label={`${label}: ${currentLabel}`}
+      >
         <span className={pv.filterLabelClass}>{label}</span>
         <span className={pv.filterValueClass}>{currentLabel}</span>
         <ChevronDownIcon className={cn('size-3.5 shrink-0', pv.mutedText)} />
@@ -179,6 +185,16 @@ function FilterDropdown<T extends string>({
   );
 }
 
+function countActiveListFilters(filters: ClinicianListFilters): number {
+  let count = 0;
+  if (filters.episodeStatus !== 'active') count += 1;
+  if (filters.risk !== 'all') count += 1;
+  if (filters.activity !== 'all') count += 1;
+  if (filters.minDaysPostOp !== null) count += 1;
+  if (filters.minDaysSinceChat !== null) count += 1;
+  return count;
+}
+
 function PatientListFilters({
   filters,
   onChange,
@@ -187,58 +203,151 @@ function PatientListFilters({
   onChange: (filters: ClinicianListFilters) => void;
 }) {
   const pv = usePatientViewStyles();
-  return (
-    <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+  const activeFilterCount = countActiveListFilters(filters);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const [draftFilters, setDraftFilters] = useState(filters);
+
+  useEffect(() => {
+    if (!mobileFiltersOpen) {
+      setDraftFilters(filters);
+    }
+  }, [filters, mobileFiltersOpen]);
+
+  const filterFields = (
+    fullWidth: boolean,
+    current: ClinicianListFilters,
+    onUpdate: (filters: ClinicianListFilters) => void,
+  ) => (
+    <>
       <FilterDropdown
         label="Episode"
-        value={filters.episodeStatus}
+        value={current.episodeStatus}
         options={EPISODE_STATUS_FILTER_OPTIONS}
-        onSelect={(episodeStatus) => onChange({ ...filters, episodeStatus })}
+        onSelect={(episodeStatus) => onUpdate({ ...current, episodeStatus })}
+        fullWidth={fullWidth}
       />
       <FilterDropdown
         label="Risk"
-        value={filters.risk}
+        value={current.risk}
         options={RISK_FILTER_OPTIONS}
-        onSelect={(risk) => onChange({ ...filters, risk })}
+        onSelect={(risk) => onUpdate({ ...current, risk })}
+        fullWidth={fullWidth}
       />
       <FilterDropdown
         label="Chat"
-        value={filters.activity}
+        value={current.activity}
         options={ACTIVITY_FILTER_OPTIONS}
-        onSelect={(activity) => onChange({ ...filters, activity })}
+        onSelect={(activity) => onUpdate({ ...current, activity })}
+        fullWidth={fullWidth}
       />
-      <label className={cn('flex items-center gap-1.5 text-xs', pv.subText)}>
+      <label className={cn('flex items-center gap-1.5 text-xs md:w-auto w-full justify-between', pv.subText)}>
         <span className="whitespace-nowrap">Min days post-op</span>
         <Input
           type="number"
           min={0}
-          value={filters.minDaysPostOp ?? ''}
+          value={current.minDaysPostOp ?? ''}
           onChange={(event) => {
             const parsed = Number.parseInt(event.target.value, 10);
-            onChange({
-              ...filters,
+            onUpdate({
+              ...current,
               minDaysPostOp: Number.isFinite(parsed) && parsed > 0 ? parsed : null,
             });
           }}
-          className={cn('h-8 w-16 px-2', pv.inputClass)}
+          className={cn('h-8 w-20 px-2', pv.inputClass)}
         />
       </label>
-      <label className={cn('flex items-center gap-1.5 text-xs', pv.subText)}>
+      <label className={cn('flex items-center gap-1.5 text-xs md:w-auto w-full justify-between', pv.subText)}>
         <span className="whitespace-nowrap">Min days since chat</span>
         <Input
           type="number"
           min={0}
-          value={filters.minDaysSinceChat ?? ''}
+          value={current.minDaysSinceChat ?? ''}
           onChange={(event) => {
             const parsed = Number.parseInt(event.target.value, 10);
-            onChange({
-              ...filters,
+            onUpdate({
+              ...current,
               minDaysSinceChat: Number.isFinite(parsed) && parsed > 0 ? parsed : null,
             });
           }}
-          className={cn('h-8 w-16 px-2', pv.inputClass)}
+          className={cn('h-8 w-20 px-2', pv.inputClass)}
         />
       </label>
+    </>
+  );
+
+  const handleMobileOpenChange = (open: boolean) => {
+    if (open) {
+      setDraftFilters(filters);
+      setMobileFiltersOpen(true);
+      return;
+    }
+    setMobileFiltersOpen(false);
+  };
+
+  const applyMobileFilters = () => {
+    onChange(draftFilters);
+    setMobileFiltersOpen(false);
+  };
+
+  return (
+    <div className="flex flex-col gap-3 md:contents">
+      <div className="hidden md:flex shrink-0 items-center justify-end gap-2 overflow-x-auto">
+        {filterFields(false, filters, onChange)}
+      </div>
+      <Sheet open={mobileFiltersOpen} onOpenChange={handleMobileOpenChange}>
+        <SheetTrigger asChild>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className={cn('md:hidden w-full', pv.outlineButton)}
+            aria-label={`Filters${activeFilterCount > 0 ? `, ${activeFilterCount} active` : ''}`}
+          >
+            Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
+          </Button>
+        </SheetTrigger>
+        <SheetContent
+          side="bottom"
+          className={cn(
+            'inset-x-0 flex max-h-[85vh] w-full max-w-[100dvw] flex-col overflow-hidden rounded-t-2xl border-x-0 px-4 pb-6 pt-2 !opacity-100',
+            pv.isCorporate ? '!bg-white' : '!bg-[#05050f]',
+          )}
+        >
+          <SheetHeader className="shrink-0">
+            <SheetTitle className={cn('text-left', pv.titleClass)} style={pv.titleStyle}>
+              Patient filters
+            </SheetTitle>
+          </SheetHeader>
+          <div className="mt-4 flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
+            {filterFields(true, draftFilters, setDraftFilters)}
+          </div>
+          <div
+            className={cn(
+              'mt-4 flex shrink-0 flex-col gap-2 border-t pt-4',
+              pv.isCorporate ? 'border-slate-200' : 'border-slate-700/60',
+            )}
+          >
+            <Button
+              type="button"
+              className={cn('w-full', pv.sendButtonClass)}
+              style={pv.sendButtonStyle}
+              onClick={applyMobileFilters}
+            >
+              Apply filters
+            </Button>
+            {countActiveListFilters(draftFilters) > 0 ? (
+              <Button
+                type="button"
+                variant="outline"
+                className={cn('w-full', pv.outlineButton)}
+                onClick={() => setDraftFilters(DEFAULT_CLINICIAN_LIST_FILTERS)}
+              >
+                Reset filters
+              </Button>
+            ) : null}
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
@@ -387,16 +496,18 @@ function PatientList({
 
   return (
     <Card
-      className={cn('gap-0 py-0 flex flex-col overflow-visible', pv.cardClass)}
+      className={cn('gap-0 py-0 flex flex-col overflow-hidden', pv.cardClass)}
       {...(pv.cardStyle ? { style: pv.cardStyle } : {})}
     >
-      <CardHeader className={cn('py-4 shrink-0', pv.headerClass)} style={pv.headerStyle}>
-        <div className="flex items-center justify-between gap-3">
-          <CardTitle className={cn('text-lg flex items-center gap-2', pv.titleClass)} style={pv.titleStyle}>
-            <UserGroupIcon className="h-5 w-5" />
+      <CardHeader className={cn('py-3 md:py-4 shrink-0 px-3 md:px-6', pv.headerClass)} style={pv.headerStyle}>
+        <div className="flex items-center justify-between gap-2 min-w-0">
+          <CardTitle
+            className={cn('text-base md:text-lg font-semibold shrink-0', pv.titleClass)}
+            style={pv.titleStyle}
+          >
             Patients
           </CardTitle>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             {bulkMode ? (
               <Button
                 type="button"
@@ -404,10 +515,9 @@ function PatientList({
                 variant="outline"
                 disabled={bulkClosing || selectedUuids.size === 0}
                 onClick={() => void closeSelectedEpisodes()}
-                className={pv.outlineButton}
+                className={cn(pv.outlineButton, 'sm:hidden')}
               >
-                <ArchiveBoxXMarkIcon className="h-4 w-4 mr-1.5" />
-                Close {selectedUuids.size || ''} selected
+                Close ({selectedUuids.size})
               </Button>
             ) : null}
             <Button
@@ -420,15 +530,26 @@ function PatientList({
                 setBulkError(null);
               }}
               className={bulkMode ? undefined : pv.outlineButton}
+              aria-label={bulkMode ? 'Done managing patients' : 'Manage patients'}
             >
               {bulkMode ? 'Done' : 'Manage'}
+            </Button>
+            <Button
+              type="button"
+              size="icon-sm"
+              variant="outline"
+              onClick={onEnroll}
+              className={cn(pv.outlineButton, 'sm:hidden')}
+              aria-label="Enroll patient"
+            >
+              <UserPlusIcon className="h-4 w-4" />
             </Button>
             <Button
               type="button"
               size="sm"
               variant="outline"
               onClick={onEnroll}
-              className={pv.outlineButton}
+              className={cn(pv.outlineButton, 'hidden sm:inline-flex')}
             >
               <UserPlusIcon className="h-4 w-4 mr-1.5" />
               Enroll
@@ -438,10 +559,10 @@ function PatientList({
       </CardHeader>
       <CardContent className="p-0 flex flex-col">
         <div
-          className={cn('px-6 py-3 border-b shrink-0 space-y-3', pv.isCorporate ? 'border-slate-200' : '')}
+          className={cn('px-3 md:px-6 py-3 border-b shrink-0 flex flex-col gap-3', pv.isCorporate ? 'border-slate-200' : '')}
           style={pv.isCorporate ? undefined : { borderColor: 'rgba(34,211,238,0.08)' }}
         >
-          <div className="flex items-center gap-2 min-w-0">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center min-w-0">
             <div className="relative min-w-0 flex-1">
               <MagnifyingGlassIcon className={cn('absolute left-3 top-1/2 -translate-y-1/2 size-4', pv.mutedText)} />
               <Input
@@ -451,8 +572,8 @@ function PatientList({
                 className={cn('h-9 w-full pl-9', pv.inputClass)}
               />
             </div>
+            <PatientListFilters filters={listFilters} onChange={onListFiltersChange} />
           </div>
-          <PatientListFilters filters={listFilters} onChange={onListFiltersChange} />
           {bulkError ? <p className="text-xs text-red-400">{bulkError}</p> : null}
           {bulkMode && selectablePatients.length > 0 ? (
             <label className={cn('flex items-center gap-2 text-xs', pv.subText)}>
@@ -468,7 +589,7 @@ function PatientList({
         </div>
         {error ? (
           <div
-            className={cn('px-6 py-3 text-xs text-amber-400/90 border-b shrink-0 flex items-center justify-between gap-3', pv.isCorporate ? 'border-slate-200 text-amber-800' : '')}
+            className={cn('px-3 md:px-6 py-3 text-xs text-amber-400/90 border-b shrink-0 flex items-center justify-between gap-3', pv.isCorporate ? 'border-slate-200 text-amber-800' : '')}
             style={pv.isCorporate ? undefined : { borderColor: 'rgba(34,211,238,0.08)' }}
           >
             <span>Could not load patients. {error}</span>
@@ -484,10 +605,10 @@ function PatientList({
           </div>
         ) : null}
         {loading ? (
-          <p className={cn('px-6 py-4 text-sm', pv.subText)}>Loading patients from user service…</p>
+          <p className={cn('px-3 md:px-6 py-4 text-sm', pv.subText)}>Loading patients from user service…</p>
         ) : null}
         {!loading && total === 0 ? (
-          <p className={cn('px-6 py-4 text-sm', pv.subText)}>
+          <p className={cn('px-3 md:px-6 py-4 text-sm', pv.subText)}>
             {patientListEmptyMessage(patients.length, debouncedSearch, listFilters)}
           </p>
         ) : null}
@@ -498,12 +619,84 @@ function PatientList({
           )}
           style={pv.isCorporate ? undefined : { borderColor: 'rgba(34,211,238,0.08)' }}
         >
-          {pagePatients.map(p => (
+          {pagePatients.map((p) => (
             <li key={p.patientUuid}>
               <div
                 className={cn(
-                  bulkMode ? PATIENT_ROW_GRID : PATIENT_ROW_GRID_NO_SELECT,
-                  'px-6 py-4 transition-colors',
+                  'md:hidden px-3 py-3 transition-colors',
+                  pv.rowHover,
+                )}
+              >
+                <div className="flex items-start gap-2">
+                  {bulkMode ? (
+                    <input
+                      type="checkbox"
+                      checked={selectedUuids.has(p.patientUuid)}
+                      disabled={p.episodeStatus !== 'active'}
+                      onChange={() => togglePatientSelected(p.patientUuid)}
+                      aria-label={`Select ${p.displayName}`}
+                      className="mt-1 size-4 shrink-0 rounded border-slate-500"
+                    />
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => onSelect(p.patientUuid)}
+                    className="min-w-0 flex-1 text-left"
+                  >
+                    <div className={cn('font-semibold text-sm flex flex-wrap items-center gap-1.5 min-w-0', pv.bodyText)}>
+                      <span className="truncate">{p.displayName}</span>
+                      {p.episodeStatus === 'closed' ? (
+                        <Badge variant="outline" className="text-[10px] font-semibold shrink-0">
+                          Closed
+                        </Badge>
+                      ) : null}
+                      {selfUuid && p.patientUuid === selfUuid ? (
+                        <Badge variant="outline" className="text-[10px] font-semibold shrink-0" style={pv.demoBadgeStyle}>
+                          Self (demo)
+                        </Badge>
+                      ) : null}
+                    </div>
+                    <div className={cn('font-mono text-xs mt-0.5', pv.isCorporate ? 'text-slate-600' : 'text-cyan-300')}>
+                      {p.displayCode}
+                    </div>
+                    <div className={cn('text-sm mt-0.5', pv.mutedText)}>{p.surgery}</div>
+                  </button>
+                  <Button
+                    type="button"
+                    size="icon-sm"
+                    variant="ghost"
+                    className={cn('shrink-0', pv.isCorporate ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100' : 'text-cyan-300 hover:text-cyan-200 hover:bg-cyan-500/10')}
+                    aria-label={`Edit patient profile for ${p.displayName}`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onEdit(p);
+                    }}
+                  >
+                    <PencilSquareIcon className="h-4 w-4" />
+                  </Button>
+                </div>
+                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 pl-0 text-xs">
+                  <span className={cn('font-semibold tabular-nums', pv.bodyText)}>
+                    {p.daysPostOp} days post-op
+                  </span>
+                  <span className={cn('inline-flex items-center gap-1 min-w-0', pv.subText)}>
+                    <SignalIcon className={cn('h-3.5 w-3.5 shrink-0', pv.isCorporate ? 'text-green-600' : 'text-green-400')} />
+                    <span className="truncate">{formatRelativeActivity(p.lastChatAt, nowMs)}</span>
+                  </span>
+                  <div className="inline-flex items-center gap-1">
+                    <Badge variant="outline" className="text-[10px] whitespace-nowrap" style={pv.riskBadge(riskForRecovery(p))}>
+                      {riskForRecovery(p)} risk
+                    </Badge>
+                    <RiskSummaryHint summary={p.riskSummary} />
+                  </div>
+                </div>
+              </div>
+
+              <div
+                className={cn(
+                  'hidden md:grid w-full items-center gap-x-3 px-6 py-4 transition-colors',
+                  bulkMode ? PATIENT_ROW_GRID_COLS : PATIENT_ROW_GRID_NO_SELECT_COLS,
+                  bulkMode ? undefined : 'gap-x-4',
                   pv.rowHover,
                 )}
               >
@@ -595,7 +788,7 @@ function PatientList({
         </ul>
         {!loading && total > 0 ? (
           <div
-            className={cn('shrink-0 flex items-center justify-between gap-4 px-6 py-3 text-sm border-t', pv.subText, pv.isCorporate ? 'border-slate-200' : '')}
+            className={cn('shrink-0 flex items-center justify-between gap-4 px-3 md:px-6 py-3 text-sm border-t', pv.subText, pv.isCorporate ? 'border-slate-200' : '')}
             style={pv.isCorporate ? undefined : { borderColor: 'rgba(34,211,238,0.08)' }}
           >
             <span>
@@ -670,6 +863,7 @@ function TranscriptPanel({
 }) {
   const pv = usePatientViewStyles();
   const [draft, setDraft] = useState('');
+  const [conversationsOpen, setConversationsOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const lastMessageId = messages[messages.length - 1]?.id;
   const scrollRef = useScrollToBottom<HTMLDivElement>([
@@ -678,7 +872,8 @@ function TranscriptPanel({
     messages.length,
     lastMessageId,
   ]);
-  const showSidebar = interactions.length >= 2;
+  const showDesktopSidebar = interactions.length >= 2;
+  const showConversationsPicker = interactions.length > 0;
   const activeThreadHasIntervention = activeInteractionUuid
     ? interventionThreadUuids.has(activeInteractionUuid) || transcriptHasClinicianMessage(messages)
     : false;
@@ -719,7 +914,7 @@ function TranscriptPanel({
     }
   };
 
-  const conversationsSidebar = showSidebar ? (
+  const conversationsSidebar = showDesktopSidebar ? (
     <div className={pv.conversationsPanelWrapClass}>
       <aside
         className={pv.conversationsPanelClass}
@@ -732,51 +927,29 @@ function TranscriptPanel({
           <p className={cn('text-xs font-semibold uppercase tracking-widest', pv.mutedText)}>Conversations</p>
         </div>
         <nav className={pv.conversationsPanelNavClass}>
-        {interactions.map(interaction => {
-          const isActive = interaction.chat_interaction_uuid === activeInteractionUuid;
-          const activityDate = formatChatInteractionActivityDate(interaction);
-          const threadHasIntervention = interventionThreadUuids.has(interaction.chat_interaction_uuid);
-          return (
-            <button
-              key={interaction.chat_interaction_uuid}
-              type="button"
-              onClick={() => selectInteraction(interaction.chat_interaction_uuid)}
-              disabled={loading || sending}
-              className={cn(
-                'w-full text-left rounded-lg px-3 py-2 text-sm transition-colors border',
-                isActive
-                  ? pv.conversationActive
-                  : threadHasIntervention
-                    ? pv.conversationIntervention
-                    : pv.conversationIdle,
-              )}
-            >
-              <span className="flex items-start gap-2 min-w-0">
-                <span className="block truncate font-medium flex-1 min-w-0">
-                  {formatChatInteractionLabel(interaction)}
-                </span>
-                {threadHasIntervention ? (
-                  <span
-                    className={cn(
-                      'shrink-0 inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide',
-                      pv.careTeamBadgeClass,
-                    )}
-                    title="Care team is responding in this conversation"
-                  >
-                    <UserGroupIcon className="h-3 w-3" aria-hidden />
-                    Care team
-                  </span>
-                ) : null}
-              </span>
-              {activityDate ? (
-                <span className="block text-[10px] mt-1 opacity-60">{activityDate}</span>
-              ) : null}
-            </button>
-          );
-        })}
+          <ConversationListItems
+            interactions={interactions}
+            activeInteractionUuid={activeInteractionUuid}
+            interventionThreadUuids={interventionThreadUuids}
+            disabled={loading || sending}
+            onSelect={selectInteraction}
+            styles={pv}
+          />
         </nav>
       </aside>
     </div>
+  ) : null;
+
+  const conversationsSheet = showConversationsPicker ? (
+    <PriorConversationsSheet
+      open={conversationsOpen}
+      onOpenChange={setConversationsOpen}
+      interactions={interactions}
+      activeInteractionUuid={activeInteractionUuid}
+      interventionThreadUuids={interventionThreadUuids}
+      disabled={loading || sending}
+      onSelect={selectInteraction}
+    />
   ) : null;
 
   return (
@@ -786,99 +959,129 @@ function TranscriptPanel({
         {...(pv.cardStyle ? { style: pv.cardStyle } : {})}
       >
         <CardHeader className={pv.chatCardHeaderClass} style={pv.headerStyle}>
-          <CardTitle
-            className={cn('text-lg flex items-center gap-2', pv.titleClass)}
-            style={pv.titleStyle}
-          >
-            <ChatBubbleLeftRightIcon className="h-5 w-5" />
-            Patient chat
-            {activeThreadHasIntervention ? (
-              <span
-                className={cn(
-                  'text-[10px] font-semibold uppercase tracking-widest px-2 py-0.5 rounded-md ml-2',
-                  pv.careTeamBadgeClass,
-                )}
+          <div className="flex items-start justify-between gap-2">
+            <CardTitle
+              className={cn('text-lg flex flex-wrap items-center gap-2 min-w-0', pv.titleClass)}
+              style={pv.titleStyle}
+            >
+              <ChatBubbleLeftRightIcon className="h-5 w-5 shrink-0" />
+              <span>Patient chat</span>
+              {activeThreadHasIntervention ? (
+                <span
+                  className={cn(
+                    'text-[10px] font-semibold uppercase tracking-widest px-2 py-0.5 rounded-md',
+                    pv.careTeamBadgeClass,
+                  )}
+                >
+                  Care team active
+                </span>
+              ) : null}
+            </CardTitle>
+            {showConversationsPicker ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className={cn('shrink-0 md:hidden', pv.outlineButton)}
+                onClick={() => setConversationsOpen(true)}
               >
-                Care team active
-              </span>
+                Conversations
+              </Button>
             ) : null}
-          </CardTitle>
+          </div>
         </CardHeader>
         <CardContent className="p-0 flex flex-1 flex-col min-h-0 overflow-hidden">
           <div
             ref={scrollRef}
-            className={cn(
-              'flex-1 min-h-0 overflow-y-auto overscroll-y-contain px-4 py-4 pb-6 space-y-4',
-              pv.chatScrollClass,
-            )}
+            className={cn(pv.chatScrollAreaClass, pv.chatScrollClass)}
           >
             {loading && messages.length === 0 ? (
-              <div className="flex justify-center py-8">
+              <div className="flex justify-center py-4 md:py-3">
                 <p className={cn('text-sm', pv.mutedText)}>Loading chat transcript…</p>
               </div>
             ) : null}
             {error ? (
-              <p className="text-sm text-red-400 text-center py-8">{error}</p>
+              <p className="text-sm text-red-400 text-center py-4 md:py-3">{error}</p>
             ) : null}
             {!loading && !error && messages.length === 0 ? (
-              <p className={cn('text-sm text-center py-8', pv.mutedText)}>No messages in this conversation yet.</p>
+              <p className={cn('text-sm text-center py-4 md:py-3', pv.mutedText)}>No messages in this conversation yet.</p>
             ) : null}
             {messages.map(msg => {
               const layout = clinicianTranscriptBubbleLayout(msg.role);
               const clinicianName = clinicianDisplayName?.trim() || 'Clinician';
+              const metaTimeClass = cn(
+                pv.isCorporate
+                  ? layout.useUserBubble
+                    ? 'text-slate-300'
+                    : 'text-slate-500'
+                  : 'text-slate-400/80',
+              );
+
               return (
                 <div
                   key={msg.id}
-                  className={cn('flex', layout.alignEnd ? 'justify-end' : 'justify-start')}
+                  className={cn('flex w-full', layout.alignEnd ? 'justify-end' : 'justify-start')}
                 >
                   <div
                     className={cn(
-                      'max-w-[85%] rounded-2xl px-4 py-3 text-base leading-relaxed',
+                      pv.chatMessageBubbleClass,
+                      layout.sizeClass,
+                      layout.offsetClass,
                       layout.useUserBubble
                         ? cn(pv.chatBubbleUserClass, layout.tailClass)
                         : cn(pv.chatBubbleAssistantClass, layout.tailClass),
-                      layout.offsetClass,
                     )}
                     style={layout.useUserBubble ? pv.chatBubbleUser() : pv.chatBubbleAssistant()}
                   >
-                    {layout.showSparkles ? (
-                      <SparklesIcon
-                        className={cn(
-                          'h-4 w-4 mb-1.5 inline-block mr-1.5',
-                          pv.isCorporate ? 'text-violet-600' : '',
-                        )}
-                        style={pv.isCorporate ? undefined : { color: '#a855f7' }}
-                      />
-                    ) : null}
-                    {msg.role === 'clinician' ? (
-                      <div className="text-xs mb-1.5 leading-snug">
-                        <span className={cn('font-medium', pv.isCorporate ? 'text-slate-100' : 'text-cyan-100')}>
-                          {clinicianName}
-                        </span>
-                        {clinicianRoleLabel ? (
-                          <span className={pv.isCorporate ? 'text-slate-300' : 'text-cyan-200/80'}>
-                            {` · ${clinicianRoleLabel}`}
-                          </span>
-                        ) : null}
-                      </div>
-                    ) : null}
+                    <ChatBubbleMetaRow
+                      time={msg.time}
+                      timeClass={metaTimeClass}
+                      titleClass={
+                        layout.useUserBubble
+                          ? pv.isCorporate
+                            ? 'text-slate-100'
+                            : 'text-cyan-100'
+                          : pv.isCorporate
+                            ? 'text-slate-800'
+                            : 'text-slate-200'
+                      }
+                      leading={
+                        layout.showSparkles ? (
+                          <SparklesIcon
+                            className={cn(
+                              'h-3.5 w-3.5 shrink-0',
+                              pv.isCorporate ? 'text-violet-600' : '',
+                            )}
+                            style={pv.isCorporate ? undefined : { color: '#a855f7' }}
+                            aria-hidden
+                          />
+                        ) : undefined
+                      }
+                      title={
+                        msg.role === 'clinician' ? (
+                          <>
+                            <span className="shrink-0 font-medium">{clinicianName}</span>
+                            {clinicianRoleLabel ? (
+                              <span
+                                className={cn(
+                                  'truncate',
+                                  pv.isCorporate ? 'text-slate-300' : 'text-cyan-200/80',
+                                )}
+                              >
+                                {` · ${clinicianRoleLabel}`}
+                              </span>
+                            ) : null}
+                          </>
+                        ) : msg.role === 'patient' ? (
+                          <span className="truncate font-medium">{patient.displayName}</span>
+                        ) : undefined
+                      }
+                    />
                     <ChatMessageContent
                       content={msg.content}
                       markdown={layout.markdown}
                       surface={layout.useUserBubble ? 'dark' : 'light'}
                     />
-                    <div
-                      className={cn(
-                        'text-[10px] mt-2 text-right',
-                        pv.isCorporate
-                          ? layout.useUserBubble
-                            ? 'text-slate-300'
-                            : 'text-slate-500'
-                          : 'opacity-50',
-                      )}
-                    >
-                      {msg.time}
-                    </div>
                   </div>
                 </div>
               );
@@ -891,7 +1094,7 @@ function TranscriptPanel({
 
           {canCompose ? (
             <form
-              className={cn('flex gap-2 p-4 shrink-0', pv.chatCardFooterClass, pv.formFooterClass)}
+              className={cn(pv.chatComposeFormClass, pv.chatCardFooterClass, pv.formFooterClass)}
               style={pv.formFooterStyle}
               onSubmit={event => {
                 event.preventDefault();
@@ -929,6 +1132,7 @@ function TranscriptPanel({
         </CardContent>
       </Card>
       {conversationsSidebar}
+      {conversationsSheet}
     </div>
   );
 }
@@ -949,16 +1153,6 @@ function formatHistoryClosedAt(value: string | null | undefined): string {
     day: 'numeric',
     year: 'numeric',
   });
-}
-
-function formatHistoryOptionLabel(entry: CareEpisodeHistoryEntry): string {
-  if (entry.is_current && entry.status === 'active') {
-    return `Current — ${entry.surgery} · ${entry.procedure_date}`;
-  }
-  if (entry.is_current && entry.status === 'closed') {
-    return `Last discharge — ${entry.surgery} · ${formatHistoryClosedAt(entry.closed_at)}`;
-  }
-  return `${entry.surgery} · ${entry.procedure_date} · ${formatHistoryClosedAt(entry.closed_at)}`;
 }
 
 function daysPostOpFromProcedureDate(procedureDate: string): number {
@@ -990,22 +1184,15 @@ function PatientBreadcrumbChrome({
   inputClass: string;
 }) {
   return (
-    <div className="flex items-center gap-2 shrink-0">
-      {episodeHistory.length > 0 ? (
-        <select
-          className={cn('h-8 min-w-[14rem] max-w-[20rem] rounded-md border px-2 text-xs', inputClass)}
-          value={selectedHistoryUuid}
-          disabled={historyLoading}
-          onChange={(event) => onSelectEpisode(event.target.value)}
-          aria-label="Care episode"
-        >
-          {episodeHistory.map((entry) => (
-            <option key={entry.episode_uuid} value={entry.episode_uuid}>
-              {formatHistoryOptionLabel(entry)}
-            </option>
-          ))}
-        </select>
-      ) : null}
+    <div className="hidden md:flex items-center gap-2 shrink-0">
+      <EpisodeSelector
+        episodeHistory={episodeHistory}
+        selectedHistoryUuid={selectedHistoryUuid}
+        historyLoading={historyLoading}
+        onSelectEpisode={onSelectEpisode}
+        inputClass={inputClass}
+        variant="inline"
+      />
       <Button
         type="button"
         size="sm"
@@ -1232,7 +1419,11 @@ function SessionDetail({
         const items = await listPatientChatInteractions(token, activeActor, patient.patientUuid);
         if (cancelled) return;
         setInteractions(items);
-        setActiveInteractionUuid(items[0]?.chat_interaction_uuid ?? null);
+        const selectedUuid = items[0]?.chat_interaction_uuid ?? null;
+        setActiveInteractionUuid(selectedUuid);
+        if (!selectedUuid) {
+          setTranscriptLoading(false);
+        }
       } catch (error) {
         if (cancelled) return;
         const message = error instanceof Error ? error.message : 'Failed to load conversations';
@@ -1288,8 +1479,6 @@ function SessionDetail({
 
   useEffect(() => {
     if (!activeInteractionUuid) {
-      setTranscript([]);
-      setTranscriptLoading(false);
       return;
     }
 
@@ -1424,9 +1613,41 @@ function SessionDetail({
           {saveNotice}
         </p>
       ) : null}
+      <div className="md:hidden shrink-0 space-y-2">
+        <EpisodeSelector
+          episodeHistory={episodeHistory}
+          selectedHistoryUuid={selectedHistoryUuid}
+          historyLoading={historyLoading}
+          onSelectEpisode={setSelectedHistoryUuid}
+          inputClass={pv.inputClass}
+          variant="stacked"
+        />
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className={cn('flex-1', pv.outlineButton)}
+            onClick={() => onRecordsOpenChange(true)}
+          >
+            <DocumentTextIcon className="h-4 w-4 mr-1.5" />
+            Records
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className={pv.outlineButton}
+            onClick={onEditPatient}
+            aria-label="Edit patient profile"
+          >
+            <PencilSquareIcon className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
       <div
         className={cn(
-          'shrink-0 rounded-lg border px-4 py-3',
+          'shrink-0 rounded-lg border px-3 py-2 md:px-4 md:py-3',
           pv.isCorporate ? 'border-slate-200 bg-slate-50' : 'border-cyan-500/20 bg-cyan-500/5',
         )}
       >
@@ -1444,7 +1665,7 @@ function SessionDetail({
             <Badge variant="outline" className="text-[10px]">Closed</Badge>
           ) : null}
           {patient.tenantName ? (
-            <span className={cn('text-[10px] uppercase tracking-wide', pv.subText)}>{patient.tenantName}</span>
+            <span className={cn('hidden sm:inline text-[10px] uppercase tracking-wide', pv.subText)}>{patient.tenantName}</span>
           ) : null}
           <div className="flex flex-wrap items-center gap-2 ml-auto">
             <Badge variant="outline" className="text-[10px]" style={pv.riskBadge(headerRisk)}>
@@ -1762,16 +1983,17 @@ export default function ClinicianActivePatients({
         <SheetContent side="right" className={formStyles.sheetContentClass}>
           <SheetHeader className={formStyles.sheetHeaderClass}>
             <SheetTitle className={formStyles.sheetTitleClass} style={formStyles.sheetTitleStyle}>
-              {editingPatient
-                ? (
-                  <>
-                    Patient{' '}
-                    <span className={cn('font-mono normal-case tracking-normal', formStyles.mutedTextClass)}>
-                      ({editingPatient.patientUuid})
-                    </span>
-                  </>
-                )
-                : 'Patient'}
+              {editingPatient ? (
+                <span className="normal-case tracking-normal">
+                  <span className="block text-sm sm:text-xs sm:uppercase sm:tracking-widest">Edit patient</span>
+                  <span className={cn('mt-1 block font-mono text-sm sm:mt-0 sm:inline', formStyles.mutedTextClass)}>
+                    <span className="sm:hidden">{editDisplayCode || editingPatient.displayCode}</span>
+                    <span className="hidden sm:inline">({editingPatient.patientUuid})</span>
+                  </span>
+                </span>
+              ) : (
+                'Patient'
+              )}
             </SheetTitle>
           </SheetHeader>
           <div className={formStyles.sheetBodyClass}>
@@ -1817,20 +2039,25 @@ export default function ClinicianActivePatients({
               />
             </div>
             {editError ? <p className="text-sm text-red-400">{editError}</p> : null}
-            <div className="flex items-center gap-3 pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => void submitEdit()}
-                disabled={editSaving}
-                className={formStyles.primaryButtonClass}
-              >
-                {editSaving ? 'Saving…' : 'Save profile'}
-              </Button>
-              <Button type="button" variant="outline" onClick={closeEditSheet} className={formStyles.sheetCancelButtonClass}>
-                Cancel
-              </Button>
-            </div>
+          </div>
+          <div className={formStyles.sheetFooterActionsClass}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => void submitEdit()}
+              disabled={editSaving}
+              className={cn(formStyles.primaryButtonClass, formStyles.sheetPrimaryActionClass)}
+            >
+              {editSaving ? 'Saving…' : 'Save profile'}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={closeEditSheet}
+              className={cn(formStyles.sheetCancelButtonClass, formStyles.sheetPrimaryActionClass)}
+            >
+              Cancel
+            </Button>
           </div>
         </SheetContent>
       </Sheet>

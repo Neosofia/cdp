@@ -132,16 +132,23 @@ export function usePatientViewStyles() {
       ? '!bg-white !text-slate-900 border border-slate-300 shadow-sm !ring-slate-300'
       : '',
     cardStyle,
-    chatLayoutClass: 'flex h-full min-h-0 w-full gap-3 p-3',
+    chatLayoutClass: 'flex h-full min-h-0 w-full flex-col gap-0 p-0 md:flex-row md:gap-3 md:p-3',
     chatCardClass: isCorporate
       ? '!rounded-lg !ring-0 !bg-white border border-slate-200 shadow-sm gap-0 py-0'
       : '!rounded-lg !ring-0 gap-0 py-0',
     chatCardHeaderClass: isCorporate
-      ? '!rounded-t-lg border-b border-slate-200 bg-slate-50 py-4 shrink-0'
-      : 'border-b py-4 shrink-0',
+      ? '!rounded-t-lg border-b border-slate-200 bg-slate-50 py-2 px-3 md:px-3 md:pt-3 md:pb-0 shrink-0'
+      : 'border-b py-2 px-3 md:px-3 md:pt-3 md:pb-0 shrink-0',
     chatCardFooterClass: isCorporate
       ? '!rounded-b-lg border-t border-slate-200 bg-slate-50'
       : 'border-t',
+    chatMobileAlertClass: 'shrink-0 border-b px-3 py-1.5 md:px-3 md:py-3',
+    chatMobileAlertTextClass: 'text-[10px] leading-snug md:text-xs md:leading-relaxed',
+    chatMessageBubbleClass: 'rounded-2xl px-2.5 py-1.5 text-sm leading-snug md:p-3 md:text-base md:leading-relaxed',
+    chatScrollAreaClass:
+      'flex-1 min-h-0 overflow-y-auto overscroll-y-contain px-0 py-2 space-y-1.5 md:px-3 md:pt-3 md:pb-0 md:space-y-3',
+    chatComposeFormClass: 'flex gap-1.5 p-2 shrink-0 md:gap-3 md:p-3',
+    chatComposeInputClass: 'flex-1 h-9 md:h-10',
     headerClass: isCorporate ? 'border-b border-slate-200 bg-slate-50' : '',
     headerStyle,
     titleClass: isCorporate ? 'text-slate-800' : '',
@@ -179,7 +186,7 @@ export function usePatientViewStyles() {
     sheetStyle,
     sidebarClass: isCorporate ? 'border-l border-slate-200 !bg-slate-50' : '',
     sidebarStyle,
-    conversationsPanelWrapClass: 'shrink-0 w-64 flex min-h-0 flex-col self-stretch',
+    conversationsPanelWrapClass: 'hidden md:flex shrink-0 w-64 min-h-0 flex-col self-stretch',
     conversationsPanelClass: isCorporate
       ? 'flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm'
       : 'flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border',

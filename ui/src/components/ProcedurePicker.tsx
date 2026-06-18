@@ -57,7 +57,7 @@ export default function ProcedurePicker({ selectedId, onChange }: ProcedurePicke
         <Input
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
-          placeholder="Search by procedure, specialty, or EMR ref…"
+          placeholder="Search procedures…"
           className={cn('pl-9', formStyles.inputClass)}
         />
       </div>

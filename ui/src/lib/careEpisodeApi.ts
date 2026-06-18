@@ -1,18 +1,6 @@
 export const CARE_EPISODE_API =
   (import.meta.env.VITE_CARE_EPISODE_API_URL as string | undefined) ?? 'http://localhost:8015';
 
-export interface CareEpisodeInviteInput {
-  patient_uuid: string;
-  emr_procedure_ref?: string;
-  procedure_type: string;
-  care_window_days: number;
-}
-
-export interface CareEpisodeInviteResult {
-  episode_uuid: string;
-  invite_token?: string;
-}
-
 export type CareEpisodeStatus = 'active' | 'closed';
 
 export interface CareEpisodeRecovery {
@@ -61,33 +49,22 @@ export interface CareEpisodeRecordUpsertItem {
   imageKey?: string;
 }
 
-/** Opens a post-care monitoring episode (spec 015 FR-001). */
-export async function createCareEpisodeInvite(
-  token: string,
-  activeActor: string,
-  input: CareEpisodeInviteInput,
-): Promise<CareEpisodeInviteResult | null> {
-  if (!CARE_EPISODE_API) {
-    return null;
-  }
-
-  const res = await fetch(`${CARE_EPISODE_API}/api/v1/care-episodes/invites`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'X-Active-Actor': activeActor,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(input),
-  });
-
-  const body = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const message = typeof body.message === 'string' ? body.message : `HTTP ${res.status}`;
-    throw new Error(message);
-  }
-
-  return body as CareEpisodeInviteResult;
+function mapCareEpisodeRecovery(body: Record<string, unknown>): CareEpisodeRecovery {
+  return {
+    episode_uuid: typeof body.episode_uuid === 'string' ? body.episode_uuid : undefined,
+    patient_uuid: typeof body.patient_uuid === 'string' ? body.patient_uuid : undefined,
+    user_uuid: String(body.user_uuid ?? body.patient_uuid ?? ''),
+    surgery: String(body.surgery ?? ''),
+    procedure_date: String(body.procedure_date ?? ''),
+    days_post_op: Number(body.days_post_op ?? 0),
+    recovery_id: String(body.recovery_id ?? ''),
+    risk_level: body.risk_level == null ? null : String(body.risk_level),
+    risk_summary: typeof body.risk_summary === 'string' ? body.risk_summary : null,
+    status: body.status === 'closed' ? 'closed' : body.status === 'active' ? 'active' : undefined,
+    tenant_uuid: typeof body.tenant_uuid === 'string' ? body.tenant_uuid : undefined,
+    closed_at: typeof body.closed_at === 'string' ? body.closed_at : null,
+    care_window_days: typeof body.care_window_days === 'number' ? body.care_window_days : undefined,
+  };
 }
 
 export async function listCareEpisodeRecoveries(
@@ -214,12 +191,13 @@ export async function markCareEpisodeInboxMessageRead(
   return (await res.json()) as CareEpisodeInboxMessage;
 }
 
+/** Creates or updates the active care episode for a patient (`POST /api/v1/care-episodes`). */
 export async function upsertCareEpisodeRecovery(
   token: string,
   activeActor: string,
   input: UpsertCareEpisodeRecoveryInput,
-): Promise<void> {
-  if (!CARE_EPISODE_API) return;
+): Promise<CareEpisodeRecovery | null> {
+  if (!CARE_EPISODE_API) return null;
   const res = await fetch(`${CARE_EPISODE_API}/api/v1/care-episodes`, {
     method: 'POST',
     headers: {
@@ -229,10 +207,12 @@ export async function upsertCareEpisodeRecovery(
     },
     body: JSON.stringify(input),
   });
+  const body = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const body = await res.text().catch(() => '');
-    throw new Error(`Failed to upsert care episode recovery: HTTP ${res.status}${body ? ` ${body}` : ''}`);
+    const message = typeof body.message === 'string' ? body.message : `HTTP ${res.status}`;
+    throw new Error(`Failed to upsert care episode recovery: ${message}`);
   }
+  return mapCareEpisodeRecovery(body as Record<string, unknown>);
 }
 
 export interface PatchCareEpisodeInput {

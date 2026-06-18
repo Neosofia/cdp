@@ -2,11 +2,11 @@ import type { ReactNode } from 'react';
 import { ShieldCheckIcon as Shield, ArrowRightOnRectangleIcon as LogOut, BuildingOfficeIcon as Building } from '@heroicons/react/24/outline';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { NavigationMenu, NavigationMenuList, NavigationMenuItem, NavigationMenuTrigger, NavigationMenuContent } from '@/components/ui/navigation-menu';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuGroup, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Breadcrumb, BreadcrumbList, BreadcrumbItem, BreadcrumbLink, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb';
 import ThemeToggle from '@/components/ThemeToggle';
+import AppShellPrimaryNav from '@/components/AppShellPrimaryNav';
 import { beginLogin } from '@/lib/auth';
 import {
   DEFAULT_APP_ROUTE,
@@ -21,7 +21,6 @@ import type { EntitlementsMap } from '@/lib/appTypes';
 import type { SessionRoleChoice } from '@/lib/sessionRoles';
 import { useShellStyles } from '@/lib/shellStyles';
 import { cn } from '@/lib/utils';
-import { uiResource } from '@/lib/uiCapability';
 
 export interface AppShellProps {
   profile: UserProfile | null;
@@ -98,11 +97,6 @@ export default function AppShell({
 }: AppShellProps) {
   const {
     isCorporate,
-    mainNavLinkClass,
-    menuTriggerClass,
-    menuContentClass,
-    menuContentStyle,
-    menuItemButtonClass,
     breadcrumbLinkClass,
     profileMenuSeparatorClass,
     profileMenuSeparatorStyle,
@@ -136,9 +130,10 @@ export default function AppShell({
       >
         <div className="flex h-16 w-full items-center justify-between px-4 md:px-6 lg:px-8">
           {isCorporate ? (
-            <div className="flex min-w-0 items-center gap-3">
+            <div className="flex min-w-0 flex-1 items-center gap-2 md:gap-3">
               <img src="/favicon.svg?v=2" alt="" className="w-7 h-7 shrink-0" aria-hidden="true" />
-              <span className="truncate text-sm md:text-base font-semibold text-slate-900">
+              <span className="truncate text-sm font-semibold text-slate-900 md:hidden">PD Care</span>
+              <span className="truncate text-sm md:text-base font-semibold text-slate-900 hidden md:inline">
                 Post Discharge Care Platform
               </span>
             </div>
@@ -162,118 +157,26 @@ export default function AppShell({
             </div>
           )}
 
-          <div className="flex shrink-0 items-center gap-3">
-            <NavigationMenu className="hidden max-w-max flex-none justify-end md:flex" viewport={false}>
-              <NavigationMenuList className="flex-none justify-end gap-1">
-                {entitlements[uiResource('Menu', 'debug')] && (
-                  <NavigationMenuItem>
-                    <NavigationMenuTrigger className={menuTriggerClass}>
-                      Debug
-                    </NavigationMenuTrigger>
-                    <NavigationMenuContent className={cn(menuContentClass, 'min-w-65')} style={menuContentStyle}>
-                      <div className="space-y-1">
-                        <Button onClick={onOpenDebugTestPage} variant="ghost" className={menuItemButtonClass}>
-                          Test API endpoints
-                        </Button>
-                      </div>
-                    </NavigationMenuContent>
-                  </NavigationMenuItem>
-                )}
-                {showStudyUsersMenu && (
-                  <NavigationMenuItem>
-                    <Button
-                      onClick={() => onMenuAction('Admin', 'Users')}
-                      variant="ghost"
-                      className={mainNavLinkClass(
-                        selectedSection === 'Admin' && selectedAction === 'Users',
-                      )}
-                    >
-                      Users
-                    </Button>
-                  </NavigationMenuItem>
-                )}
-                {entitlements[uiResource('Menu', 'operator')] && (
-                  <NavigationMenuItem>
-                    <NavigationMenuTrigger className={menuTriggerClass}>
-                      Admin
-                    </NavigationMenuTrigger>
-                    <NavigationMenuContent className={menuContentClass} style={menuContentStyle}>
-                      <div className="space-y-1">
-                        <Button onClick={() => onMenuAction('Admin', 'Services')} variant="ghost" className={menuItemButtonClass}>
-                          Services
-                        </Button>
-                        <Button onClick={() => onMenuAction('Admin', 'Users')} variant="ghost" className={menuItemButtonClass}>
-                          Users
-                        </Button>
-                      </div>
-                    </NavigationMenuContent>
-                  </NavigationMenuItem>
-                )}
-                {showPatientMenu && (
-                  <>
-                    <NavigationMenuItem>
-                      <Button
-                        onClick={onGoHome}
-                        variant="ghost"
-                        className={mainNavLinkClass(isDashboard)}
-                      >
-                        Dashboard
-                      </Button>
-                    </NavigationMenuItem>
-                    <NavigationMenuItem>
-                      <Button
-                        onClick={() => onNavigatePatient('Chat')}
-                        variant="ghost"
-                        className={mainNavLinkClass(selectedSection === 'Patient' && selectedAction === 'Chat')}
-                      >
-                        Chat
-                      </Button>
-                    </NavigationMenuItem>
-                    <NavigationMenuItem>
-                      <Button
-                        onClick={() => onNavigatePatient('Profile')}
-                        variant="ghost"
-                        className={mainNavLinkClass(selectedSection === 'Patient' && selectedAction === 'Profile')}
-                      >
-                        Profile
-                      </Button>
-                    </NavigationMenuItem>
-                  </>
-                )}
-                {showClinicianMenu && (
-                  <>
-                    <NavigationMenuItem>
-                      <Button
-                        onClick={onGoHome}
-                        variant="ghost"
-                        className={mainNavLinkClass(isDashboard)}
-                      >
-                        Dashboard
-                      </Button>
-                    </NavigationMenuItem>
-                    <NavigationMenuItem>
-                      <Button
-                        onClick={() =>
-                          onMenuAction('Clinician', 'Patients', {
-                            clinicianPatientUuid: null,
-                            clinicianListFilters: DEFAULT_CLINICIAN_LIST_FILTERS,
-                          })
-                        }
-                        variant="ghost"
-                        className={mainNavLinkClass(selectedSection === 'Clinician' && selectedAction === 'Patients')}
-                      >
-                        Patients
-                      </Button>
-                    </NavigationMenuItem>
-                  </>
-                )}
-              </NavigationMenuList>
-            </NavigationMenu>
+          <div className="flex shrink-0 items-center gap-2 md:gap-3">
+            <AppShellPrimaryNav
+              entitlements={entitlements}
+              showPatientMenu={showPatientMenu}
+              showClinicianMenu={showClinicianMenu}
+              showStudyUsersMenu={showStudyUsersMenu}
+              isDashboard={isDashboard}
+              selectedSection={selectedSection}
+              selectedAction={selectedAction}
+              onGoHome={onGoHome}
+              onMenuAction={onMenuAction}
+              onNavigatePatient={onNavigatePatient}
+              onOpenDebugTestPage={onOpenDebugTestPage}
+            />
 
-            <div className="shrink-0 min-w-44">
+            <div className="shrink-0 min-w-0 md:min-w-44">
               {profile ? (
                 <DropdownMenu>
                   <DropdownMenuTrigger
+                    aria-label={`${profile.first_name} ${profile.last_name}`}
                     className={cn(
                       'flex items-center gap-3 rounded-lg px-3 py-2 transition-colors',
                       isCorporate ? 'hover:bg-slate-100' : 'hover:bg-cyan-500/5',
@@ -561,14 +464,26 @@ export default function AppShell({
 
       <main
         className={cn(
-          'relative z-10 mx-auto flex w-full max-w-7xl flex-1 flex-col min-h-0 px-4 md:px-8',
-          showDemoBanner ? 'pt-32' : 'pt-20',
-          fillViewport ? 'overflow-hidden pb-4' : 'overflow-y-auto pb-8',
+          'relative z-10 mx-auto flex w-full max-w-7xl flex-1 flex-col min-h-0 px-3 md:px-8',
+          showDemoBanner ? 'pt-32' : 'pt-16',
+          fillViewport ? 'overflow-hidden pb-0 md:pb-4' : 'overflow-y-auto pb-8',
         )}
       >
-        <div className={cn('shrink-0', fillViewport ? 'mb-4' : 'mb-6')}>
-          <div className="flex items-center gap-3 min-w-0">
-            <Breadcrumb className="min-w-0 flex-1 py-0">
+        <div
+          className={cn(
+            'shrink-0',
+            showPageHeading
+              ? cn('pt-2 pb-2', fillViewport ? 'mb-0 md:mb-4' : 'mb-6')
+              : cn('py-3', fillViewport ? 'mb-0 md:mb-3' : 'mb-0'),
+          )}
+        >
+          <div
+            className={cn(
+              'flex items-center gap-3 min-w-0',
+              fillViewport && 'hidden md:flex',
+            )}
+          >
+            <Breadcrumb className="min-w-0 flex-1">
               <BreadcrumbList>
               {isDashboard ? (
                 <BreadcrumbItem>
@@ -704,6 +619,7 @@ export default function AppShell({
             <h1
               className={cn(
                 'text-3xl mb-2',
+                fillViewport && 'hidden md:block',
                 isCorporate
                   ? 'font-semibold tracking-tight text-slate-900'
                   : 'font-black uppercase tracking-wide',

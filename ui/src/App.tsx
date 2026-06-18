@@ -117,7 +117,9 @@ export default function App() {
     clinicianPatient && selectedSection === 'Clinician'
       ? `${clinicianPatient.displayCode} · ${clinicianPatient.surgery} · Day ${clinicianPatient.daysPostOp} post-op · Recovery ${clinicianPatient.recoveryId}`
       : null;
-  const showPageHeading = !isClinicianPatientList && !isClinicianPatientDetail;
+  const isPatientChat = selectedSection === 'Patient' && selectedAction === 'Chat';
+  const showPageHeading =
+    !isClinicianPatientList && !isClinicianPatientDetail && !isDashboard && !isPatientChat;
   const adminSectionCrumbIsLink = Boolean(selectedAction);
 
   const applyRoute = useCallback(
@@ -275,6 +277,7 @@ export default function App() {
 
   const appFooter = (
     <AppFooter
+      compact={fillViewport}
       className={cn(
         'relative z-10 shrink-0 border-t',
         isCorporate ? 'border-slate-200' : 'border-cyan-500/10',

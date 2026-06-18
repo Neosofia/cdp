@@ -4,31 +4,31 @@ import type { PatientTranscriptRole } from '@/lib/patientTranscript';
 export interface ChatBubbleLayout {
   alignEnd: boolean;
   useUserBubble: boolean;
+  /** Edge gutter from the thread container (Tailwind spacing scale: 1 = 4px, 3 = 12px). */
   offsetClass: string;
+  /** Width constraint paired with flex alignment on the row. */
+  sizeClass: string;
   tailClass: string;
   showSparkles: boolean;
   markdown: boolean;
 }
 
-/**
- * Thread bubble insets (both views):
- * - Edge (incoming on left / outgoing on right): ml-3 & mr-3 (~12px)
- * - AI deeper inset: ml-10 (clinician view, left) & mr-10 (patient view, right)
- */
-const THREAD_EDGE_INSET_START = 'ml-3';
-const THREAD_EDGE_INSET_END = 'mr-3';
-/** Extra inset for AI bubbles (left in clinician view, right in patient view). */
-const AI_LEFT_INSET = 'ml-10';
-const AI_RIGHT_INSET = 'mr-10';
+/** Mobile scroll is px-0 — edge bubbles carry inset; desktop scroll uses px-3. */
+const EDGE_LEFT = 'ml-1 md:ml-0';
+const EDGE_RIGHT = 'mr-1 md:mr-0';
+/** Patient/clinician hug the thread edges; AI sits in a narrower center lane (3rd party). */
+const AI_GUTTERS = 'mx-3 w-[calc(100%-1.5rem)] md:mx-9 md:w-[calc(100%-4.5rem)]';
+const EDGE_BUBBLE_WIDTH = 'max-w-[calc(100%-0.25rem)] md:max-w-[85%]';
 
-/** Clinician reading a patient thread: patient left, AI left (deeper inset), clinician right. */
+/** Clinician reading a patient thread: patient left, AI centered track, clinician right. */
 export function clinicianTranscriptBubbleLayout(role: PatientTranscriptRole): ChatBubbleLayout {
   switch (role) {
     case 'clinician':
       return {
         alignEnd: true,
         useUserBubble: true,
-        offsetClass: THREAD_EDGE_INSET_END,
+        offsetClass: EDGE_RIGHT,
+        sizeClass: `${EDGE_BUBBLE_WIDTH} ml-auto`,
         tailClass: 'rounded-br-md',
         showSparkles: false,
         markdown: true,
@@ -37,7 +37,8 @@ export function clinicianTranscriptBubbleLayout(role: PatientTranscriptRole): Ch
       return {
         alignEnd: false,
         useUserBubble: true,
-        offsetClass: THREAD_EDGE_INSET_START,
+        offsetClass: EDGE_LEFT,
+        sizeClass: `${EDGE_BUBBLE_WIDTH} mr-auto`,
         tailClass: 'rounded-bl-md',
         showSparkles: false,
         markdown: false,
@@ -46,7 +47,8 @@ export function clinicianTranscriptBubbleLayout(role: PatientTranscriptRole): Ch
       return {
         alignEnd: false,
         useUserBubble: false,
-        offsetClass: AI_LEFT_INSET,
+        offsetClass: '',
+        sizeClass: AI_GUTTERS,
         tailClass: 'rounded-bl-md',
         showSparkles: true,
         markdown: true,
@@ -54,7 +56,7 @@ export function clinicianTranscriptBubbleLayout(role: PatientTranscriptRole): Ch
   }
 }
 
-/** Patient reading their thread: clinician left (ml-3), AI right (mr-10), patient right (mr-3). */
+/** Patient reading their thread: care team + AI inbound on the left; patient outbound on the right. */
 export function patientThreadBubbleLayout(
   role: 'user' | 'assistant',
   senderType: ChatMessage['sender_type'],
@@ -63,7 +65,8 @@ export function patientThreadBubbleLayout(
     return {
       alignEnd: true,
       useUserBubble: true,
-      offsetClass: THREAD_EDGE_INSET_END,
+      offsetClass: EDGE_RIGHT,
+      sizeClass: `${EDGE_BUBBLE_WIDTH} ml-auto`,
       tailClass: 'rounded-br-md',
       showSparkles: false,
       markdown: false,
@@ -73,8 +76,9 @@ export function patientThreadBubbleLayout(
   if (senderType === 'clinician') {
     return {
       alignEnd: false,
-      useUserBubble: true,
-      offsetClass: THREAD_EDGE_INSET_START,
+      useUserBubble: false,
+      offsetClass: EDGE_LEFT,
+      sizeClass: `${EDGE_BUBBLE_WIDTH} mr-auto`,
       tailClass: 'rounded-bl-md',
       showSparkles: false,
       markdown: true,
@@ -82,10 +86,11 @@ export function patientThreadBubbleLayout(
   }
 
   return {
-    alignEnd: true,
+    alignEnd: false,
     useUserBubble: false,
-    offsetClass: AI_RIGHT_INSET,
-    tailClass: 'rounded-br-md',
+    offsetClass: '',
+    sizeClass: AI_GUTTERS,
+    tailClass: 'rounded-bl-md',
     showSparkles: true,
     markdown: true,
   };

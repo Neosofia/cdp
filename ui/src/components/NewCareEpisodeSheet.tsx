@@ -12,10 +12,7 @@ import {
 import { useUserFormStyles } from '@/components/userFormStyles';
 import { cn } from '@/lib/utils';
 import { procedureById } from '@/lib/procedureCatalog';
-import {
-  createCareEpisodeInvite,
-  startNewCareEpisode,
-} from '@/lib/careEpisodeApi';
+import { startNewCareEpisode } from '@/lib/careEpisodeApi';
 import { registerPostCareEnrollment, DEFAULT_CARE_WINDOW_DAYS, type DemoPatientClinical } from '@/lib/demoPatients';
 
 export interface NewCareEpisodeInput {
@@ -127,13 +124,6 @@ export default function NewCareEpisodeSheet({
     };
 
     try {
-      await createCareEpisodeInvite(token, activeActor, {
-        patient_uuid: patientUuid,
-        procedure_type: procedureEntry.procedureType,
-        care_window_days: careDays,
-        emr_procedure_ref: procedureEntry.emrRef,
-      });
-
       const created = await startNewCareEpisode(token, activeActor, {
         patient_uuid: patientUuid,
         tenant_uuid: tenantUuid,
@@ -166,7 +156,7 @@ export default function NewCareEpisodeSheet({
           </SheetTitle>
         </SheetHeader>
         <div className={formStyles.sheetBodyClass}>
-          <p className={cn('text-xs', formStyles.mutedTextClass)}>
+          <p className={cn('text-xs hidden sm:block', formStyles.mutedTextClass)}>
             Open a new care episode for {displayName}. The prior discharge stays in episode
             history for review.
           </p>
@@ -196,15 +186,25 @@ export default function NewCareEpisodeSheet({
           </div>
 
           {error ? <p className="text-sm text-red-400">{error}</p> : null}
-
-          <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="outline" onClick={() => handleClose(false)} disabled={saving}>
-              Cancel
-            </Button>
-            <Button type="button" onClick={() => void submit()} disabled={!canSubmit || saving}>
-              {saving ? 'Starting…' : 'Start episode'}
-            </Button>
-          </div>
+        </div>
+        <div className={formStyles.sheetFooterActionsClass}>
+          <Button
+            type="button"
+            onClick={() => void submit()}
+            disabled={!canSubmit || saving}
+            className={cn(formStyles.primaryButtonClass, formStyles.sheetPrimaryActionClass)}
+          >
+            {saving ? 'Starting…' : 'Start episode'}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => handleClose(false)}
+            disabled={saving}
+            className={cn(formStyles.sheetCancelButtonClass, formStyles.sheetPrimaryActionClass)}
+          >
+            Cancel
+          </Button>
         </div>
       </SheetContent>
     </Sheet>

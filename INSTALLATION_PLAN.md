@@ -31,7 +31,33 @@ uv run alembic upgrade head
 SELECT version_num FROM alembic_version;
 ```
 
-Compare `version_num` to the expected revision in that release's service **INSTALLATION_PLAN.md** (for example user **`002`**, care-episode **`012`** at CDP UI **2026.06.20**).
+Compare `version_num` to the expected revision in that release's service **INSTALLATION_PLAN.md** (for example user **`002`**, care-episode **`012`** at CDP UI **2026.06.21**).
+
+## CDP UI 2026.06.21 / chat v0.7.0 / care-episode v0.9.0
+
+**Release pins:** CDP UI **2026.06.21**; **chat v0.7.0**; **care-episode v0.9.0** (other backend pins unchanged from **2026.06.20** unless your environment already tracks newer tags).
+
+**Prerequisites**
+
+- **`FRONTEND_URL`** on care-episode set to the CDP UI base URL (clinical risk alert deep links).
+- Notification service registered when **`RISK_ESCALATION_ENABLED`** is true.
+
+**Deploy steps**
+
+1. Tag and push **chat v0.7.0** and **care-episode v0.9.0**; wait for GHCR image publish.
+2. Redeploy **chat** and **care-episode** on Railway (no new migrations; care-episode head **`012`**).
+3. Push **CDP UI 2026.06.21** to the Railway-connected branch (or redeploy UI service).
+
+**Verify**
+
+1. `GET /health` on chat reports **0.7.0** and care-episode **0.9.0**; `alembic_version` on care-episode is **`012`**.
+2. UI footer shows **2026.06.21**.
+3. Clinician **Patients** roster and **Patient chat** match staging visual walkthrough captures.
+4. Prior conversations lists omit empty threads; **Enroll** still opens post-care monitoring.
+
+**Evidence:** Service health JSON; UI footer CalVer; staging visual walkthrough gallery green.
+
+---
 
 ## CDP UI 2026.06.20 / care-episode v0.8.2
 
@@ -52,8 +78,7 @@ Compare `version_num` to the expected revision in that release's service **INSTA
 
 1. `GET /health` on care-episode reports **0.8.2**; `alembic_version` is **`012`**.
 2. UI footer shows **2026.06.20**.
-3. Escalation email deep link opens clinician patient detail with the correct episode selected.
-4. Staging E2E green.
+3. Clinician **Patients →** patient detail opens on the correct episode when following a clinical risk alert email link.
 
 **Evidence**
 

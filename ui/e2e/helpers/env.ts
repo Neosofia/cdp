@@ -53,4 +53,5 @@ export const e2eEnv = {
   patientDisplayCode: process.env.E2E_PATIENT_DISPLAY_CODE ?? 'DEMO-123',
   workosOrg: process.env.E2E_WORKOS_ORG ?? 'Neosofia',
   clinicianRoleLabel: process.env.E2E_CLINICIAN_ROLE ?? 'Site Clinical',
+  patientRoleLabel: process.env.E2E_PATIENT_ROLE ?? 'Patient',
 };

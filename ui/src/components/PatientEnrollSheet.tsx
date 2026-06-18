@@ -163,20 +163,20 @@ export default function PatientEnrollSheet({
   return (
     <Sheet open={open} onOpenChange={handleClose}>
       <SheetContent side="right" className={formStyles.sheetContentClass}>
-        <SheetHeader className={formStyles.sheetHeaderClass}>
-          <SheetTitle className={formStyles.sheetTitleClass} style={formStyles.sheetTitleStyle}>
+        <SheetHeader className={cn('min-w-0', formStyles.sheetHeaderClass)}>
+          <SheetTitle className={cn('min-w-0', formStyles.sheetTitleClass)} style={formStyles.sheetTitleStyle}>
             Enroll in post-care monitoring
           </SheetTitle>
         </SheetHeader>
-        <div className={formStyles.sheetBodyClass}>
-          <p className={cn('text-xs', formStyles.mutedTextClass)}>
-            Start post-discharge monitoring for a procedure. This opens a care episode with a
-            monitoring window and invite path for the patient.
+        <div className={cn('min-w-0', formStyles.sheetBodyClass)}>
+          <p className={cn('text-xs hidden sm:block', formStyles.mutedTextClass)}>
+            Enroll a patient in post-discharge monitoring for a procedure. This creates their
+            platform account (when new) and opens the first care episode with a monitoring window.
           </p>
 
           <div>
             <span className={formStyles.fieldLabelClass}>Patient</span>
-            <div className="flex gap-2 mb-3">
+            <div className="grid grid-cols-2 gap-2 mb-3">
               <Button
                 type="button"
                 size="sm"
@@ -184,6 +184,7 @@ export default function PatientEnrollSheet({
                 disabled={existingPatients.length === 0}
                 onClick={() => setMode('existing')}
                 className={cn(
+                  'w-full',
                   mode === 'existing' ? formStyles.sheetToggleSelectedClass : formStyles.sheetToggleIdleClass,
                 )}
               >
@@ -195,6 +196,7 @@ export default function PatientEnrollSheet({
                 variant="outline"
                 onClick={() => setMode('new')}
                 className={cn(
+                  'w-full',
                   mode === 'new' ? formStyles.sheetToggleSelectedClass : formStyles.sheetToggleIdleClass,
                 )}
               >
@@ -229,7 +231,7 @@ export default function PatientEnrollSheet({
                   value={newPatient.display_code}
                   onChange={(e) => setNewPatient(f => ({ ...f, display_code: e.target.value }))}
                 />
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <Input
                     className={formStyles.inputClass}
                     placeholder="First name"
@@ -246,7 +248,7 @@ export default function PatientEnrollSheet({
                 <Input
                   type="email"
                   className={formStyles.inputClass}
-                  placeholder="Email for invite"
+                  placeholder="Email address"
                   value={newPatient.email}
                   onChange={(e) => setNewPatient(f => ({ ...f, email: e.target.value }))}
                 />
@@ -285,25 +287,25 @@ export default function PatientEnrollSheet({
           </div>
 
           {error ? <p className="text-sm text-red-400">{error}</p> : null}
-          <div className="flex items-center gap-3 pt-2">
-            <Button
-              type="button"
-              variant="outline"
-              className={formStyles.primaryButtonClass}
-              disabled={saving || !canSubmit}
-              onClick={() => void submit()}
-            >
-              {saving ? 'Enrolling…' : 'Start post-care monitoring'}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              className={formStyles.sheetCancelButtonClass}
-              onClick={() => handleClose(false)}
-            >
-              Cancel
-            </Button>
-          </div>
+        </div>
+        <div className={formStyles.sheetFooterActionsClass}>
+          <Button
+            type="button"
+            variant="outline"
+            className={cn(formStyles.primaryButtonClass, formStyles.sheetPrimaryActionClass)}
+            disabled={saving || !canSubmit}
+            onClick={() => void submit()}
+          >
+            {saving ? 'Enrolling…' : 'Start post-care monitoring'}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className={cn(formStyles.sheetCancelButtonClass, formStyles.sheetPrimaryActionClass)}
+            onClick={() => handleClose(false)}
+          >
+            Cancel
+          </Button>
         </div>
       </SheetContent>
     </Sheet>

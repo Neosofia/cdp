@@ -1,7 +1,7 @@
 x-auth-image: &auth_image ghcr.io/neosofia/authentication:v0.38.1
 x-user-image: &user_image ghcr.io/neosofia/user:v0.8.2
-x-chat-image: &chat_image ghcr.io/neosofia/chat:v0.6.2
-x-care-episode-image: &care_episode_image ghcr.io/neosofia/care-episode:v0.8.2
+x-chat-image: &chat_image ghcr.io/neosofia/chat:v0.7.0
+x-care-episode-image: &care_episode_image ghcr.io/neosofia/care-episode:v0.9.0
 x-capabilities-image: &capabilities_image ghcr.io/neosofia/capabilities:v0.7.3
 x-template-image: &template_image ghcr.io/neosofia/python-template:v0.10.0
 x-notification-image: &notification_image ghcr.io/neosofia/notification:v0.2.3

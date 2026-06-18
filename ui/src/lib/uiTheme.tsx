@@ -87,5 +87,5 @@ export const PLATFORM_TITLE = {
 
 export const PLATFORM_FOOTER = {
   spawn: '© 2026 SPAWN 2 Clinical Data Platform',
-  corporate: '© 2026 Post Discharge Care Platform',
+  corporate: '© 2026 PD Care',
 } as const;

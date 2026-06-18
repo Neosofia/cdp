@@ -12,8 +12,8 @@ export function useUserFormStyles() {
   return {
     isCorporate,
     sheetContentClass: isCorporate
-      ? 'w-full max-w-[100vw] sm:min-w-xl sm:w-[40vw] sm:max-w-[40vw] !bg-white text-slate-900 border-l border-slate-200 p-0 overflow-y-auto shadow-lg'
-      : 'w-full max-w-[100vw] sm:min-w-xl sm:w-[40vw] sm:max-w-[40vw] !bg-[#05050f] !text-slate-300 border-l border-cyan-500/20 p-0 overflow-y-auto shadow-[0_0_40px_rgba(34,211,238,0.08)]',
+      ? 'w-full min-w-0 max-w-[100dvw] sm:min-w-xl sm:w-[40vw] sm:max-w-[40vw] !bg-white !opacity-100 text-slate-900 border-l border-slate-200 p-0 overflow-hidden shadow-lg flex flex-col min-h-0'
+      : 'w-full min-w-0 max-w-[100dvw] sm:min-w-xl sm:w-[40vw] sm:max-w-[40vw] !bg-[#05050f] !opacity-100 !text-slate-300 border-l border-cyan-500/20 p-0 overflow-hidden shadow-[0_0_40px_rgba(34,211,238,0.08)] flex flex-col min-h-0',
     sheetToggleSelectedClass: isCorporate
       ? corporateSolidButtonClass
       : 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40 hover:bg-cyan-500/25 hover:text-cyan-200',
@@ -21,10 +21,16 @@ export function useUserFormStyles() {
       ? '!border-slate-300 !bg-white !text-slate-700 hover:!border-slate-400 hover:!bg-slate-50 hover:!text-slate-900'
       : 'text-slate-400 border-slate-700 hover:text-cyan-300 hover:bg-cyan-500/10',
     sheetHeaderClass: isCorporate
-      ? 'border-b border-slate-200 pb-4 mb-0 px-6 pt-6'
-      : 'border-b border-slate-700/60 pb-4 mb-0 px-6 pt-6',
-    sheetBodyClass: 'px-6 pb-6 pt-4 space-y-5',
-    sheetTitleClass: 'text-xs font-semibold uppercase tracking-widest',
+      ? 'shrink-0 bg-white border-b border-slate-200 pb-4 mb-0 px-5 pt-6 pr-14 sm:px-6 sm:pt-6 sm:pr-6'
+      : 'shrink-0 bg-[#05050f] border-b border-slate-700/60 pb-4 mb-0 px-5 pt-6 pr-14 sm:px-6 sm:pt-6 sm:pr-6',
+    sheetBodyClass: isCorporate
+      ? 'flex-1 min-h-0 overflow-y-auto bg-white px-5 pb-5 pt-5 space-y-5 sm:px-6 sm:pb-6 sm:pt-4'
+      : 'flex-1 min-h-0 overflow-y-auto bg-[#05050f] px-5 pb-5 pt-5 space-y-5 sm:px-6 sm:pb-6 sm:pt-4',
+    sheetFooterActionsClass: isCorporate
+      ? 'shrink-0 border-t border-slate-200 bg-white px-5 py-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] flex flex-col-reverse gap-3 sm:px-6 sm:py-4 sm:pb-4 sm:flex-row sm:items-center sm:border-0 sm:pt-2'
+      : 'shrink-0 border-t border-slate-700/60 bg-[#05050f] px-5 py-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] flex flex-col-reverse gap-3 sm:px-6 sm:py-4 sm:pb-4 sm:flex-row sm:items-center sm:border-0 sm:pt-2',
+    sheetPrimaryActionClass: 'w-full sm:w-auto',
+    sheetTitleClass: 'text-xs font-semibold uppercase tracking-wide break-words sm:tracking-widest',
     sheetTitleStyle: isCorporate
       ? ({ color: '#0f172a' } satisfies CSSProperties)
       : ({ color: 'rgba(34,211,238,0.7)' } satisfies CSSProperties),
@@ -55,8 +61,8 @@ export function useUserFormStyles() {
       ? 'max-h-56 overflow-y-auto rounded-lg border border-slate-200 bg-white divide-y divide-slate-200'
       : 'max-h-56 overflow-y-auto rounded-lg border border-slate-800 bg-slate-900/40 divide-y divide-slate-800',
     pickerProcedureListClass: isCorporate
-      ? 'max-h-52 overflow-y-auto rounded-lg border border-slate-200 bg-white divide-y divide-slate-200'
-      : 'max-h-52 overflow-y-auto rounded-lg border border-slate-800 bg-slate-900/40 divide-y divide-slate-800',
+      ? 'max-h-40 sm:max-h-52 overflow-y-auto rounded-lg border border-slate-200 bg-white divide-y divide-slate-200'
+      : 'max-h-40 sm:max-h-52 overflow-y-auto rounded-lg border border-slate-800 bg-slate-900/40 divide-y divide-slate-800',
     pickerGroupTitleClass: isCorporate
       ? 'text-[10px] font-semibold uppercase tracking-widest text-slate-500 mb-2'
       : 'text-[10px] font-semibold uppercase tracking-widest text-cyan-500/70 mb-2',

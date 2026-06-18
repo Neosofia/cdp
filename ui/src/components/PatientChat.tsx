@@ -2,8 +2,6 @@ import { useCallback, useEffect, useState, useRef } from 'react';
 import {
   createChatInteraction,
   fetchChatMeta,
-  formatChatInteractionActivityDate,
-  formatChatInteractionLabel,
   interactionsWithIntervention,
   isAssistantUnavailableError,
   loadPatientChatHistory,
@@ -22,16 +20,17 @@ import {
 } from '@/lib/userRegistryApi';
 import { useScrollToBottom } from '@/lib/useScrollToBottom';
 import {
-  ChatBubbleLeftRightIcon,
   PaperAirplaneIcon,
   PlusIcon,
   SparklesIcon,
-  UserGroupIcon,
 } from '@heroicons/react/24/outline';
+import ConversationListItems from '@/components/ConversationListItems';
+import PriorConversationsSheet from '@/components/PriorConversationsSheet';
+import ChatBubbleMetaRow from '@/components/ChatBubbleMetaRow';
 import ChatMessageContent from '@/components/ChatMessageContent';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { patientThreadBubbleLayout } from '@/lib/chatBubbleLayout';
 import { usePatientViewStyles } from '@/lib/patientViewStyles';
@@ -55,9 +54,6 @@ interface Props {
 
 const ASSISTANT_UNAVAILABLE_MESSAGE =
   'The care assistant is temporarily unavailable. You can still read past messages, but new assistant replies are paused.';
-
-const CARE_TEAM_INTERVENTION_MESSAGE =
-  'Your care team is responding in this conversation. The care assistant is paused here — you can still message your clinicians.';
 
 export default function PatientChat({
   token,
@@ -84,10 +80,12 @@ export default function PatientChat({
   const [interventionThreadUuids, setInterventionThreadUuids] = useState<Set<string>>(
     () => new Set(),
   );
+  const [conversationsOpen, setConversationsOpen] = useState(false);
   const scrollRef = useScrollToBottom<HTMLDivElement>([messages, sending, loadingHistory]);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const showSidebar = canLoadHistory && interactions.length >= 2;
+  const showDesktopSidebar = canLoadHistory && interactions.length >= 2;
+  const showConversationsPicker = canLoadHistory && interactions.length > 0;
   const humanInterventionActive = threadMessagesHaveIntervention(messages);
   const canSendMessages = humanInterventionActive || assistantAvailable;
 
@@ -447,7 +445,7 @@ export default function PatientChat({
     }
   };
 
-  const conversationsSidebar = showSidebar ? (
+  const conversationsSidebar = showDesktopSidebar ? (
     <div className={pv.conversationsPanelWrapClass}>
       <aside
         className={pv.conversationsPanelClass}
@@ -460,51 +458,29 @@ export default function PatientChat({
           <p className={cn('text-xs font-semibold uppercase tracking-widest', pv.mutedText)}>Conversations</p>
         </div>
         <nav className={pv.conversationsPanelNavClass}>
-        {interactions.map(interaction => {
-          const isActive = interaction.chat_interaction_uuid === activeInteractionUuid;
-          const activityDate = formatChatInteractionActivityDate(interaction);
-          const threadHasIntervention = interventionThreadUuids.has(interaction.chat_interaction_uuid);
-          return (
-            <button
-              key={interaction.chat_interaction_uuid}
-              type="button"
-              onClick={() => void selectInteraction(interaction.chat_interaction_uuid)}
-              disabled={loadingHistory || sending}
-              className={cn(
-                'w-full text-left rounded-lg px-3 py-2 text-sm transition-colors border',
-                isActive
-                  ? pv.conversationActive
-                  : threadHasIntervention
-                    ? pv.conversationIntervention
-                    : pv.conversationIdle,
-              )}
-            >
-              <span className="flex items-start gap-2 min-w-0">
-                <span className="block truncate font-medium flex-1 min-w-0">
-                  {formatChatInteractionLabel(interaction)}
-                </span>
-                {threadHasIntervention ? (
-                  <span
-                    className={cn(
-                      'shrink-0 inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide',
-                      pv.careTeamBadgeClass,
-                    )}
-                    title="Your care team is responding in this conversation"
-                  >
-                    <UserGroupIcon className="h-3 w-3" aria-hidden />
-                    Care team
-                  </span>
-                ) : null}
-              </span>
-              {activityDate ? (
-                <span className="block text-[10px] mt-1 opacity-60">{activityDate}</span>
-              ) : null}
-            </button>
-          );
-        })}
+          <ConversationListItems
+            interactions={interactions}
+            activeInteractionUuid={activeInteractionUuid}
+            interventionThreadUuids={interventionThreadUuids}
+            disabled={loadingHistory || sending}
+            onSelect={(interactionUuid) => void selectInteraction(interactionUuid)}
+            styles={pv}
+          />
         </nav>
       </aside>
     </div>
+  ) : null;
+
+  const conversationsSheet = showConversationsPicker ? (
+    <PriorConversationsSheet
+      open={conversationsOpen}
+      onOpenChange={setConversationsOpen}
+      interactions={interactions}
+      activeInteractionUuid={activeInteractionUuid}
+      interventionThreadUuids={interventionThreadUuids}
+      disabled={loadingHistory || sending}
+      onSelect={(interactionUuid) => void selectInteraction(interactionUuid)}
+    />
   ) : null;
 
   return (
@@ -514,68 +490,77 @@ export default function PatientChat({
         {...(pv.cardStyle ? { style: pv.cardStyle } : {})}
       >
         <CardHeader className={pv.chatCardHeaderClass} style={pv.headerStyle}>
-          <div className="flex items-center justify-between gap-3">
-            <CardTitle
-              className={cn('text-lg flex items-center gap-2', pv.titleClass)}
-              style={pv.titleStyle}
-            >
-              <ChatBubbleLeftRightIcon className="h-5 w-5" />
-              Care assistant
-              {canLoadHistory && !assistantAvailable && !humanInterventionActive && (
+          <div className="flex items-center justify-between gap-2 min-w-0">
+            <div className="flex min-w-0 items-center gap-2">
+              {humanInterventionActive ? (
+                <span
+                  role="status"
+                  aria-label="Care team active"
+                  className={cn(
+                    'shrink-0 text-[10px] font-semibold uppercase tracking-widest px-2 py-0.5 rounded-md',
+                    pv.careTeamBadgeClass,
+                  )}
+                >
+                  Care team
+                </span>
+              ) : null}
+              {!humanInterventionActive && !assistantAvailable && canLoadHistory && !loadingHistory ? (
                 <span
                   className={cn(
-                    'text-[10px] font-semibold uppercase tracking-widest px-2 py-0.5 rounded-md ml-2',
+                    'shrink-0 text-[10px] font-semibold uppercase tracking-widest px-2 py-0.5 rounded-md',
                     pv.unavailableBadgeClass,
                   )}
                 >
                   Unavailable
                 </span>
-              )}
-            </CardTitle>
-            {canLoadHistory && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => void startNewChat()}
-                disabled={sending || loadingInteractions}
-                className={cn('shrink-0', pv.outlineButton)}
-              >
-                <PlusIcon className="h-4 w-4 mr-1.5" />
-                New chat
-              </Button>
-            )}
+              ) : null}
+            </div>
+            <div className="flex shrink-0 items-center gap-1.5">
+              {showConversationsPicker ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setConversationsOpen(true)}
+                  disabled={loadingInteractions}
+                  className={cn('h-8 px-2.5 text-xs md:hidden', pv.outlineButton)}
+                >
+                  Conversations
+                </Button>
+              ) : null}
+              {canLoadHistory ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void startNewChat()}
+                  disabled={sending || loadingInteractions}
+                  className={cn('h-8 shrink-0 px-2.5 text-xs', pv.outlineButton)}
+                >
+                  <PlusIcon className="h-3.5 w-3.5" />
+                  New
+                </Button>
+              ) : null}
+            </div>
           </div>
         </CardHeader>
-        {humanInterventionActive ? (
-          <div
-            className={cn('shrink-0 border-b px-4 py-2.5', pv.alertClass)}
-            style={pv.alertStyle}
-            role="status"
-          >
-            <p className={cn('text-xs leading-relaxed', pv.alertText)}>{CARE_TEAM_INTERVENTION_MESSAGE}</p>
-          </div>
-        ) : null}
         {!humanInterventionActive && !assistantAvailable && canLoadHistory && !loadingHistory ? (
           <div
-            className={cn('shrink-0 border-b px-4 py-2.5', pv.alertClass)}
+            className={cn(pv.chatMobileAlertClass, pv.alertClass)}
             style={pv.alertStyle}
             role="status"
           >
-            <p className={cn('text-xs leading-relaxed', pv.alertText)}>{ASSISTANT_UNAVAILABLE_MESSAGE}</p>
+            <p className={cn(pv.chatMobileAlertTextClass, pv.alertText)}>{ASSISTANT_UNAVAILABLE_MESSAGE}</p>
           </div>
         ) : null}
         <CardContent className="p-0 flex flex-1 flex-col min-h-0 overflow-hidden">
           <div
             ref={scrollRef}
-            className={cn(
-              'flex-1 min-h-0 overflow-y-auto overscroll-y-contain px-4 py-4 pb-6 space-y-4',
-              pv.chatScrollClass,
-            )}
+            className={cn(pv.chatScrollAreaClass, pv.chatScrollClass)}
           >
             {loadingHistory && messages.length === 0 && (
-              <div className="flex justify-center py-8">
-                <p className={cn('text-sm', pv.mutedText)}>Loading your conversation…</p>
+              <div className="flex justify-center py-4 md:py-3">
+                <p className={cn('text-xs md:text-sm', pv.mutedText)}>Loading your conversation…</p>
               </div>
             )}
             {messages.map(msg => {
@@ -588,71 +573,76 @@ export default function PatientChat({
                 ? clinicianLabel.split(' · ')
                 : [];
               const clinicianRole = clinicianRoleParts.join(' · ');
+              const messageTime = msg.createdAt.toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit',
+              });
+              const metaTimeClass = cn(
+                pv.isCorporate
+                  ? layout.useUserBubble
+                    ? 'text-slate-300'
+                    : 'text-slate-500'
+                  : 'text-slate-400/80',
+              );
 
               return (
               <div
                 key={msg.id}
-                className={cn('flex', layout.alignEnd ? 'justify-end' : 'justify-start')}
+                className={cn('flex w-full', layout.alignEnd ? 'justify-end' : 'justify-start')}
               >
                 <div
                   className={cn(
-                    'max-w-[85%] rounded-2xl px-4 py-3 text-base leading-relaxed',
+                    pv.chatMessageBubbleClass,
+                    layout.sizeClass,
+                    layout.offsetClass,
                     layout.useUserBubble
                       ? cn(pv.chatBubbleUserClass, layout.tailClass)
                       : cn(pv.chatBubbleAssistantClass, layout.tailClass),
-                    layout.offsetClass,
                   )}
                   style={
                     layout.useUserBubble ? pv.chatBubbleUser() : pv.chatBubbleAssistant()
                   }
                 >
-                  {layout.showSparkles ? (
-                    <SparklesIcon
-                      className={cn(
-                        'h-4 w-4 mb-1.5 inline-block mr-1.5',
-                        pv.isCorporate ? 'text-violet-600' : '',
-                      )}
-                      style={pv.isCorporate ? undefined : { color: '#a855f7' }}
-                    />
-                  ) : null}
-                  {clinicianLabel ? (
-                    <div className="text-xs mb-1.5 leading-snug">
-                      <span
-                        className={cn(
-                          'font-medium',
-                          layout.useUserBubble
-                            ? pv.isCorporate
-                              ? 'text-slate-100'
-                              : 'text-cyan-100'
-                            : pv.isCorporate
-                              ? 'text-slate-800'
-                              : 'text-cyan-200/90',
-                        )}
-                      >
-                        {clinicianName}
-                      </span>
-                      {clinicianRole ? (
-                        <span className={pv.mutedText}>{` · ${clinicianRole}`}</span>
-                      ) : null}
-                    </div>
-                  ) : null}
+                  <ChatBubbleMetaRow
+                    time={messageTime}
+                    timeClass={metaTimeClass}
+                    titleClass={
+                      layout.useUserBubble
+                        ? pv.isCorporate
+                          ? 'text-slate-100'
+                          : 'text-cyan-100'
+                        : pv.isCorporate
+                          ? 'text-slate-800'
+                          : 'text-cyan-200/90'
+                    }
+                    leading={
+                      layout.showSparkles ? (
+                        <SparklesIcon
+                          className={cn(
+                            'h-3.5 w-3.5 shrink-0',
+                            pv.isCorporate ? 'text-violet-600' : '',
+                          )}
+                          style={pv.isCorporate ? undefined : { color: '#a855f7' }}
+                          aria-hidden
+                        />
+                      ) : undefined
+                    }
+                    title={
+                      clinicianLabel ? (
+                        <>
+                          <span className="shrink-0 font-medium">{clinicianName}</span>
+                          {clinicianRole ? (
+                            <span className="truncate opacity-80">{` · ${clinicianRole}`}</span>
+                          ) : null}
+                        </>
+                      ) : undefined
+                    }
+                  />
                   <ChatMessageContent
                     content={msg.content}
                     markdown={layout.markdown}
                     surface={layout.useUserBubble ? 'dark' : 'light'}
                   />
-                  <div
-                    className={cn(
-                      'text-[10px] mt-2 text-right',
-                      pv.isCorporate
-                        ? layout.useUserBubble
-                          ? 'text-slate-300'
-                          : 'text-slate-500'
-                        : 'opacity-50',
-                    )}
-                  >
-                    {msg.createdAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </div>
                 </div>
               </div>
               );
@@ -682,7 +672,7 @@ export default function PatientChat({
           )}
 
           <form
-            className={cn('flex gap-2 p-4 shrink-0', pv.chatCardFooterClass, pv.formFooterClass)}
+            className={cn(pv.chatComposeFormClass, pv.chatCardFooterClass, pv.formFooterClass)}
             style={pv.formFooterStyle}
             onSubmit={e => {
               e.preventDefault();
@@ -703,7 +693,7 @@ export default function PatientChat({
                 canSendMessages ? 'Type your message…' : 'Care assistant is unavailable'
               }
               disabled={loadingHistory || loadingInteractions || !canSendMessages}
-              className={cn('flex-1 h-10', pv.inputClass)}
+              className={cn(pv.chatComposeInputClass, pv.inputClass)}
               autoComplete="off"
             />
             <Button
@@ -722,6 +712,7 @@ export default function PatientChat({
         </CardContent>
       </Card>
       {conversationsSidebar}
+      {conversationsSheet}
     </div>
   );
 }

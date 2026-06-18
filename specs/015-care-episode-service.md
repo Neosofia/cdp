@@ -8,7 +8,7 @@ The Care Episode Service exists so the platform has **one authoritative place** 
 
 ## How this service fits into the platform
 
-Inviting a patient for post-care monitoring opens an active recovery anchored to that patient and procedure. The User registry ([018-user-service.md](018-user-service.md)) holds who the person is and which org roles they hold; this service owns recovery lifecycle, records shown beside chat in clinician views, and the **clinical front door** the CDP web application uses for patient chat.
+Enrolling a patient in post-care monitoring opens an active recovery anchored to that patient and procedure. The User registry ([018-user-service.md](018-user-service.md)) holds who the person is and which org roles they hold; this service owns recovery lifecycle, records shown beside chat in clinician views, and the **clinical front door** the CDP web application uses for patient chat.
 
 The CDP web application does not coordinate chat, risk, and alerts itself. For patient chat it calls this service to confirm an open recovery, open or continue a thread with authoritative context, receive the care-assistant reply, and learn the risk outcome for that turn. This service persists messages through the Chat Service ([001-chat-service.md](001-chat-service.md)), evaluates clinical risk ([010-ai-agent-service.md](010-ai-agent-service.md)), and requests alert email when severity and policy require it ([005-notification-service.md](005-notification-service.md)).
 
@@ -16,9 +16,9 @@ Recoveries close when authorised staff close them early. Automatic closure when 
 
 ## Client objectives
 
-**Clinicians** want one invite action that starts post-discharge monitoring for a procedure. They need recovery history, roster severity, and the ability to close a recovery early when care ends before expiry.
+**Clinicians** want one enroll action that creates a patient account (when needed) and starts post-discharge monitoring for a procedure. They need recovery history, roster severity, and the ability to close a recovery early when care ends before expiry.
 
-**Patients** enter through an invite or guided demo experience tied to a recovery. Registration must land them in the correct care window; expired or closed invites must fail clearly.
+**Patients** enter through enrollment or a guided demo experience tied to a recovery. Registration must land them in the correct care window; chat and onboarding against a closed or expired recovery must fail clearly.
 
 **The CDP web application** needs a single orchestration surface for patient chat and clinician recovery views without composing multiple backend calls in the browser.
 
@@ -32,15 +32,15 @@ Recoveries close when authorised staff close them early. Automatic closure when 
 
 **Risk evaluation when inference fails.** Given risk inference is unconfigured or errors, when a patient **content** completion succeeds in Chat, then the client still receives **200** with the Chat reply, `risk_evaluation.risk_level` is `failed-pending-review`, and the recovery’s stored severity is unchanged until a successful evaluation.
 
-**Invite opens monitoring.** Given an authorised clinician invites a patient for a named procedure, when no conflicting active recovery exists for that procedure, then a new recovery opens, an invite is issued, and audit history records who created it.
+**Enrollment opens monitoring.** Given an authorised clinician enrolls a patient for a named procedure, when no conflicting active recovery exists for that procedure, then a new recovery opens and audit history records who created it. The CDP web application orchestrates User registry create (when the patient is new) and the first care-episode create in sequence.
 
 ## Functional requirements
 
-- **FR-001**: An authorised invite for a named procedure and patient opens a recovery in active status and returns what the patient needs to register or continue — in one action, not a multi-step provisioning desk workflow.
+- **FR-001**: An authorised enrollment for a named procedure and patient opens a recovery in active status. The CDP web application creates the patient user when needed, then creates the first care episode — returning the persisted episode identity to the client.
 
-- **FR-002**: When an active recovery already exists for the same patient and procedure, a duplicate invite is rejected and the existing recovery is identified so parallel care windows do not open by mistake.
+- **FR-002**: When an active recovery already exists for the same patient and procedure, a duplicate enrollment is rejected and the existing recovery is identified so parallel care windows do not open by mistake.
 
-- **FR-003**: When no care-window length is supplied on create, the platform default is **30 days** from the procedure date. Authorised clinicians may set a different positive integer at invite, enrollment, new-procedure start, or when editing the active recovery.
+- **FR-003**: When no care-window length is supplied on create, the platform default is **30 days** from the procedure date. Authorised clinicians may set a different positive integer at enrollment, new-procedure start, or when editing the active recovery.
 
 - **FR-004**: Lookup of the active recovery for a patient returns a single active window; when several overlap, the most recently opened wins; when none exist, the caller receives a clear not-found outcome.
 
@@ -58,7 +58,7 @@ Recoveries close when authorised staff close them early. Automatic closure when 
 
 - **FR-011** *(deferred to v2)*: Opening and closing a recovery emits lifecycle events whose payloads contain identifiers, procedure type, closure reason, and timestamps — not message content or other PHI. v1 records create, close, and association changes in per-service audit history only ([FR-014](#functional-requirements)).
 
-- **FR-012**: After registration or demo onboarding completes, the recovery links to the patient’s platform identity and any one-time invite is marked consumed. Registration against a closed or expired recovery is rejected.
+- **FR-012**: After registration or demo onboarding completes, the recovery links to the patient’s platform identity. Registration or chat against a closed or expired recovery is rejected.
 
 - **FR-013**: Unauthenticated or unauthorised requests are rejected before business logic runs.
 
@@ -84,7 +84,7 @@ Recoveries close when authorised staff close them early. Automatic closure when 
 
 Platform baseline applies ([000-platform-baseline.md](000-platform-baseline.md)).
 
-- **OR-001**: Logs support **measuring** invite volume, chat-path duration, evaluation outcomes, and closures. At minimum:
+- **OR-001**: Logs support **measuring** enrollment volume, chat-path duration, evaluation outcomes, and closures. At minimum:
 
   - Classifying request outcomes and errors by operation
   - Attributing duration of chat turns

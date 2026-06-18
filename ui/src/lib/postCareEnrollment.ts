@@ -1,4 +1,4 @@
-import { createCareEpisodeInvite, upsertCareEpisodeRecovery } from '@/lib/careEpisodeApi';
+import { upsertCareEpisodeRecovery } from '@/lib/careEpisodeApi';
 import {
   registerPostCareEnrollment,
   type DemoPatientClinical,
@@ -107,29 +107,22 @@ export async function enrollPatientInPostCare(
   let episodeUuid: string | null = null;
   let demoOnlyEpisode = true;
 
-  try {
-    const episode = await createCareEpisodeInvite(token, activeActor, {
-      patient_uuid: patient.uuid,
-      procedure_type: input.procedure_type,
-      care_window_days: input.care_window_days,
-      emr_procedure_ref: input.emr_procedure_ref?.trim() || undefined,
-    });
-    if (episode) {
-      episodeUuid = episode.episode_uuid;
-      demoOnlyEpisode = false;
-    }
+  if (!tenantUuid) {
+    throw new Error('Tenant context is required to enroll a patient in post-care monitoring.');
+  }
 
-    if (tenantUuid) {
-      await upsertCareEpisodeRecovery(token, activeActor, {
-        patient_uuid: patient.uuid,
-        tenant_uuid: tenantUuid,
-        surgery: input.procedure.trim(),
-        procedure_date: input.procedure_date.trim(),
-        recovery_id: recoveryId,
-        risk_level: 'low',
-        reactivate: true,
-        care_window_days: input.care_window_days,
-      });
+  try {
+    const created = await upsertCareEpisodeRecovery(token, activeActor, {
+      patient_uuid: patient.uuid,
+      tenant_uuid: tenantUuid,
+      surgery: input.procedure.trim(),
+      procedure_date: input.procedure_date.trim(),
+      recovery_id: recoveryId,
+      risk_level: 'low',
+      care_window_days: input.care_window_days,
+    });
+    if (created?.episode_uuid) {
+      episodeUuid = created.episode_uuid;
       demoOnlyEpisode = false;
     }
   } catch (err) {
