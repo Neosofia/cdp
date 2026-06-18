@@ -50,13 +50,12 @@ This service stores inbound and outbound turns. It does not decide clinical seve
 
 Platform baseline applies ([000-platform-baseline.md](000-platform-baseline.md)).
 
-- **OR-001**: Logs support **measuring** message storage and access without message content or other PHI. At minimum:
+- **OR-001**: Logs support **measuring** message volume for the product engagement dashboard ([011-operational-metrics.md](011-operational-metrics.md)). At minimum:
 
-  - Classifying request outcomes and errors by operation
-  - Attributing request duration by operation
-  - Counting inbound messages stored and threads opened
+  - Counting inbound patient messages and clinician messages stored (by direction, no content)
+  - Counting threads opened
 
-  See [011-operational-metrics.md](011-operational-metrics.md) for the authoritative measurement model.
+  Request latency and error rate are measured on the **DORA** dashboard.
 
 ## Further reading
 

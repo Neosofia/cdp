@@ -55,7 +55,6 @@ Platform baseline applies ([000-platform-baseline.md](000-platform-baseline.md))
 - **OR-001**: Events support **measuring** evaluation latency, error rate, invocation rate, escalation rate, and active model generation. At minimum, operators can:
 
   - Confirm when evaluation completed and whether escalation was triggered
-  - Attribute time from patient message to alert delivery
   - Count failures and duplicate-safe discards
   - Follow one turn across Care Episode, Chat, and Notification using shared trace correlators
 

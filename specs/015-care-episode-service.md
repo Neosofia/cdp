@@ -84,12 +84,14 @@ Recoveries close when authorised staff close them early. Automatic closure when 
 
 Platform baseline applies ([000-platform-baseline.md](000-platform-baseline.md)).
 
-- **OR-001**: Logs support **measuring** enrollment volume, chat-path duration, evaluation outcomes, and closures. At minimum:
+- **OR-001**: Logs support **measuring** business volume for the product engagement dashboard ([011-operational-metrics.md](011-operational-metrics.md)). At minimum, operators can count:
 
-  - Classifying request outcomes and errors by operation
-  - Attributing duration of chat turns
-  - Counting recoveries opened and closed by reason
-  - Counting escalations triggered by severity outcome
+  - Recoveries opened (enrollments)
+  - Patient chat turns completed (care-assistant reply path)
+  - Escalations triggered by severity outcome
+  - Recoveries closed
+
+  HTTP latency and error rate are measured on the **DORA** dashboard, not here.
 
 - **OR-002** *(deferred to v2)*: Lifecycle events follow the triggering change promptly ([FR-011](#functional-requirements)).
 
