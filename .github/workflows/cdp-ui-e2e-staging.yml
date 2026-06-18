@@ -17,10 +17,9 @@ on:
 
 permissions:
   contents: read
-  actions: read
 
 concurrency:
-  group: cdp-ui-e2e-staging
+  group: cdp-ui-e2e-staging-${{ github.sha }}
   cancel-in-progress: true
 
 env:
@@ -44,20 +43,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
-
-      - name: Debounce duplicate Railway deploy signals
-        if: github.event_name == 'deployment_status'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          echo "Waiting 90s so duplicate deployment_status events can cancel each other…"
-          sleep 90
-          latest="$(gh run list --repo "${{ github.repository }}" --workflow="${{ github.workflow }}" --branch="${{ github.ref_name }}" --limit 1 --json databaseId --jq '.[0].databaseId')"
-          if [ "$latest" != "${{ github.run_id }}" ]; then
-            echo "Run ${{ github.run_id }} superseded by ${latest}; exiting without E2E."
-            exit 0
-          fi
-          echo "Latest run — continuing with staging E2E."
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
