@@ -33,9 +33,6 @@ jobs:
     env:
       E2E_AUTH_EMAIL: ${{ secrets.E2E_AUTH_EMAIL }}
       E2E_AUTH_PASSWORD: ${{ secrets.E2E_AUTH_PASSWORD }}
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      github.event.deployment_status.state == 'success'
     defaults:
       run:
         working-directory: ui
