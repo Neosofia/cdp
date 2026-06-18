@@ -17,7 +17,7 @@ on:
 
 concurrency:
   group: cdp-ui-e2e-staging
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 env:
   E2E_BASE_URL: https://staging.neosofia.tech
@@ -76,6 +76,12 @@ jobs:
       - name: Run E2E (desktop + mobile, incl. walkthrough)
         run: pnpm test:e2e:staging
 
+      - name: List walkthrough outputs
+        if: always()
+        run: |
+          ls -la test-results/ 2>/dev/null || true
+          ls -la test-results/walkthrough/ 2>/dev/null || true
+
       - name: Upload walkthrough gallery
         if: always()
         uses: actions/upload-artifact@v4
@@ -84,7 +90,7 @@ jobs:
           path: |
             ui/test-results/walkthrough.html
             ui/test-results/walkthrough/
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 30
 
       - name: Upload Playwright report on failure
