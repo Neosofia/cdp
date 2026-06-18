@@ -74,7 +74,7 @@ jobs:
         run: pnpm exec playwright install chromium --with-deps
 
       - name: Run E2E (desktop + mobile, incl. walkthrough)
-        run: pnpm test:e2e:all
+        run: pnpm test:e2e:staging
 
       - name: Upload walkthrough gallery
         if: always()

@@ -98,7 +98,7 @@ That document explains why local JWKS (`http://authentication:8014/...` in `.cap
 
 See the Railway worked example in the infrastructure guide for `${{cdp.RAILWAY_PUBLIC_DOMAIN}}` and `${{authentication.RAILWAY_PRIVATE_DOMAIN}}` patterns.
 
-**Staging observability:** Railway Observability dashboard blocks (log filters, HTTP metrics CLI, Log Explorer queries) — [infrastructure/public-cloud/OPERATIONS.md § Railway Observability dashboards](https://github.com/Neosofia/infrastructure/blob/main/public-cloud/OPERATIONS.md#railway-observability-dashboards-cdp-staging). **Grafana Cloud Loki** (Locomotive log bridge, LogQL, Locomotive/Railway token setup) — [§ Grafana Cloud Loki via Locomotive](https://github.com/Neosofia/infrastructure/blob/main/public-cloud/OPERATIONS.md#grafana-cloud-loki-via-locomotive-cdp-staging). **Grafana dashboards** (OpenTofu deploy, `glsa_` service account token, live dashboard URLs) — [infrastructure/public-cloud/grafana/README.md](https://github.com/Neosofia/infrastructure/blob/main/public-cloud/grafana/README.md).
+**Staging observability:** [Railway Observability dashboards](https://github.com/Neosofia/infrastructure/blob/main/public-cloud/OPERATIONS.md#railway-observability-dashboards-cdp-staging) and [Grafana Cloud Loki + Locomotive](https://github.com/Neosofia/infrastructure/blob/main/public-cloud/OPERATIONS.md#grafana-cloud-loki-via-locomotive-cdp-staging) in `infrastructure/public-cloud/OPERATIONS.md`; [Grafana dashboards + OpenTofu](https://github.com/Neosofia/infrastructure/blob/main/public-cloud/grafana/README.md) in `infrastructure/public-cloud/grafana/README.md`.
 
 ## UI Service local dev
 
@@ -122,7 +122,7 @@ End-to-end tests live under `ui/e2e/`. Copy `ui/e2e/env.sample` to `ui/e2e/.env`
 
 Walkthrough PNGs are stored in `ui/test-results/walkthrough/` (outside Playwright’s wiped output dir). Open the gallery at `ui/test-results/walkthrough.html`. Steps include clinician and patient dashboards, patient roster workflows, and chat. Mobile captures use iPhone 12 (390×664 @ 3×); desktop uses 1366×768 @ 2×. The gallery scales mobile display width for side-by-side readability (~22% of desktop width).
 
-**Staging CI (post-deploy):** After Railway deploys the CDP UI, GitHub Actions workflow [`.github/workflows/cdp-ui-e2e-staging.yml`](.github/workflows/cdp-ui-e2e-staging.yml) runs Playwright against `https://staging.neosofia.tech`. It waits up to **5 minutes** for all URLs in `ui/e2e/staging-health-urls.txt` to return green `/health`, then runs `pnpm test:e2e:all` (desktop + mobile, including the visual walkthrough). Download artifact **`walkthrough-staging`** for `walkthrough.html` and PNGs.
+**Staging CI (post-deploy):** After Railway deploys the CDP UI, GitHub Actions workflow [`.github/workflows/cdp-ui-e2e-staging.yml`](.github/workflows/cdp-ui-e2e-staging.yml) runs `pnpm test:e2e:staging` against `https://staging.neosofia.tech` (care-episode lifecycle + visual walkthrough at desktop and mobile; **excludes** mutating enroll spec). It waits up to **5 minutes** for API `/health` URLs in `ui/e2e/staging-health-urls.txt` (not the UI root — static SPA, no `/health`; Playwright validates the UI). Download artifact **`walkthrough-staging`** for `walkthrough.html` and PNGs. Run `pnpm test:e2e:all` locally or on staging to include enroll.
 
 | GitHub environment secret (`CDP / production`) | Purpose |
 |---------------|---------|

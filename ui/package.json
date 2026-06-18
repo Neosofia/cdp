@@ -11,6 +11,7 @@
     "test:e2e": "playwright test --project=desktop-chromium",
     "test:e2e:rwd": "playwright test --project=mobile-chromium",
     "test:e2e:all": "playwright test",
+    "test:e2e:staging": "playwright test e2e/care-episode-lifecycle.spec.ts e2e/visual-walkthrough.spec.ts",
     "test:e2e:headed": "playwright test --project=desktop-chromium --headed",
     "test:e2e:install": "playwright install chromium",
     "walkthrough:visual": "playwright test e2e/visual-walkthrough.spec.ts",
