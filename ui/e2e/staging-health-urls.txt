@@ -1,0 +1,10 @@
+# Staging stack health probes — one URL per line (# comments ignored).
+# Keep in sync with VITE_* build pins on the CDP UI Railway service (see deployed bundle or ui/Dockerfile ARG defaults).
+https://staging.neosofia.tech
+https://authentication.staging.neosofia.tech/health
+https://user-production-8457.up.railway.app/health
+https://capabilities-production.up.railway.app/health
+https://chat-production-6769.up.railway.app/health
+https://care-episode-production.up.railway.app/health
+https://notification-production-d0ac.up.railway.app/health
+https://templates-production-aee5.up.railway.app/health

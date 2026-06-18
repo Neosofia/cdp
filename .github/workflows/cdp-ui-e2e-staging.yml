@@ -1,0 +1,89 @@
+# Post-deploy Playwright E2E against staging (OR-004 / ADR-0017).
+#
+# Triggered when Railway reports a successful CDP UI deploy (deployment_status).
+# Waits up to 5 minutes for the full staging stack to report green /health, then runs
+# responsive E2E + visual walkthrough and uploads the HTML gallery + PNGs as artifacts.
+#
+# GitHub environment secrets (Settings → Environments → production):
+#   E2E_AUTH_EMAIL
+#   E2E_AUTH_PASSWORD
+
+name: cdp-ui-e2e-staging
+
+on:
+  deployment_status:
+    states: [success]
+  workflow_dispatch:
+
+concurrency:
+  group: cdp-ui-e2e-staging
+  cancel-in-progress: true
+
+env:
+  E2E_BASE_URL: https://staging.neosofia.tech
+  E2E_AUTH_BASE_URL: https://authentication.staging.neosofia.tech
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  e2e-staging:
+    name: E2E staging + walkthrough
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    environment: production
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.deployment_status.state == 'success'
+    defaults:
+      run:
+        working-directory: ui
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.3.0
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: ui/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Wait for staging health
+        run: bash e2e/scripts/wait-for-staging-health.sh
+
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install chromium --with-deps
+
+      - name: Run E2E (desktop + mobile, incl. walkthrough)
+        env:
+          E2E_AUTH_EMAIL: ${{ secrets.E2E_AUTH_EMAIL }}
+          E2E_AUTH_PASSWORD: ${{ secrets.E2E_AUTH_PASSWORD }}
+        run: pnpm test:e2e:all
+
+      - name: Upload walkthrough gallery
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: walkthrough-staging
+          path: |
+            ui/test-results/walkthrough.html
+            ui/test-results/walkthrough/
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-failures-${{ github.run_id }}
+          path: ui/test-results/playwright/
+          if-no-files-found: ignore
+          retention-days: 14

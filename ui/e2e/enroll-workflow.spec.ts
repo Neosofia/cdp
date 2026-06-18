@@ -61,8 +61,6 @@ test.describe('enroll workflow', () => {
     const userWait = waitForSuccessfulPost(page, /\/api\/v1\/users$/);
     const episodeWait = waitForSuccessfulPost(page, /\/api\/v1\/care-episodes$/);
 
-    await page.pause(); // breakpoint: form ready — resume to submit enrollment
-
     await page.getByRole('button', { name: 'Start post-care monitoring' }).click();
 
     await userWait;
@@ -74,8 +72,6 @@ test.describe('enroll workflow', () => {
     await expect(page.getByRole('heading', { name: 'Enroll in post-care monitoring' })).not.toBeVisible({
       timeout: 30_000,
     });
-
-    await page.pause(); // breakpoint: enrollment finished — sheet closed, APIs succeeded
 
     const search = page.getByRole('textbox', { name: 'Search patients…' });
     await search.fill(patient.displayCode);
