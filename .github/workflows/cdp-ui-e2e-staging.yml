@@ -17,7 +17,7 @@ on:
 
 concurrency:
   group: cdp-ui-e2e-staging
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 env:
   E2E_BASE_URL: https://staging.neosofia.tech
@@ -30,6 +30,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     environment: production
+    env:
+      E2E_AUTH_EMAIL: ${{ secrets.E2E_AUTH_EMAIL }}
+      E2E_AUTH_PASSWORD: ${{ secrets.E2E_AUTH_PASSWORD }}
     if: >-
       github.event_name == 'workflow_dispatch' ||
       github.event.deployment_status.state == 'success'
@@ -59,13 +62,18 @@ jobs:
       - name: Wait for staging health
         run: bash e2e/scripts/wait-for-staging-health.sh
 
+      - name: Verify E2E credentials
+        run: |
+          if [ -z "${E2E_AUTH_EMAIL:-}" ] || [ -z "${E2E_AUTH_PASSWORD:-}" ]; then
+            echo "::error::Missing E2E_AUTH_EMAIL or E2E_AUTH_PASSWORD. Add both to Settings → Environments → production → Environment secrets."
+            exit 1
+          fi
+          echo "E2E credentials present (email length ${#E2E_AUTH_EMAIL})."
+
       - name: Install Playwright Chromium
         run: pnpm exec playwright install chromium --with-deps
 
       - name: Run E2E (desktop + mobile, incl. walkthrough)
-        env:
-          E2E_AUTH_EMAIL: ${{ secrets.E2E_AUTH_EMAIL }}
-          E2E_AUTH_PASSWORD: ${{ secrets.E2E_AUTH_PASSWORD }}
         run: pnpm test:e2e:all
 
       - name: Upload walkthrough gallery
