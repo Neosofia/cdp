@@ -4,7 +4,7 @@
 # Waits up to 5 minutes for the full staging stack to report green /health, then runs
 # responsive E2E + visual walkthrough and uploads the HTML gallery + PNGs as artifacts.
 #
-# GitHub environment secrets (Settings → Environments → production):
+# GitHub environment secrets (Settings → Environments → CDP / production):
 #   E2E_AUTH_EMAIL
 #   E2E_AUTH_PASSWORD
 
@@ -29,7 +29,7 @@ jobs:
     name: E2E staging + walkthrough
     runs-on: ubuntu-24.04
     timeout-minutes: 45
-    environment: production
+    environment: CDP / production
     env:
       E2E_AUTH_EMAIL: ${{ secrets.E2E_AUTH_EMAIL }}
       E2E_AUTH_PASSWORD: ${{ secrets.E2E_AUTH_PASSWORD }}
@@ -65,7 +65,7 @@ jobs:
       - name: Verify E2E credentials
         run: |
           if [ -z "${E2E_AUTH_EMAIL:-}" ] || [ -z "${E2E_AUTH_PASSWORD:-}" ]; then
-            echo "::error::Missing E2E_AUTH_EMAIL or E2E_AUTH_PASSWORD. Add both to Settings → Environments → production → Environment secrets."
+            echo "::error::Missing E2E_AUTH_EMAIL or E2E_AUTH_PASSWORD. Add both to Settings → Environments → CDP / production → Environment secrets."
             exit 1
           fi
           echo "E2E credentials present (email length ${#E2E_AUTH_EMAIL})."

@@ -98,7 +98,7 @@ That document explains why local JWKS (`http://authentication:8014/...` in `.cap
 
 See the Railway worked example in the infrastructure guide for `${{cdp.RAILWAY_PUBLIC_DOMAIN}}` and `${{authentication.RAILWAY_PRIVATE_DOMAIN}}` patterns.
 
-**Staging observability:** Railway Observability dashboard blocks (log filters, HTTP metrics CLI, Log Explorer queries) — [infrastructure/public-cloud/OPERATIONS.md § Railway Observability dashboards](https://github.com/Neosofia/infrastructure/blob/main/public-cloud/OPERATIONS.md#railway-observability-dashboards-cdp-staging). **Grafana Cloud Loki** (Locomotive log bridge, LogQL, verification) — [§ Grafana Cloud Loki via Locomotive](https://github.com/Neosofia/infrastructure/blob/main/public-cloud/OPERATIONS.md#grafana-cloud-loki-via-locomotive-cdp-staging).
+**Staging observability:** Railway Observability dashboard blocks (log filters, HTTP metrics CLI, Log Explorer queries) — [infrastructure/public-cloud/OPERATIONS.md § Railway Observability dashboards](https://github.com/Neosofia/infrastructure/blob/main/public-cloud/OPERATIONS.md#railway-observability-dashboards-cdp-staging). **Grafana Cloud Loki** (Locomotive log bridge, LogQL, Locomotive/Railway token setup) — [§ Grafana Cloud Loki via Locomotive](https://github.com/Neosofia/infrastructure/blob/main/public-cloud/OPERATIONS.md#grafana-cloud-loki-via-locomotive-cdp-staging). **Grafana dashboards** (OpenTofu deploy, `glsa_` service account token, live dashboard URLs) — [infrastructure/public-cloud/grafana/README.md](https://github.com/Neosofia/infrastructure/blob/main/public-cloud/grafana/README.md).
 
 ## UI Service local dev
 
@@ -124,7 +124,7 @@ Walkthrough PNGs are stored in `ui/test-results/walkthrough/` (outside Playwrigh
 
 **Staging CI (post-deploy):** After Railway deploys the CDP UI, GitHub Actions workflow [`.github/workflows/cdp-ui-e2e-staging.yml`](.github/workflows/cdp-ui-e2e-staging.yml) runs Playwright against `https://staging.neosofia.tech`. It waits up to **5 minutes** for all URLs in `ui/e2e/staging-health-urls.txt` to return green `/health`, then runs `pnpm test:e2e:all` (desktop + mobile, including the visual walkthrough). Download artifact **`walkthrough-staging`** for `walkthrough.html` and PNGs.
 
-| GitHub environment secret (`production`) | Purpose |
+| GitHub environment secret (`CDP / production`) | Purpose |
 |---------------|---------|
 | `E2E_AUTH_EMAIL` | WorkOS login for staging test user (clinician + patient roles; seeded **DEMO-123**) |
 | `E2E_AUTH_PASSWORD` | WorkOS password |
