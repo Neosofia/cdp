@@ -1,6 +1,6 @@
-# Staging stack health probes — one URL per line (# comments ignored).
+# Staging API health probes — one URL per line (# comments ignored).
 # Keep in sync with VITE_* build pins on the CDP UI Railway service (see deployed bundle or ui/Dockerfile ARG defaults).
-https://staging.neosofia.tech
+# The CDP UI is static assets (no /health); Playwright validates staging.neosofia.tech during E2E.
 https://authentication.staging.neosofia.tech/health
 https://user-production-8457.up.railway.app/health
 https://capabilities-production.up.railway.app/health

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Poll staging /health (and UI root) until all return HTTP 200 with status ok where applicable.
+# Poll staging API /health until all return HTTP 200 with status ok.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
