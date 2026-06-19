@@ -3,8 +3,8 @@
 # Railway service settings (dashboard):
 #   Root Directory: /ui
 #   Config file path: /ui/railway.toml
-#   Autodeploy: OFF — .github/workflows/cdp-ui-deploy-staging.yml deploys after TypeScript CI
-#   Wait for CI: OFF — post-deploy E2E must not gate the build (see OPERATIONS.md)
+#   Autodeploy: ON — Railway deploys via GitHub callback after Wait for CI passes
+#   Wait for CI: ON — gates on push workflows (CodeQL + cdp-ui-quality-staging), not post-deploy E2E
 [build]
 builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile"

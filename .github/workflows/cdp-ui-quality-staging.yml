@@ -1,0 +1,58 @@
+# Pre-deploy UI quality checks for Railway "Wait for CI".
+#
+# Runs on push (not deployment_status) so Railway waits for this + CodeQL before
+# autodeploying the cdp service. Post-deploy E2E is cdp-ui-e2e-staging.yml.
+#
+# Railway service settings (dashboard, cdp / staging.neosofia.tech):
+#   Autodeploy: ON (GitHub callback — no RAILWAY_TOKEN needed)
+#   Wait for CI: ON — gates on push workflows only (this file + CodeQL)
+
+name: cdp-ui-quality-staging
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'ui/**'
+      - '.github/workflows/cdp-ui-quality-staging.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cdp-ui-quality-staging-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  quality:
+    name: UI quality (TypeScript)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: ui
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.3.0
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: ui/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm exec tsc -b --noEmit
