@@ -47,15 +47,20 @@ jobs:
             exit 0
           fi
           sha="${{ github.event.deployment.sha }}"
-          state="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${sha}/status" \
-            --jq '[.statuses[] | select(.context == "CDP - cdp") | .state][0] // empty')"
-          if [ "${state}" = "success" ]; then
-            echo "run_e2e=true" >> "$GITHUB_OUTPUT"
-            echo "CDP - cdp status success for ${sha}"
-          else
-            echo "run_e2e=false" >> "$GITHUB_OUTPUT"
-            echo "Skipping E2E (CDP - cdp status: ${state:-none})"
-          fi
+          deadline=$((SECONDS + 120))
+          state=""
+          while (( SECONDS < deadline )); do
+            state="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${sha}/status" \
+              --jq '[.statuses[] | select(.context == "CDP - cdp") | .state][0] // empty')"
+            if [ "${state}" = "success" ]; then
+              echo "run_e2e=true" >> "$GITHUB_OUTPUT"
+              echo "CDP - cdp status success for ${sha}"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "run_e2e=false" >> "$GITHUB_OUTPUT"
+          echo "Skipping E2E (CDP - cdp status after wait: ${state:-none})"
 
   e2e-staging:
     name: E2E staging + walkthrough
