@@ -20,9 +20,12 @@ permissions:
   contents: read
   statuses: read
 
+# Railway emits several deployment_status success events per push (architecture, cdp,
+# status updates). Use cancel-in-progress: false so an in-flight E2E is not cancelled
+# when another event joins the same SHA group (see GitHub concurrency docs).
 concurrency:
-  group: cdp-ui-e2e-staging-${{ github.sha }}
-  cancel-in-progress: true
+  group: cdp-ui-e2e-staging-${{ github.event.deployment.id || format('manual-{0}', github.run_id) }}
+  cancel-in-progress: false
 
 env:
   E2E_BASE_URL: https://staging.neosofia.tech
