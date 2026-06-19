@@ -69,9 +69,6 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     environment: CDP / production
-    defaults:
-      run:
-        working-directory: ui
     steps:
       - name: Verify Railway token
         run: |
@@ -79,6 +76,8 @@ jobs:
             echo "::error::Missing RAILWAY_TOKEN in environment CDP / production."
             exit 1
           fi
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
 
       - name: Install Railway CLI
         run: npm install -g @railway/cli@4.65.0
@@ -99,7 +98,9 @@ jobs:
           set -euo pipefail
           deadline=$((SECONDS + 900))
           while (( SECONDS < deadline )); do
-            status="$(railway deployment list --json --limit 1 | jq -r '.[0].status')"
+            status="$(railway deployment list --json --limit 1 \
+              --service "${RAILWAY_SERVICE}" \
+              --environment "${RAILWAY_ENVIRONMENT}" | jq -r '.[0].status')"
             echo "Latest cdp deployment: ${status}"
             case "${status}" in
               SUCCESS) exit 0 ;;
