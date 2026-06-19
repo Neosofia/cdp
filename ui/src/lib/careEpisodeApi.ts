@@ -184,7 +184,7 @@ export async function markCareEpisodeInboxMessageRead(
         'X-Active-Actor': activeActor,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ changed_by_uuid: patientUuid }),
+      body: JSON.stringify({}),
     },
   );
   if (!res.ok) return null;
@@ -218,7 +218,6 @@ export async function upsertCareEpisodeRecovery(
 export interface PatchCareEpisodeInput {
   status?: CareEpisodeStatus;
   care_window_days?: number;
-  changed_by_uuid?: string;
 }
 
 export async function patchCareEpisode(
@@ -288,11 +287,9 @@ export async function closeCareEpisodeRecovery(
   token: string,
   activeActor: string,
   episodeUuid: string,
-  changedByUuid?: string,
 ): Promise<CareEpisodeRecovery> {
   return patchCareEpisode(token, activeActor, episodeUuid, {
     status: 'closed',
-    changed_by_uuid: changedByUuid,
   });
 }
 
@@ -301,11 +298,9 @@ export async function reopenCareEpisodeRecovery(
   token: string,
   activeActor: string,
   episodeUuid: string,
-  changedByUuid?: string,
 ): Promise<CareEpisodeRecovery> {
   return patchCareEpisode(token, activeActor, episodeUuid, {
     status: 'active',
-    changed_by_uuid: changedByUuid,
   });
 }
 
@@ -336,7 +331,6 @@ export interface StartNewCareEpisodeInput {
   procedure_date: string;
   recovery_id: string;
   risk_level: string;
-  changed_by_uuid?: string;
   care_window_days?: number;
 }
 
@@ -370,7 +364,6 @@ export async function bulkCloseCareEpisodeRecoveries(
   token: string,
   activeActor: string,
   patientUuids: string[],
-  changedByUuid?: string,
 ): Promise<BulkCloseCareEpisodesResult> {
   if (!CARE_EPISODE_API) {
     throw new Error('Care episode service is not configured');
@@ -384,7 +377,6 @@ export async function bulkCloseCareEpisodeRecoveries(
     },
     body: JSON.stringify({
       patient_uuids: patientUuids,
-      changed_by_uuid: changedByUuid,
     }),
   });
   const body = await res.json().catch(() => ({}));
@@ -409,7 +401,7 @@ export async function upsertCareEpisodeRecords(
       'X-Active-Actor': activeActor,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ items, changed_by_uuid: patientUuid }),
+    body: JSON.stringify({ items }),
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
@@ -447,7 +439,7 @@ export async function upsertCareEpisodeAppointments(
       'X-Active-Actor': activeActor,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ items, changed_by_uuid: patientUuid }),
+    body: JSON.stringify({ items }),
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
@@ -469,10 +461,76 @@ export async function upsertCareEpisodeInboxMessages(
       'X-Active-Actor': activeActor,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ items, changed_by_uuid: patientUuid }),
+    body: JSON.stringify({ items }),
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
     throw new Error(`Failed to upsert care episode messages: HTTP ${res.status}${body ? ` ${body}` : ''}`);
   }
+}
+
+export type PatientCareEpisodeAuditSource = 'episode' | 'risk';
+
+export interface CareEpisodeRecoveryAuditItem {
+  history_uuid: string | null;
+  episode_uuid: string;
+  patient_uuid: string;
+  surgery: string;
+  procedure_date: string;
+  recovery_id: string;
+  risk_level: string;
+  care_window_days: number;
+  status: string;
+  tenant_uuid: string;
+  changed_at: string;
+  changed_by_uuid: string;
+  changed_by_type: number;
+  change_type: number;
+}
+
+export interface InteractionRiskAuditItem {
+  history_uuid: string | null;
+  chat_interaction_uuid: string;
+  patient_uuid: string;
+  summary: string;
+  changed_at: string;
+  changed_by_uuid: string;
+  changed_by_type: number;
+  change_type: number;
+}
+
+export interface PatientCareEpisodeAuditListResponse<T> {
+  patient_uuid: string;
+  source: PatientCareEpisodeAuditSource;
+  items: T[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export async function listPatientCareEpisodeAudits<T extends CareEpisodeRecoveryAuditItem | InteractionRiskAuditItem>(
+  token: string,
+  activeActor: string,
+  patientUuid: string,
+  source: PatientCareEpisodeAuditSource,
+  page = 1,
+  pageSize = 20,
+): Promise<PatientCareEpisodeAuditListResponse<T>> {
+  if (!CARE_EPISODE_API) {
+    return { patient_uuid: patientUuid, source, items: [], total: 0, page, page_size: pageSize };
+  }
+  const params = new URLSearchParams({
+    source,
+    page: String(page),
+    page_size: String(pageSize),
+  });
+  const res = await fetch(
+    `${CARE_EPISODE_API}/api/v1/care-episodes/${patientUuid}/audits?${params}`,
+    { headers: { Authorization: `Bearer ${token}`, 'X-Active-Actor': activeActor } },
+  );
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Failed to load patient audit history: HTTP ${res.status}${body ? ` ${body}` : ''}`);
+  }
+  return (await res.json()) as PatientCareEpisodeAuditListResponse<T>;
 }

@@ -31,7 +31,28 @@ uv run alembic upgrade head
 SELECT version_num FROM alembic_version;
 ```
 
-Compare `version_num` to the expected revision in that release's service **INSTALLATION_PLAN.md** (for example user **`002`**, care-episode **`012`** at CDP UI **2026.06.21**).
+Compare `version_num` to the expected revision in that release's service **INSTALLATION_PLAN.md** (for example user **`002`**, care-episode **`012`** at CDP UI **2026.06.22**).
+
+## CDP UI 2026.06.22 / authentication v0.39.0 / care-episode v0.10.0
+
+**Release pins:** CDP UI **2026.06.22**; **authentication v0.39.0**; **care-episode v0.10.0** (other backend pins unchanged from **2026.06.21** unless your environment already tracks newer tags).
+
+**Deploy:**
+
+1. Redeploy **authentication v0.39.0** (service tokens include `neosofia:service_uuid`).
+2. Redeploy **care-episode v0.10.0** (no new migration; head **`012`**).
+3. Push **CDP UI 2026.06.22** to the Railway-connected branch (or redeploy UI service).
+
+**Verify:**
+
+1. `GET /health` on authentication reports **0.39.0** and care-episode **0.10.0**; `alembic_version` on care-episode is **`012`**.
+2. UI footer shows **2026.06.22**.
+3. Clinician → patient → **Audits** loads episode and risk sections; CSV download works; close/reopen shows **User** actor in audit rows.
+4. Staging E2E green (`care-episode-lifecycle`, visual walkthrough).
+
+**Evidence:** Health JSON; audit UI screenshot; E2E run URL.
+
+---
 
 ## CDP UI 2026.06.21 / chat v0.7.0 / care-episode v0.9.0
 

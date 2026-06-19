@@ -42,6 +42,24 @@ export interface UserAuditItem extends AuditBaseItem {
   roles: string[];
 }
 
+export interface CareEpisodeRecoveryAuditItem extends AuditBaseItem {
+  episode_uuid: string;
+  patient_uuid: string;
+  surgery: string;
+  procedure_date: string;
+  recovery_id: string;
+  risk_level: string;
+  care_window_days: number;
+  status: string;
+  tenant_uuid: string;
+}
+
+export interface InteractionRiskAuditItem extends AuditBaseItem {
+  chat_interaction_uuid: string;
+  patient_uuid: string;
+  summary: string;
+}
+
 interface AuditSectionBase {
   key: string;
   title?: ReactNode;
@@ -57,7 +75,9 @@ interface AuditSectionBase {
 
 export type AuditSection =
   | (AuditSectionBase & { kind: 'service' | 'credential'; rows: ServiceAuditItem[] | null })
-  | (AuditSectionBase & { kind: 'user'; rows: UserAuditItem[] | null });
+  | (AuditSectionBase & { kind: 'user'; rows: UserAuditItem[] | null })
+  | (AuditSectionBase & { kind: 'episode'; rows: CareEpisodeRecoveryAuditItem[] | null })
+  | (AuditSectionBase & { kind: 'risk'; rows: InteractionRiskAuditItem[] | null });
 
 interface AuditHistorySheetProps {
   open: boolean;
@@ -85,6 +105,14 @@ function formatAuditTimestamp(changedAt: string): string {
 
 function auditRowKey(row: AuditBaseItem): string {
   return row.history_uuid ?? `${row.changed_at}-${row.changed_by_uuid}-${row.change_type}`;
+}
+
+export function truncateAuditPreview(text: string, maxLength = 40): string {
+  const normalized = text.trim();
+  if (normalized.length <= maxLength) {
+    return normalized || '—';
+  }
+  return `${normalized.slice(0, maxLength).trimEnd()}…`;
 }
 
 function userAuditName(row: UserAuditItem): string {
@@ -146,13 +174,17 @@ function AuditTable<Row>({
   rows,
   columns,
   styles,
+  compact = false,
 }: {
   rows: Row[];
   columns: AuditColumn<Row>[];
   styles: ReturnType<typeof useAuditHistoryStyles>;
+  compact?: boolean;
 }) {
   return (
-    <table className="min-w-max max-w-full text-xs table-auto">
+    <table
+      className={compact ? 'w-full table-fixed text-xs' : 'min-w-max max-w-full text-xs table-auto'}
+    >
       <colgroup>
         {columns.map((column) => (
           <col key={column.key} className={column.widthClassName} />
@@ -199,6 +231,8 @@ function AuditSectionContent({
     service: AuditColumn<ServiceAuditItem>[];
     credential: AuditColumn<ServiceAuditItem>[];
     user: AuditColumn<UserAuditItem>[];
+    episode: AuditColumn<CareEpisodeRecoveryAuditItem>[];
+    risk: AuditColumn<InteractionRiskAuditItem>[];
   };
 }) {
   if (section.loading && (section.rows == null || section.rows.length === 0)) {
@@ -220,6 +254,10 @@ function AuditSectionContent({
       return <AuditTable rows={section.rows} columns={columns.credential} styles={styles} />;
     case 'user':
       return <AuditTable rows={section.rows} columns={columns.user} styles={styles} />;
+    case 'episode':
+      return <AuditTable rows={section.rows} columns={columns.episode} styles={styles} compact />;
+    case 'risk':
+      return <AuditTable rows={section.rows} columns={columns.risk} styles={styles} compact />;
   }
 }
 
@@ -365,6 +403,58 @@ export function AuditHistorySheet({
           render: (row) => (row.roles ?? []).join(', ') || '—',
         },
       ] satisfies AuditColumn<UserAuditItem>[],
+      episode: [
+        ...baseColumns<CareEpisodeRecoveryAuditItem>(),
+        {
+          key: 'episode',
+          header: 'Episode',
+          cellClassName: styles.monoCellClass,
+          render: (row) => row.episode_uuid.slice(0, 8),
+        },
+        {
+          key: 'risk-level',
+          header: 'Risk',
+          cellClassName: styles.eventCellClass,
+          render: (row) => row.risk_level,
+        },
+        {
+          key: 'status',
+          header: 'Status',
+          cellClassName: styles.primaryCellClass,
+          render: (row) => row.status,
+        },
+        {
+          key: 'surgery',
+          header: 'Procedure',
+          headerClassName: 'pr-0',
+          cellClassName: cn(styles.mutedCellClass, 'truncate'),
+          render: (row) => (
+            <span title={row.surgery}>{truncateAuditPreview(row.surgery, 24)}</span>
+          ),
+        },
+      ] satisfies AuditColumn<CareEpisodeRecoveryAuditItem>[],
+      risk: [
+        ...baseColumns<InteractionRiskAuditItem>(),
+        {
+          key: 'interaction',
+          header: 'Thread',
+          cellClassName: styles.monoCellClass,
+          render: (row) => row.chat_interaction_uuid.slice(0, 8),
+        },
+        {
+          key: 'summary',
+          header: 'Rolling summary',
+          headerClassName: 'pr-0',
+          cellClassName: cn(styles.primaryCellClass, 'truncate'),
+          render: (row) => {
+            const summary = row.summary?.trim() ?? '';
+            if (!summary) {
+              return '—';
+            }
+            return <span title={summary}>{truncateAuditPreview(summary, 40)}</span>;
+          },
+        },
+      ] satisfies AuditColumn<InteractionRiskAuditItem>[],
     };
   }, [styles]);
 

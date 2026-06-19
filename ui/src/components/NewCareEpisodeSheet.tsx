@@ -34,7 +34,6 @@ interface Props {
   displayCode: string;
   displayName: string;
   tenantUuid: string;
-  clinicianUuid?: string | null;
   token: string;
   activeActor: string;
   onStarted: (episodeUuid: string) => void;
@@ -62,7 +61,6 @@ export default function NewCareEpisodeSheet({
   displayCode,
   displayName,
   tenantUuid,
-  clinicianUuid,
   token,
   activeActor,
   onStarted,
@@ -131,7 +129,6 @@ export default function NewCareEpisodeSheet({
         procedure_date: trimmedDate,
         recovery_id: recoveryId,
         risk_level: 'low',
-        changed_by_uuid: clinicianUuid ?? undefined,
         care_window_days: careDays,
       });
 

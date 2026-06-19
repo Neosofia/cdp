@@ -1,5 +1,15 @@
 # Changelog
 
+## [2026.06.22]
+
+### Added
+
+- Clinician patient detail **Audits** sheet — episode lifecycle and rolling risk audit history with paginated sections and CSV export per section.
+
+### Changed
+
+- Care-episode write calls no longer send client-supplied `changed_by_uuid`; attribution is server-derived from the JWT.
+
 ## [2026.06.21]
 
 ### Added

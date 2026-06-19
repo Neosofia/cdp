@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useScrollToBottom } from '@/lib/useScrollToBottom';
 import {
-  ArchiveBoxXMarkIcon,
   ArrowPathIcon,
+  ArrowDownTrayIcon,
+  ArchiveBoxXMarkIcon,
   ChatBubbleLeftRightIcon,
   ChevronDownIcon,
   DocumentTextIcon,
+  ClipboardDocumentListIcon,
   MagnifyingGlassIcon,
   PaperAirplaneIcon,
   PencilSquareIcon,
@@ -36,6 +38,7 @@ import ConversationListItems from '@/components/ConversationListItems';
 import EpisodeSelector from '@/components/EpisodeSelector';
 import PriorConversationsSheet from '@/components/PriorConversationsSheet';
 import RiskSummaryHint from '@/components/RiskSummaryHint';
+import { AuditHistorySheet } from '@/components/AuditHistorySheet';
 import ProcedurePicker from '@/components/ProcedurePicker';
 import SpawnDatePicker from '@/components/SpawnDatePicker';
 import { procedureById, procedureIdForSurgeryName } from '@/lib/procedureCatalog';
@@ -51,8 +54,12 @@ import {
   closeCareEpisodeRecovery,
   listCareEpisodeHistory,
   listCareEpisodeRecords,
+  listPatientCareEpisodeAudits,
   reopenCareEpisodeRecovery,
   type CareEpisodeHistoryEntry,
+  type CareEpisodeRecoveryAuditItem,
+  type InteractionRiskAuditItem,
+  type PatientCareEpisodeAuditSource,
 } from '@/lib/careEpisodeApi';
 import {
   chatMessageToTranscriptLine,
@@ -143,6 +150,64 @@ const PATIENT_ROW_GRID_COLS =
   'grid-cols-[1.75rem_minmax(0,1fr)_4.5rem_7rem_5.5rem_2rem]';
 const PATIENT_ROW_GRID_NO_SELECT_COLS =
   'grid-cols-[minmax(0,1fr)_4.5rem_7rem_5.5rem_2rem]';
+const PATIENT_AUDIT_PAGE_SIZE = 20;
+const PATIENT_AUDIT_CSV_FETCH_SIZE = 100;
+
+function csvEscape(value: string | null | undefined): string {
+  return `"${String(value ?? '').replace(/"/g, '""')}"`;
+}
+
+function auditEventLabel(changeType: number): string {
+  return changeType === 1 ? 'created' : changeType === 2 ? 'updated' : changeType === 3 ? 'deleted' : String(changeType);
+}
+
+function downloadPatientAuditCsv(
+  rows: CareEpisodeRecoveryAuditItem[] | InteractionRiskAuditItem[],
+  source: PatientCareEpisodeAuditSource,
+  patientLabel: string,
+): void {
+  const escape = csvEscape;
+  const baseRow = (row: CareEpisodeRecoveryAuditItem | InteractionRiskAuditItem) => [
+    escape(new Date(row.changed_at).toLocaleString(undefined, { timeZone: 'UTC' })),
+    escape(auditEventLabel(row.change_type)),
+    escape(row.changed_by_type === 1 ? 'User' : 'Service'),
+    escape(row.changed_by_uuid),
+  ];
+
+  const lines =
+    source === 'episode'
+      ? [
+          ['Changed at (UTC)', 'Event', 'Actor Type', 'Actor UUID', 'Episode UUID', 'Risk', 'Status', 'Procedure', 'Recovery ID'].join(','),
+          ...(rows as CareEpisodeRecoveryAuditItem[]).map((row) =>
+            [
+              ...baseRow(row),
+              escape(row.episode_uuid),
+              escape(row.risk_level),
+              escape(row.status),
+              escape(row.surgery),
+              escape(row.recovery_id),
+            ].join(','),
+          ),
+        ]
+      : [
+          ['Changed at (UTC)', 'Event', 'Actor Type', 'Actor UUID', 'Thread UUID', 'Rolling summary'].join(','),
+          ...(rows as InteractionRiskAuditItem[]).map((row) =>
+            [
+              ...baseRow(row),
+              escape(row.chat_interaction_uuid),
+              escape(row.summary),
+            ].join(','),
+          ),
+        ];
+
+  const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = `${patientLabel}-${source}-audit.csv`;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
 
 function FilterDropdown<T extends string>({
   label,
@@ -383,7 +448,6 @@ function PatientList({
   onEnroll,
   token,
   activeActor,
-  clinicianUuid,
   onBulkClosed,
 }: {
   patients: ActivePatientRecovery[];
@@ -398,7 +462,6 @@ function PatientList({
   onEnroll: () => void;
   token: string;
   activeActor: string;
-  clinicianUuid?: string | null;
   onBulkClosed: () => void;
 }) {
   const pv = usePatientViewStyles();
@@ -468,7 +531,6 @@ function PatientList({
         token,
         activeActor,
         [...selectedUuids],
-        clinicianUuid ?? undefined,
       );
       setSelectedUuids(new Set());
       setBulkMode(false);
@@ -1170,6 +1232,7 @@ function PatientBreadcrumbChrome({
   historyLoading,
   onSelectEpisode,
   onOpenRecords,
+  onOpenAudits,
   onEditPatient,
   outlineButtonClass,
   inputClass,
@@ -1179,6 +1242,7 @@ function PatientBreadcrumbChrome({
   historyLoading: boolean;
   onSelectEpisode: (episodeUuid: string) => void;
   onOpenRecords: () => void;
+  onOpenAudits: () => void;
   onEditPatient: () => void;
   outlineButtonClass: string;
   inputClass: string;
@@ -1202,6 +1266,16 @@ function PatientBreadcrumbChrome({
       >
         <DocumentTextIcon className="h-4 w-4 mr-1.5" />
         Records
+      </Button>
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        className={outlineButtonClass}
+        onClick={onOpenAudits}
+      >
+        <ClipboardDocumentListIcon className="h-4 w-4 mr-1.5" />
+        Audits
       </Button>
       <Button
         type="button"
@@ -1265,6 +1339,126 @@ function SessionDetail({
   const [historyLoading, setHistoryLoading] = useState(true);
   const [selectedHistoryUuid, setSelectedHistoryUuid] = useState('');
   const [newEpisodeOpen, setNewEpisodeOpen] = useState(false);
+  const [auditsOpen, setAuditsOpen] = useState(false);
+  const [episodeAuditItems, setEpisodeAuditItems] = useState<CareEpisodeRecoveryAuditItem[]>([]);
+  const [riskAuditItems, setRiskAuditItems] = useState<InteractionRiskAuditItem[]>([]);
+  const [episodeAuditPage, setEpisodeAuditPage] = useState(1);
+  const [riskAuditPage, setRiskAuditPage] = useState(1);
+  const [episodeAuditTotal, setEpisodeAuditTotal] = useState(0);
+  const [riskAuditTotal, setRiskAuditTotal] = useState(0);
+  const [episodeAuditLoading, setEpisodeAuditLoading] = useState(false);
+  const [riskAuditLoading, setRiskAuditLoading] = useState(false);
+  const [episodeAuditError, setEpisodeAuditError] = useState<string | null>(null);
+  const [riskAuditError, setRiskAuditError] = useState<string | null>(null);
+  const [downloadingAuditCsv, setDownloadingAuditCsv] = useState<PatientCareEpisodeAuditSource | null>(null);
+
+  const patientAuditLabel = patient.displayCode?.trim() || patient.patientUuid.slice(0, 8);
+
+  const loadEpisodeAudits = useCallback(async (pageNum: number, reset: boolean) => {
+    setEpisodeAuditLoading(true);
+    if (reset) {
+      setEpisodeAuditError(null);
+      setEpisodeAuditItems([]);
+      setEpisodeAuditTotal(0);
+    }
+    try {
+      const data = await listPatientCareEpisodeAudits<CareEpisodeRecoveryAuditItem>(
+        token,
+        activeActor,
+        patient.patientUuid,
+        'episode',
+        pageNum,
+        PATIENT_AUDIT_PAGE_SIZE,
+      );
+      setEpisodeAuditItems(data.items ?? []);
+      setEpisodeAuditPage(data.page ?? pageNum);
+      setEpisodeAuditTotal(data.total ?? 0);
+    } catch (error) {
+      setEpisodeAuditError(error instanceof Error ? error.message : 'Failed to load episode audit history');
+    } finally {
+      setEpisodeAuditLoading(false);
+    }
+  }, [token, activeActor, patient.patientUuid]);
+
+  const loadRiskAudits = useCallback(async (pageNum: number, reset: boolean) => {
+    setRiskAuditLoading(true);
+    if (reset) {
+      setRiskAuditError(null);
+      setRiskAuditItems([]);
+      setRiskAuditTotal(0);
+    }
+    try {
+      const data = await listPatientCareEpisodeAudits<InteractionRiskAuditItem>(
+        token,
+        activeActor,
+        patient.patientUuid,
+        'risk',
+        pageNum,
+        PATIENT_AUDIT_PAGE_SIZE,
+      );
+      setRiskAuditItems(data.items ?? []);
+      setRiskAuditPage(data.page ?? pageNum);
+      setRiskAuditTotal(data.total ?? 0);
+    } catch (error) {
+      setRiskAuditError(error instanceof Error ? error.message : 'Failed to load risk evaluation audit history');
+    } finally {
+      setRiskAuditLoading(false);
+    }
+  }, [token, activeActor, patient.patientUuid]);
+
+  const openAudits = useCallback(() => {
+    setAuditsOpen(true);
+    setEpisodeAuditPage(1);
+    setRiskAuditPage(1);
+    void loadEpisodeAudits(1, true);
+    void loadRiskAudits(1, true);
+  }, [loadEpisodeAudits, loadRiskAudits]);
+
+  const handleDownloadPatientAuditCsv = useCallback(async (source: PatientCareEpisodeAuditSource) => {
+    const total = source === 'episode' ? episodeAuditTotal : riskAuditTotal;
+    if (total <= 0) {
+      return;
+    }
+    setDownloadingAuditCsv(source);
+    try {
+      const pages = Math.ceil(total / PATIENT_AUDIT_CSV_FETCH_SIZE);
+      if (source === 'episode') {
+        const allRows: CareEpisodeRecoveryAuditItem[] = [];
+        for (let page = 1; page <= pages; page += 1) {
+          const data = await listPatientCareEpisodeAudits<CareEpisodeRecoveryAuditItem>(
+            token,
+            activeActor,
+            patient.patientUuid,
+            source,
+            page,
+            PATIENT_AUDIT_CSV_FETCH_SIZE,
+          );
+          allRows.push(...data.items);
+        }
+        downloadPatientAuditCsv(allRows, source, patientAuditLabel);
+      } else {
+        const allRows: InteractionRiskAuditItem[] = [];
+        for (let page = 1; page <= pages; page += 1) {
+          const data = await listPatientCareEpisodeAudits<InteractionRiskAuditItem>(
+            token,
+            activeActor,
+            patient.patientUuid,
+            source,
+            page,
+            PATIENT_AUDIT_CSV_FETCH_SIZE,
+          );
+          allRows.push(...data.items);
+        }
+        downloadPatientAuditCsv(allRows, source, patientAuditLabel);
+      }
+    } finally {
+      setDownloadingAuditCsv(null);
+    }
+  }, [token, activeActor, patient.patientUuid, patientAuditLabel, episodeAuditTotal, riskAuditTotal]);
+
+  useEffect(() => {
+    setAuditsOpen(false);
+  }, [patient.patientUuid]);
 
   const reloadEpisodeHistory = useCallback(async (options?: { selectEpisodeUuid?: string }) => {
     setHistoryLoading(true);
@@ -1334,10 +1528,12 @@ function SessionDetail({
 
   const breadcrumbCallbacksRef = useRef({
     onOpenRecords: () => onRecordsOpenChange(true),
+    onOpenAudits: () => openAudits(),
     onEditPatient,
   });
   breadcrumbCallbacksRef.current = {
     onOpenRecords: () => onRecordsOpenChange(true),
+    onOpenAudits: () => openAudits(),
     onEditPatient,
   };
 
@@ -1352,6 +1548,7 @@ function SessionDetail({
         historyLoading={historyLoading}
         onSelectEpisode={setSelectedHistoryUuid}
         onOpenRecords={() => breadcrumbCallbacksRef.current.onOpenRecords()}
+        onOpenAudits={() => breadcrumbCallbacksRef.current.onOpenAudits()}
         onEditPatient={() => breadcrumbCallbacksRef.current.onEditPatient()}
         outlineButtonClass={pv.outlineButton}
         inputClass={pv.inputClass}
@@ -1530,7 +1727,6 @@ function SessionDetail({
         token,
         activeActor,
         managingEpisode.episode_uuid,
-        clinicianUuid ?? undefined,
       );
       setEpisodeStatus(result.status ?? 'closed');
       onEpisodeChanged();
@@ -1554,7 +1750,6 @@ function SessionDetail({
         token,
         activeActor,
         managingEpisode.episode_uuid,
-        clinicianUuid ?? undefined,
       );
       setEpisodeStatus(result.status ?? 'active');
       onEpisodeChanged();
@@ -1632,6 +1827,16 @@ function SessionDetail({
           >
             <DocumentTextIcon className="h-4 w-4 mr-1.5" />
             Records
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className={cn('flex-1', pv.outlineButton)}
+            onClick={() => openAudits()}
+          >
+            <ClipboardDocumentListIcon className="h-4 w-4 mr-1.5" />
+            Audits
           </Button>
           <Button
             type="button"
@@ -1758,6 +1963,81 @@ function SessionDetail({
           sending={sendingReply}
         />
       </div>
+      <AuditHistorySheet
+        open={auditsOpen}
+        onOpenChange={setAuditsOpen}
+        title={
+          <>
+            Patient audit history —{' '}
+            <span className={cn('normal-case', pv.bodyText)}>{patient.displayName}</span>{' '}
+            {patient.displayCode ? (
+              <span className={cn('font-mono normal-case', pv.mutedText)}>({patient.displayCode})</span>
+            ) : null}
+          </>
+        }
+        sections={[
+          {
+            key: 'episode-audits',
+            kind: 'episode',
+            title: 'Care episode changes',
+            actions: episodeAuditTotal > 0 && !episodeAuditError ? (
+              <button
+                type="button"
+                onClick={() => void handleDownloadPatientAuditCsv('episode')}
+                disabled={downloadingAuditCsv === 'episode'}
+                className={pv.adminIconActionClass}
+                title="Download full history as CSV"
+              >
+                {downloadingAuditCsv === 'episode'
+                  ? <ArrowPathIcon className="w-4 h-4 animate-spin" />
+                  : <ArrowDownTrayIcon className="w-4 h-4" />}
+              </button>
+            ) : null,
+            rows: episodeAuditError ? null : episodeAuditLoading && episodeAuditItems.length === 0 ? null : episodeAuditItems,
+            loading: episodeAuditLoading && episodeAuditItems.length === 0,
+            emptyMessage: 'No care episode audit entries for this patient.',
+            errorMessage: episodeAuditError ?? 'Failed to load episode audit history.',
+            total: episodeAuditTotal,
+            page: episodeAuditPage,
+            pageSize: PATIENT_AUDIT_PAGE_SIZE,
+            onPageChange: (page) => {
+              if (!episodeAuditLoading) {
+                void loadEpisodeAudits(page, false);
+              }
+            },
+          },
+          {
+            key: 'risk-audits',
+            kind: 'risk',
+            title: 'Rolling risk evaluation summaries',
+            actions: riskAuditTotal > 0 && !riskAuditError ? (
+              <button
+                type="button"
+                onClick={() => void handleDownloadPatientAuditCsv('risk')}
+                disabled={downloadingAuditCsv === 'risk'}
+                className={pv.adminIconActionClass}
+                title="Download full history as CSV"
+              >
+                {downloadingAuditCsv === 'risk'
+                  ? <ArrowPathIcon className="w-4 h-4 animate-spin" />
+                  : <ArrowDownTrayIcon className="w-4 h-4" />}
+              </button>
+            ) : null,
+            rows: riskAuditError ? null : riskAuditLoading && riskAuditItems.length === 0 ? null : riskAuditItems,
+            loading: riskAuditLoading && riskAuditItems.length === 0,
+            emptyMessage: 'No risk evaluation audit entries yet — summaries appear after patient chat turns.',
+            errorMessage: riskAuditError ?? 'Failed to load risk evaluation audit history.',
+            total: riskAuditTotal,
+            page: riskAuditPage,
+            pageSize: PATIENT_AUDIT_PAGE_SIZE,
+            onPageChange: (page) => {
+              if (!riskAuditLoading) {
+                void loadRiskAudits(page, false);
+              }
+            },
+          },
+        ]}
+      />
       <Sheet open={recordsOpen} onOpenChange={onRecordsOpenChange}>
         <SheetContent
           side="right"
@@ -1794,7 +2074,6 @@ function SessionDetail({
           displayCode={patient.displayCode}
           displayName={patient.displayName}
           tenantUuid={patient.tenantUuid}
-          clinicianUuid={clinicianUuid}
           token={token}
           activeActor={activeActor}
           onStarted={(episodeUuid) => {
@@ -1975,7 +2254,6 @@ export default function ClinicianActivePatients({
           onEnroll={() => setEnrollOpen(true)}
           token={token}
           activeActor={activeActor}
-          clinicianUuid={clinicianUuid}
           onBulkClosed={onRetry ?? (() => {})}
         />
       )}
