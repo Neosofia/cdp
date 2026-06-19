@@ -1,4 +1,4 @@
-workspace "Clinical Data Platform (CDP)" "Post-discharge care platform: responsive web SPA, Care Episode orchestration, Groq inference, synchronous risk evaluation, email escalation." {
+workspace "Clinical Data Platform (CDP)" "Post-discharge care platform: responsive web SPA, Care Episode orchestration, Chat assistant inference, CE risk evaluation, email escalation." {
 
     model {
 
@@ -11,7 +11,7 @@ workspace "Clinical Data Platform (CDP)" "Post-discharge care platform: responsi
         infoSecTeam = person "InfoSec Team" "Runs independent SIEM checks for PHI/PII leakage." "Internal"
 
         workOS = softwareSystem "WorkOS" "External identity provider (AuthKit) used by Authentication Service." "External,WorkOS"
-        groq = softwareSystem "Groq" "Managed inference API (OpenAI-compatible completions) for care assistant and risk evaluation." "External"
+        groq = softwareSystem "Groq" "Managed inference API (OpenAI-compatible completions) for care-assistant and clinical risk evaluation." "External"
         resend = softwareSystem "Resend" "Transactional email provider used by Notification Service." "External"
         operationalMetrics = softwareSystem "Operational Metrics" "Platform observability, SLIs/SLOs, dashboards, and alert rules." "External,Observability"
 
@@ -41,7 +41,7 @@ workspace "Clinical Data Platform (CDP)" "Post-discharge care platform: responsi
             clinical = group "Clinical" {
                 careEpisodeService = container "Care Episode Service" "Recovery lifecycle, chat orchestration proxy, synchronous risk evaluation, escalation handoff." "Python / Flask + PostgreSQL" "Service" {
                     recoveryLifecycle = component "Recovery Lifecycle" "Invites, active recovery lookup, scheduled closure, audit history." "Python" "Component"
-                    chatOrchestrator = component "Chat Orchestrator" "Creates interactions with context; proxies completions to Chat + Groq path." "Python" "Component"
+                    chatOrchestrator = component "Chat Orchestrator" "Creates interactions with context; proxies completions to Chat (assistant inference there)." "Python" "Component"
                     riskEvaluator = component "Risk Evaluator" "Synchronous Groq risk inference; rolling summaries; recovery risk_level." "Python" "Component"
                     escalationClient = component "Escalation Client" "Resolves Notification via service registry; sends clinical alert email on high risk." "Python" "Component"
                     medicalRecords = component "Medical Records" "Recovery-scoped records displayed beside chat in clinician views." "Python" "Component"
@@ -124,9 +124,9 @@ workspace "Clinical Data Platform (CDP)" "Post-discharge care platform: responsi
         cdpWebApp -> capabilitiesService "Prefetch UI entitlements" "HTTPS"
         cdpWebApp -> chatService "Clinician chat read/send" "HTTPS"
         cdpWebApp -> notificationService "Operator health probes" "HTTPS"
-        careEpisodeService -> chatService "Message storage and inference bridge" "HTTPS"
+        careEpisodeService -> chatService "Completions proxy; message storage" "HTTPS"
         careEpisodeService -> notificationService "Escalation email" "HTTPS"
-        careEpisodeService -> groq "Care assistant and risk inference" "HTTPS"
+        careEpisodeService -> groq "Clinical risk evaluation" "HTTPS"
         notificationService -> resend "Send email" "HTTPS"
         authService -> workOS "OAuth callback" "HTTPS"
         authService -> userService "Identity sync on login" "HTTPS"

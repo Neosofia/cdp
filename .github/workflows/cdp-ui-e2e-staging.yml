@@ -1,6 +1,7 @@
 # Post-deploy Playwright E2E against staging (OR-004 / ADR-0017).
 #
-# Triggered when Railway reports a successful CDP UI deploy (deployment_status).
+# Triggered when Railway reports a successful CDP UI deploy (deployment_status),
+# not architecture or other services in the same repo.
 # Waits up to 5 minutes for the full staging stack to report green /health, then runs
 # responsive E2E + visual walkthrough and uploads the HTML gallery + PNGs as artifacts.
 #
@@ -30,6 +31,9 @@ env:
 jobs:
   e2e-staging:
     name: E2E staging + walkthrough
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      contains(github.event.deployment_status.description, 'staging.neosofia.tech')
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     environment: CDP / production

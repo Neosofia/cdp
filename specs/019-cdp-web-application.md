@@ -10,9 +10,9 @@ Native mobile applications, SMS chat, and push notifications are out of scope fo
 
 After login, the platform knows who the person is and which org roles they hold. The application asks the Capabilities service which menus and screens that person may see, then lets them choose **one active role context at a time** for the session — patient, clinician, operator, study participant, or demo — so every action runs with a single clear hat ([ADR-0010](../architecture/adrs/0010-single-active-role-ui.md), [ADR-0014](../architecture/adrs/0014-tenant-types-and-org-roles.md), [020-capabilities-service.md](020-capabilities-service.md)).
 
-Patient chat goes through Care Episode for the full turn — thread, care-assistant reply, and risk outcome — not by calling the message store directly ([015-care-episode-service.md](015-care-episode-service.md)). Operators see whether platform services are reachable from the same application they use to administer the mesh. Two visual themes — corporate and neon — share routes and capabilities. Terms of service acceptance gates demo onboarding and certain operator flows.
+Patient chat **sends** (new thread, care-assistant reply turns) follow the Care Episode write path so recovery validation, context injection, and risk evaluation run on each turn ([015-care-episode-service.md](015-care-episode-service.md)). **Conversation history and thread list** are loaded from the message store the patient is authorised to read ([001-chat-service.md](001-chat-service.md)). Operators see whether platform services are reachable from the same application they use to administer the mesh. Two visual themes — corporate and neon — share routes and capabilities. Terms of service acceptance gates demo onboarding and certain operator flows.
 
-Browser-to-service connectivity, staging deployment, and token refresh behaviour are documented in architecture decisions and operations guides — not repeated here ([ADR-0013](../architecture/adrs/0013-defer-same-origin-api-proxy-for-ui.md), [ADR-0017](../architecture/adrs/0017-railway-staging-auto-deploy.md), [OPERATIONS.md](../OPERATIONS.md)).
+Browser connectivity, staging deployment, and token refresh are documented in architecture decisions and operations guides — not repeated here ([ADR-0013](../architecture/adrs/0013-defer-same-origin-api-proxy-for-ui.md), [ADR-0017](../architecture/adrs/0017-railway-staging-auto-deploy.md), [OPERATIONS.md](../OPERATIONS.md)).
 
 ## Client objectives
 
@@ -38,7 +38,7 @@ Browser-to-service connectivity, staging deployment, and token refresh behaviour
 
 - **FR-002**: The profile menu lists assigned org roles mapped to role contexts. Selecting one updates the active session context and remembers the choice locally. Only one role context is active at a time.
 
-- **FR-003**: Patient chat supports multiple conversation threads, clear send feedback, and care-assistant replies returned from the Care Episode path for each turn.
+- **FR-003**: Patient chat supports multiple conversation threads, clear send feedback, and care-assistant replies for each send turn. Sends use the Care Episode write path; thread list and message history use the authorised Chat read path ([001-chat-service.md](001-chat-service.md), [0016-care-episode-as-clinical-orchestration-hub.md](../architecture/adrs/0016-care-episode-as-clinical-orchestration-hub.md)).
 
 - **FR-004**: Clinician views show active patients, recovery severity, recent chat activity, and drill-down to chat plus medical record panels for a selected patient.
 

@@ -6,11 +6,13 @@ Patients and clinicians converse through the CDP web application. Every message 
 
 Without a dedicated conversation store, messages would be persisted inconsistently and the platform would have no trustworthy source to read from. The Chat Service exists so the platform has **one durable, complete storage and retrieval layer** for conversation threads — while leaving care-window orchestration, clinical risk evaluation, care-assistant replies, and escalation alerts to the services that own those concerns.
 
-## How this service fits into the platform
+## Scope
 
-The Chat Service is the **authoritative message store** for conversation threads tied to a person on the platform. The Care Episode Service is the clinical front door for the patient chat experience: it confirms an open recovery, opens or selects a thread with the right clinical context, requests care-assistant replies, and runs risk evaluation after each turn ([015-care-episode-service.md](015-care-episode-service.md), [010-ai-agent-service.md](010-ai-agent-service.md)). The CDP web application talks to Care Episode for patient chat; Care Episode talks to this service to persist and retrieve messages.
+This service is the **authoritative message store** for conversation threads tied to a person on the platform. It stores inbound and outbound turns, serves thread list and message history to authorised callers, and runs care-assistant inference when an authorised orchestrator requests completions.
 
-This service stores inbound and outbound turns. It does not decide clinical severity, send alert email, or compose care-assistant guidance. Access rules are enforced before any message is returned or accepted.
+It does not decide clinical severity, send alert email, validate care windows, or inject recovery context — those concerns belong to services that own them ([015-care-episode-service.md](015-care-episode-service.md), [010-ai-agent-service.md](010-ai-agent-service.md)). Access rules are enforced before any message is returned or accepted.
+
+Which clients call this service directly vs through an orchestrator is documented in [0016-care-episode-as-clinical-orchestration-hub.md](../architecture/adrs/0016-care-episode-as-clinical-orchestration-hub.md).
 
 ## Client objectives
 

@@ -98,7 +98,7 @@ That document explains why local JWKS (`http://authentication:8014/...` in `.cap
 
 See the Railway worked example in the infrastructure guide for `${{cdp.RAILWAY_PUBLIC_DOMAIN}}` and `${{authentication.RAILWAY_PRIVATE_DOMAIN}}` patterns.
 
-**Staging observability:** [Railway Observability dashboards](https://github.com/Neosofia/infrastructure/blob/main/public-cloud/OPERATIONS.md#railway-observability-dashboards-cdp-staging) and [Grafana Cloud Loki + Locomotive](https://github.com/Neosofia/infrastructure/blob/main/public-cloud/OPERATIONS.md#grafana-cloud-loki-via-locomotive-cdp-staging) in `infrastructure/public-cloud/OPERATIONS.md`; [Grafana dashboards + OpenTofu](https://github.com/Neosofia/infrastructure/blob/main/public-cloud/grafana/README.md) in `infrastructure/public-cloud/grafana/README.md`.
+**Staging observability:** Grafana — [`infrastructure/public-cloud/grafana/README.md`](https://github.com/Neosofia/infrastructure/blob/main/public-cloud/grafana/README.md) (dashboards, OpenTofu, LogQL). Log ingest — [Neosofia/locomotive](https://github.com/Neosofia/locomotive). **If Grafana is not working:** [Railway debugging (fallback)](https://github.com/Neosofia/infrastructure/blob/main/public-cloud/OPERATIONS.md#railway-debugging-fallback) (project **CDP**, env **`production`** = staging lane).
 
 ## UI Service local dev
 
@@ -122,14 +122,17 @@ End-to-end tests live under `ui/e2e/`. Copy `ui/e2e/env.sample` to `ui/e2e/.env`
 
 Walkthrough PNGs are stored in `ui/test-results/walkthrough/` (outside Playwright’s wiped output dir). Open the gallery at `ui/test-results/walkthrough.html`. Steps include clinician and patient dashboards, patient roster workflows, and chat. Mobile captures use iPhone 12 (390×664 @ 3×); desktop uses 1366×768 @ 2×. The gallery scales mobile display width for side-by-side readability (~22% of desktop width).
 
-**Staging CI (post-deploy):** After Railway deploys the CDP UI, GitHub Actions workflow [`.github/workflows/cdp-ui-e2e-staging.yml`](.github/workflows/cdp-ui-e2e-staging.yml) runs `pnpm test:e2e:staging` against `https://staging.neosofia.tech` (care-episode lifecycle + visual walkthrough at desktop and mobile; **excludes** mutating enroll spec). It waits up to **5 minutes** for API `/health` URLs in `ui/e2e/staging-health-urls.txt` (not the UI root — static SPA, no `/health`; Playwright validates the UI). Download artifact **`walkthrough-staging`** for `walkthrough.html` and PNGs. Run `pnpm test:e2e:all` locally or on staging to include enroll.
+**Staging CDP UI deploy (pre-deploy quality):** On push to `main` that touches `ui/**`, [`.github/workflows/cdp-ui-deploy-staging.yml`](.github/workflows/cdp-ui-deploy-staging.yml) runs TypeScript (`pnpm exec tsc -b --noEmit`), then `railway redeploy --from-source` for the **`cdp`** service. Spec/ADR-only pushes do **not** trigger a UI deploy. Railway **`cdp`** service: **autodeploy OFF**, **Wait for CI OFF** (Railway’s Wait for CI is all-or-nothing and cannot exclude post-deploy E2E; it caused skipped deploys when E2E failed on stale UI).
+
+**Staging CI (post-deploy):** After Railway reports a successful **`cdp`** deploy (`staging.neosofia.tech`), [`.github/workflows/cdp-ui-e2e-staging.yml`](.github/workflows/cdp-ui-e2e-staging.yml) runs `pnpm test:e2e:staging` (care-episode lifecycle + visual walkthrough at desktop and mobile; **excludes** mutating enroll spec). It ignores `deployment_status` from other Railway services in this repo (e.g. **architecture**). Waits up to **5 minutes** for API `/health` URLs in `ui/e2e/staging-health-urls.txt`. Download artifact **`walkthrough-staging`** for `walkthrough.html` and PNGs.
 
 | GitHub environment secret (`CDP / production`) | Purpose |
 |---------------|---------|
+| `RAILWAY_TOKEN` | Railway project token for `cdp-ui-deploy-staging` (Project Settings → Tokens) |
 | `E2E_AUTH_EMAIL` | WorkOS login for staging test user (clinician + patient roles; seeded **DEMO-123**) |
 | `E2E_AUTH_PASSWORD` | WorkOS password |
 
-Workflow env (not secrets): `E2E_BASE_URL=https://staging.neosofia.tech`, `E2E_AUTH_BASE_URL=https://authentication.staging.neosofia.tech`. Optional overrides: `E2E_WORKOS_ORG`, `E2E_CLINICIAN_ROLE`, `E2E_PATIENT_DISPLAY_CODE` (defaults match staging seed). Manual run: Actions → **cdp-ui-e2e-staging** → **Run workflow**.
+Workflow env (not secrets): `E2E_BASE_URL=https://staging.neosofia.tech`, `E2E_AUTH_BASE_URL=https://authentication.staging.neosofia.tech`. Optional overrides: `E2E_WORKOS_ORG`, `E2E_CLINICIAN_ROLE`, `E2E_PATIENT_DISPLAY_CODE` (defaults match staging seed). Manual runs: Actions → **cdp-ui-deploy-staging** or **cdp-ui-e2e-staging** → **Run workflow**.
 
 ## Start the Full Stack
 

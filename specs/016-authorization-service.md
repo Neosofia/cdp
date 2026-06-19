@@ -1,85 +1,103 @@
-# Authorization Service
+# Platform Authorization
 
-## Why we need this service
+## Why we need this capability
 
 Knowing *who* is calling — from the Authentication Service — is not enough. A patient may read their own chat history but not another patient’s. A clinician may act on patients in their clinic but not across the hospital. An internal notifier may send alert email but not rotate machine credentials. If each service encodes those rules ad hoc with string comparisons and copy-pasted role checks, policies drift, audits disagree, and a single missed branch becomes a data breach.
 
-The Authorization Service exists so the platform has **one authoritative distribution point** for access policy definitions and version metadata. Consuming services fetch applicable policies, evaluate them locally against identity claims and service-owned resource data, and fail closed when policy material is unavailable. It distributes policy; it does not sit in the request path as a remote allow-or-deny oracle for every call.
+The platform uses **two complementary authorization planes**, each with a clear job:
 
-## How this service fits into the platform
+1. **UI authorization** — which menus, screens, and operator tools a signed-in person may see in the browser, evaluated by the Capabilities Service from product UI policy ([020-capabilities-service.md](020-capabilities-service.md), [ADR-0012](../architecture/adrs/0012-ui-capabilities-control-plane.md)). Future releases extend this plane with entitlements and feature toggles without changing backend API rules.
 
-Identity arrives on every request as validated platform token claims. Before business logic runs, each service’s shared authorization middleware loads the policy bundle distributed for that service, builds principal and resource context from local data, and evaluates whether the action is permitted in-process. The handler runs only on allow; missing attributes or unavailable policy material produce deny.
+2. **API authorization** — whether a caller may perform a specific action on a specific resource at a service boundary, evaluated **locally in each service** from that service’s Cedar policy bundle. Policies are **federated**: each domain service owns and maintains the rules for its resources; there is no central remote allow-or-deny oracle on the request path.
 
-No end-user client calls this service directly. Human-facing UI entitlements (menu visibility, feature toggles) are a separate concern handled by the Capabilities Service and product-owned policy bundles — not duplicated here. API-boundary authorization stays at each service, using policies this service distributes and middleware from the platform SDK.
+Hiding a menu does not authorize an API call, and a permitted API does not imply a visible menu. Both planes must agree for a safe end-to-end experience.
 
-Policies are authored in version control, reviewed like code, and deployed to the distribution surface this service serves. Resource attributes (owner, clinic, tenant) are resolved by the calling service and passed into evaluation; this service does not query application databases at runtime.
+## How this capability fits into the platform
+
+After Authentication establishes identity, every protected request passes through authorization before business logic runs.
+
+**UI plane.** The CDP web application requests entitlement booleans from the Capabilities Service after login and role selection. Product authors express visibility in versioned Cedar policy shipped with the deploying product. Capabilities evaluates coarse `View` permits for UI entities; it does not decide patient ownership, clinic scope, or destructive API actions.
+
+**API plane.** Each HTTP service loads its Cedar policy bundle at deployment and evaluates permits in-process using shared platform middleware. The service resolves resource attributes (owner, clinic, tenant, episode state) from its own data and passes principal and resource context into evaluation. Allow proceeds to the handler; deny, missing attributes, or unavailable policy material stop the request without running business logic.
+
+Policies are authored in version control, reviewed like code, and released with the owning service or product policy bundle. Distribution mechanics and consumer wiring are documented in [policies/README.md](../policies/README.md) and service `OPERATIONS.md` files — not prescribed here.
+
+Role vocabulary for assignment and token embedding lives in the User Service and product role catalog ([018-user-service.md](018-user-service.md), [ADR-0014](../architecture/adrs/0014-tenant-types-and-org-roles.md)). Cedar policy files are the source of truth for what each role may do at each boundary.
 
 ## Client objectives
 
-**Service teams** want a standard way to protect routes without inventing authorization plumbing per repo. They need fetchable policy bundles, cache guidance, and middleware that handles retrieval, evaluation, expiry, and fail-closed behaviour.
+**Product authors** want UI visibility and API permits expressed as reviewable policy in one vocabulary, without duplicating permission matrices in application code.
 
-**Patients** expect the platform to enforce self-access — their data is visible to them and not to other patients — consistently across chat, profile, and care experiences.
+**Service teams** want a standard middleware contract for route protection — principal context, resource attributes, default deny, and fail-closed behaviour — without inventing authorization plumbing per repository.
+
+**Patients** expect self-access enforced consistently: their data is visible to them and not to other patients across chat, profile, and care experiences.
 
 **Clinicians** expect clinic-scoped access: they can act on assigned patients within their organisation context and are denied when the resource belongs elsewhere or their role is insufficient for destructive actions.
 
-**Platform security reviewers** want policies versioned, reviewable, and default-deny. Machine service identities should receive only the permits defined for their service principal — nothing implied by possession of a token alone.
+**Platform security reviewers** want policies versioned, reviewable, and default-deny. Machine service identities receive only the permits defined for their service principal — nothing implied by possession of a token alone.
 
-**Operators** need to measure policy distribution health and confirm consumers fail closed when bundles cannot be loaded, without PHI or credential material in logs.
+**Operators** need to confirm services fail closed when policy bundles cannot be loaded and that elevated deny rates can be correlated with a bad deploy — without PHI or credential material in logs.
 
 ## Workflows
 
-**Policy refresh on deploy.** Given a service releases with an updated policy bundle pin, when the service starts or its cache expires, then it fetches the current bundle from this service and denies requests if the bundle cannot be loaded — never proceeding unaudited.
+**API request with sufficient context.** Given a caller presents a valid platform token and the service can supply the resource attributes Cedar needs, when middleware evaluates the action against the service policy bundle, then an allow proceeds to the handler and a deny returns without running business logic.
 
-**Missing resource attributes.** Given an authorised caller requests an action but the service cannot supply required resource attributes for evaluation, when middleware runs, then the decision is deny and the handler does not run.
+**Missing resource attributes.** Given an authenticated caller requests an action but the service cannot supply required resource attributes for evaluation, when middleware runs, then the decision is deny and the handler does not run.
+
+**Unavailable policy bundle.** Given a service starts or runs without a valid policy bundle for its deployment, when a protected request arrives, then middleware denies the request and operators can detect load failure through health and structured logs.
+
+**UI navigation after login.** Given a person has signed in and chosen a role context, when the application requests UI entitlements, then Capabilities returns permitted and denied UI areas from product policy and the application renders navigation from that answer — independent of any single backend API call on that path.
 
 ## Functional requirements
 
-- **FR-001**: The service exposes a policy distribution mechanism so authorised platform services fetch the latest policy definitions for their deployment.
+### Two planes
 
-- **FR-002**: Policy metadata includes version identifiers and cache lifetime guidance so consuming middleware selects and refreshes the correct bundle without ad hoc assumptions.
+- **FR-001**: UI authorization and API authorization are separate concerns with separate evaluation paths. Neither plane substitutes for the other.
 
-- **FR-003**: Runtime allow and deny decisions for individual requests are evaluated by consuming middleware using service-owned data. This service does not perform per-request authorization over the network.
+- **FR-002**: UI authorization is specified in [020-capabilities-service.md](020-capabilities-service.md). This document specifies API authorization and the shared rules both planes obey.
 
-- **FR-004**: Consumers respect service-provided cache expiry when refreshing bundles so stale policy does not linger silently and refresh storms do not overwhelm the distribution surface.
+### API authorization (federated Cedar)
 
-- **FR-005**: Authorization middleware returns deny when required principal or resource attributes are missing. Missing attributes are never treated as a policy bypass.
+- **FR-003**: Each platform HTTP service enforces access at its API boundary using Cedar policy owned and maintained in that service’s repository or product policy bundle. No service delegates per-request allow-or-deny decisions to another service over the network.
 
-- **FR-006**: Default-deny holds: when no permit covers a principal, action, and resource combination, the decision is deny.
+- **FR-004**: Authorization middleware evaluates permits in-process before business logic runs, using principal facts from the validated platform token and resource attributes resolved by the owning service from its own data.
 
-- **FR-007**: Structured logs cover policy bundle distribution and metadata access. Logs do not contain PHI or raw credential values.
+- **FR-005**: Default-deny holds: when no permit covers a principal, action, and resource combination, the decision is deny.
 
-- **FR-008**: Liveness reporting confirms policy distribution availability so consumers can detect outage and fail closed.
+- **FR-006**: Authorization middleware returns deny when required principal or resource attributes are missing. Missing attributes are never treated as a policy bypass.
 
-- **FR-009**: Policies are managed in version control and served from the distribution store — not hard-coded in consuming service application logic.
+- **FR-007**: When policy material required for evaluation is missing or invalid at runtime, middleware denies protected requests and does not proceed unaudited.
 
-- **FR-010**: Policy distribution is reachable only from the platform private network; it is not publicly routable.
+- **FR-008**: Policies are managed in version control and supplied with the service deployment — not hard-coded as ad hoc conditionals in handlers.
 
-- **FR-011**: Policy distribution requires a valid platform service machine identity. Human session tokens are not accepted for bundle fetch.
+- **FR-009**: Machine service principals and human session principals are distinguishable in evaluation context. Permits for internal callers are explicit in service policy; possession of a token alone does not imply broad access.
 
-- **FR-012**: An internal roles reference (private-network scope) exposes the canonical set of valid platform roles for consumers such as the Authentication Service at token issuance time. Role catalog authority for assignment lives in the User Service; this reference supports validation against the shared vocabulary.
+- **FR-010**: Structured logs cover authorization outcomes at the service boundary where the platform logging contract applies. Logs do not contain PHI, clinical narrative, or raw credential values.
 
-- **FR-013**: The platform provides official authorization middleware for supported languages, encapsulating policy retrieval, local evaluation, cache expiry handling, and fail-closed behaviour so teams do not re-implement those concerns per service.
+### Shared expectations
+
+- **FR-011**: The platform provides official authorization middleware for supported languages so teams do not re-implement evaluation, attribute handling, and fail-closed behaviour per service.
+
+- **FR-012**: Product-specific API vocabulary and UI vocabulary may share a role catalog for assignment and pickers, but permission rules live in Cedar policy files — not in a parallel JSON permission matrix ([ADR-0014](../architecture/adrs/0014-tenant-types-and-org-roles.md)).
 
 ## Operational requirements
 
 Platform baseline applies ([000-platform-baseline.md](000-platform-baseline.md)).
 
-- **OR-001**: Logs support **measuring** bundle fetch outcomes, latency, and consumer fail-closed rates.
+- **OR-001**: Each service’s logs support **measuring** authorization deny rate and policy load failures without logging personal identifiers or full policy evaluation context at routine production levels.
 
-- **OR-002**: The service is horizontally scalable with no in-process authorization state; policy material is served from versioned bundle storage.
+- **OR-002**: Policy changes merged in version control are deployable with the owning service or product bundle release without manual runtime editing in application handlers.
 
-- **OR-003**: Policy changes merged in version control are deployable to the distribution service without manual runtime editing in consuming components.
-
-- **OR-004**: When this service is unavailable or a bundle cannot be fetched, consuming middleware denies requests rather than proceeding unaudited — operators can detect elevated deny rates correlated with distribution outage.
+- **OR-003**: When a service cannot load its policy bundle, operators can detect failure through health checks and structured logs and correlate elevated deny rates with the offending release.
 
 ## Further reading
 
 - Platform baseline: [000-platform-baseline.md](000-platform-baseline.md)
-- Policy engine and bundle format: [policies/README.md](../policies/README.md)
+- UI authorization (Capabilities): [020-capabilities-service.md](020-capabilities-service.md)
+- UI capabilities ADR: [0012-ui-capabilities-control-plane.md](../architecture/adrs/0012-ui-capabilities-control-plane.md)
+- Tenant types and roles: [0014-tenant-types-and-org-roles.md](../architecture/adrs/0014-tenant-types-and-org-roles.md)
+- User service (role catalog): [018-user-service.md](018-user-service.md)
+- Authentication service: [014-authentication-service.md](014-authentication-service.md)
+- Policy bundles and consumer wiring: [policies/README.md](../policies/README.md)
 - Authorization middleware (SDK): [authorization-middleware](https://github.com/Neosofia/sdk/tree/main/python/authorization-middleware)
 - Service policy template: [templates/python/service/policies](https://github.com/Neosofia/templates/tree/main/python/service/policies)
-- Authentication service spec: [014-authentication-service.md](014-authentication-service.md)
-- User service spec (role catalog): [018-user-service.md](018-user-service.md)
-- UI capabilities (separate control plane): [020-capabilities-service.md](020-capabilities-service.md), [0012-ui-capabilities-control-plane.md](../architecture/adrs/0012-ui-capabilities-control-plane.md)
-- Capabilities service: [capabilities](https://github.com/Neosofia/capabilities)
-- Platform operational metrics: [011-operational-metrics.md](011-operational-metrics.md)

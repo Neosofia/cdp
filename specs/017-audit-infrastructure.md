@@ -4,17 +4,17 @@
 
 Every service that persists mutable state owes regulators, clinicians, and incident responders a tamper-evident, queryable history of who changed what and when. Hand-rolling audit tables per service produces drift — inconsistent columns, forgotten indexes, soft-delete semantics one team implements and another skips. Investigators then cannot trust cross-service comparisons, and application bugs can skip auditing entirely.
 
-Audit infrastructure exists so the platform has **one authoritative way** to generate consistent before-image history in each service database, enforced by the database engine rather than hoping every code path remembers to write a log row. v1 delivers shared SQL audit templates applied at migration time; a read-side central aggregator may follow when cross-service auditor UI is prioritised — but each service’s `_audit` tables remain the authoritative record either way.
+Audit infrastructure exists so the platform has **one authoritative way** to generate consistent before-image history in each service database, enforced by the database engine rather than hoping every code path remembers to write a log row. v1 delivers shared SQL audit templates applied at migration time. Each service’s `_audit` tables are the authoritative record; history is read through **that service’s APIs**, not a central aggregator.
 
 ## How this capability fits into the platform
 
 **SQL audit templates (v1)** — Language-agnostic SQL and PL/pgSQL live in the templates repository. Each service executes them during platform init migration, then registers audited tables through setup helpers. Generated objects — `_audit` tables, triggers, `_history` views, and protection hooks — live in that service’s own database under that service’s migration history. There is no shared runtime dependency: once migrations run, the database enforces auditing even if the templates package is unavailable at runtime.
 
-**Central Audit Service (future)** — When cross-service auditor UI or compliance queries are prioritised, a read-side consumer will aggregate change events from service databases into one queryable store. It will have no write authority back to service schemas; local `_audit` tables stay canonical. That component is described in the future requirements section so activation does not require re-research.
+**Federated audit reads** — Services that expose history publish read APIs on the owning service (for example authentication service registry audits, user registry audits, care-episode clinical audits). The CDP web application and other clients call whichever APIs the signed-in principal is permitted to use. There is **no central audit service** and no cross-service aggregation layer.
+
+**Who sees which audits** — Access to each audit category is enforced by **platform authorization** ([016-authorization-service.md](016-authorization-service.md)). Product teams define Cedar permits per service and audit type. An operator role may view service-registry and credential history but not clinical episode history; a clinician may view assigned-patient clinical audits but not platform credential rotation — according to product policy, not a single global feed.
 
 The pattern aligns with [ADR-0004](../architecture/adrs/0004-full-row-audit-history-over-sparse-deltas.md): full-row snapshots before update or soft-delete, not sparse deltas that require replay to reconstruct state at time T.
-
-v1 operator surfaces (for example registry and credential audit feeds in the CDP web application) read history from the **owning service** — not from a central aggregator.
 
 ## Client objectives
 
@@ -24,9 +24,9 @@ v1 operator surfaces (for example registry and credential audit feeds in the CDP
 
 **Incident responders** querying a single service database need indexed range scans on `change_type` and `changed_at` without reconstructing history from partial column deltas.
 
-**User administrators and platform operators** reviewing registry or credential changes in v1 need recent history surfaced per service through that service’s published read API — enough to spot who changed what without a cross-service query layer yet.
+**Platform operators, clinicians, and administrators** need audit history for the domains their role may access — service registry changes, user assignments, clinical episode lifecycle, and similar — each served by the owning service and gated by that service’s policy.
 
-**Platform operators** (future) will need cross-service views such as “all changes touching patient P in the last 30 days.” That requires the central aggregator described in the future section; v1 delivers per-service consistency first.
+**Product authors** want to configure which roles may list or drill into each audit category without building a separate permission matrix outside Cedar.
 
 ## Workflows
 
@@ -36,7 +36,9 @@ v1 operator surfaces (for example registry and credential audit feeds in the CDP
 
 **Soft-delete a row.** Given an authorised update sets soft-delete (`change_type = 3`), when the transaction commits, then the last active state and tombstone are archived to `_audit`, the live row is removed from the main table, and a direct hard `DELETE` remains prohibited.
 
-**Review entity history.** Given an auditor queries the unified `_history` view for an entity, when results are ordered by primary key and `changed_at`, then they see a single chronological timeline from creation through updates to the current live row or archived tombstone — without replaying sparse deltas.
+**Review entity history.** Given a principal authorised for that audit action queries history for an entity on the owning service, when results are ordered by primary key and `changed_at`, then they see a single chronological timeline from creation through updates to the current live row or archived tombstone — without replaying sparse deltas.
+
+**Denied audit access.** Given a principal is not permitted to view a given audit category, when they request history from the owning service, then the service denies the request without exposing whether history exists for the target.
 
 ## Functional requirements — SQL audit templates (v1)
 
@@ -58,13 +60,13 @@ v1 operator surfaces (for example registry and credential audit feeds in the CDP
 
 - **FR-009**: A `_history` view unions current main-table rows with `_audit` rows. Live rows expose `history_uuid` as null; archived rows populate it. The view presents a single chronological timeline when ordered by primary key and `changed_at`.
 
-- **FR-010**: Soft-deleted entities no longer appear on the main table after commit; tombstone and prior states remain in `_audit` and are readable through `_history`. Row-level security is not part of this pattern — visibility is enforced by main-table lifetime and service authorization on history read APIs.
+- **FR-010**: Soft-deleted entities no longer appear on the main table after commit; tombstone and prior states remain in `_audit` and are readable through `_history`. Row-level security is not part of this pattern — visibility is enforced by service authorization on history read APIs.
 
 - **FR-011**: Tear-down templates reverse setup exactly so migrations roll back without orphaned triggers or views.
 
 - **FR-012**: Generated DDL is framework-agnostic standard SQL executable by any service migration runner (Alembic, Rails, SQLx, and similar).
 
-- **FR-013**: The application database role cannot write directly to `_audit` tables; only trigger machinery appends audit rows. Read access to `_audit` and `_history` is granted explicitly for auditor queries.
+- **FR-013**: The application database role cannot write directly to `_audit` tables; only trigger machinery appends audit rows. Read access to `_audit` and `_history` is granted explicitly for authorised service queries.
 
 - **FR-014**: Trigger exception messages do not surface PHI.
 
@@ -72,21 +74,13 @@ v1 operator surfaces (for example registry and credential audit feeds in the CDP
 
 - **FR-016**: Template package versioning follows semver; breaking changes to generated schema require a major version bump.
 
-## Functional requirements — Central Audit Service (future)
+## Functional requirements — audit read access
 
-These requirements apply when an auditor UI or cross-service compliance query is prioritised; they are not in v1 delivery scope.
+- **FR-017**: Services that expose audit history do so through published read APIs on the **owning service**. Clients do not read another service’s `_audit` tables directly.
 
-- **FR-101**: The central service consumes change events from service databases via CDC or an outbox/notify pattern. It normalizes events into a canonical envelope and writes an append-only aggregated store.
+- **FR-018**: Each audit read API is protected by that service’s Cedar policy. Product teams define which roles and actions may list or drill into each audit category (for example service registry, user registry, clinical episode).
 
-- **FR-102**: The central service exposes a read API for auditor tooling. No service calls this API in the online request path.
-
-- **FR-103**: The central service is consumer-only: no schema authority over service databases, no write-back, no modification or deletion of source audit records.
-
-- **FR-104**: Each service’s local `_audit` tables remain the authoritative record if the aggregator and source disagree.
-
-- **FR-105**: Event payloads on the aggregation path carry identifiers and metadata only — not clinical narrative or other PHI beyond what compliance explicitly requires in the aggregated store.
-
-Activation trigger: an auditor UI feature is prioritised, or compliance mandates cross-service audit queries within a defined SLA. Deferred decisions include CDC versus outbox transport, aggregated storage backend, retention policy, and query API shape.
+- **FR-019**: Audit responses use opaque identifiers and structured metadata appropriate to the audit domain. Clinical narrative and other sensitive payload fields do not appear in audit APIs unless the owning service spec explicitly requires them for authorised readers.
 
 ## Operational requirements
 
@@ -95,8 +89,6 @@ This capability is not a deployable HTTP service. Services that adopt audit temp
 - **OR-001**: Operators can **deploy** template releases by pinning them in service build images the same way other platform template artifacts are pinned, so production schema generation is reproducible.
 
 - **OR-002**: Operators can **verify** adoption per service — init migration applied, audited tables registered — without querying row contents or PHI.
-
-- **OR-003**: When the central service exists, its consumers are **measurable** separately from OLTP traffic — lag, error rate, and backlog — without duplicating SLO numbers in this spec; thresholds live in operational tooling ([011-operational-metrics.md](011-operational-metrics.md)).
 
 ## Audit pattern (reference)
 
@@ -123,8 +115,10 @@ Services adopt templates on first migration that introduces audited tables. Refe
 ## Further reading
 
 - Full-row audit ADR: [0004-full-row-audit-history-over-sparse-deltas.md](../architecture/adrs/0004-full-row-audit-history-over-sparse-deltas.md)
+- Platform authorization: [016-authorization-service.md](016-authorization-service.md)
 - SQL audit templates: [templates/sql/audit](https://github.com/Neosofia/templates/tree/main/sql/audit)
 - Authentication service (reference tables): [014-authentication-service.md](014-authentication-service.md)
 - User service spec: [018-user-service.md](018-user-service.md)
+- Care Episode service spec: [015-care-episode-service.md](015-care-episode-service.md)
 - Platform baseline: [000-platform-baseline.md](000-platform-baseline.md)
 - Platform operational metrics: [011-operational-metrics.md](011-operational-metrics.md)

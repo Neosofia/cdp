@@ -10,7 +10,7 @@ The Capabilities Service exists so UI entitlements are evaluated from versioned 
 
 Deploying products such as CDP ship UI entitlement policy as part of their policy bundle. At runtime this service loads that bundle and, for a signed-in person and active role context, returns which UI areas are permitted. The CDP web application prefetches those answers after login so menus do not flicker as people navigate.
 
-Backend chat, recovery, and registry APIs do **not** call this service on their critical path. They continue to enforce access at the API boundary through distributed service policy ([016-authorization-service.md](016-authorization-service.md)). Human login is validated elsewhere; this service trusts the same identity facts the rest of the platform uses.
+Backend chat, recovery, and registry APIs do **not** call this service on their critical path. They continue to enforce access at the API boundary through **federated service policy** ([016-authorization-service.md](016-authorization-service.md)). Human login is validated elsewhere; this service trusts the same identity facts the rest of the platform uses.
 
 Policy vocabulary, bundle layout, and UI entity naming are product concerns documented with the CDP policy bundle ([ADR-0012](../architecture/adrs/0012-ui-capabilities-control-plane.md), [policies/README.md](../policies/README.md)).
 
@@ -54,7 +54,7 @@ Platform baseline applies ([000-platform-baseline.md](000-platform-baseline.md))
 
 - Platform baseline: [000-platform-baseline.md](000-platform-baseline.md)
 - CDP web application: [019-cdp-web-application.md](019-cdp-web-application.md)
-- Authorization distribution spec: [016-authorization-service.md](016-authorization-service.md)
+- Platform authorization (API + UI planes): [016-authorization-service.md](016-authorization-service.md)
 - UI capabilities ADR: [0012-ui-capabilities-control-plane.md](../architecture/adrs/0012-ui-capabilities-control-plane.md)
 - CDP policy bundle: [policies/README.md](../policies/README.md)
 - Capabilities repo operations: [OPERATIONS.md](https://github.com/Neosofia/capabilities/blob/main/OPERATIONS.md)

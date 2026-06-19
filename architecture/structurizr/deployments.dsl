@@ -41,7 +41,7 @@
 
         groqNode = deploymentNode "Groq" "Inference API" "SaaS" {
             tags "SaaSNode"
-            groqApi = infrastructureNode "Groq Completions API" "Care assistant and risk evaluation" "HTTPS API" "SaaSService"
+            groqApi = infrastructureNode "Groq Completions API" "Care-assistant and clinical risk completions" "HTTPS API" "SaaSService"
         }
 
         resendNode = deploymentNode "Resend" "Email provider" "SaaS" {

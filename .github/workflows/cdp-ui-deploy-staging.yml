@@ -1,0 +1,111 @@
+# Deploy CDP UI to Railway staging after pre-deploy quality checks.
+#
+# Replaces Railway "Wait for CI" (all-or-nothing) with an explicit gate: TypeScript
+# compile on push, then deploy. Post-deploy E2E runs via cdp-ui-e2e-staging.yml.
+#
+# Railway service settings (dashboard, cdp / staging.neosofia.tech):
+#   - Disable autodeploy (GitHub push trigger) — this workflow owns deploys.
+#   - Disable "Wait for CI" — E2E is post-deploy and must not block the build.
+#
+# GitHub environment secrets (Settings → Environments → CDP / production):
+#   RAILWAY_TOKEN — Railway project token (Project Settings → Tokens)
+
+name: cdp-ui-deploy-staging
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'ui/**'
+      - '.github/workflows/cdp-ui-deploy-staging.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cdp-ui-deploy-staging-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  RAILWAY_PROJECT_ID: 9abf8f4b-a799-443c-8739-b05feac32e1c
+  RAILWAY_SERVICE: cdp
+  RAILWAY_ENVIRONMENT: production
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  quality:
+    name: UI quality (TypeScript)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: ui
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.3.0
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: ui/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm exec tsc -b --noEmit
+
+  deploy:
+    name: Deploy CDP UI to Railway
+    needs: quality
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: CDP / production
+    defaults:
+      run:
+        working-directory: ui
+    steps:
+      - name: Verify Railway token
+        run: |
+          if [ -z "${RAILWAY_TOKEN:-}" ]; then
+            echo "::error::Missing RAILWAY_TOKEN in environment CDP / production."
+            exit 1
+          fi
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli@4.65.0
+
+      - name: Deploy from GitHub source
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          railway redeploy --from-source -y \
+            --service "${RAILWAY_SERVICE}" \
+            --project "${RAILWAY_PROJECT_ID}" \
+            --environment "${RAILWAY_ENVIRONMENT}"
+
+      - name: Wait for deployment
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          set -euo pipefail
+          deadline=$((SECONDS + 900))
+          while (( SECONDS < deadline )); do
+            status="$(railway deployment list --json --limit 1 | jq -r '.[0].status')"
+            echo "Latest cdp deployment: ${status}"
+            case "${status}" in
+              SUCCESS) exit 0 ;;
+              FAILED|CRASHED) exit 1 ;;
+            esac
+            sleep 15
+          done
+          echo "Timed out waiting for Railway deployment"
+          exit 1

@@ -6,13 +6,13 @@ Every patient message may carry a clinical risk signal — suicidal ideation, ch
 
 In v1 this capability runs **synchronously on the patient chat path** inside Care Episode ([015-care-episode-service.md](015-care-episode-service.md)). From the patient’s perspective the care assistant reply and risk evaluation happen in the same turn; the platform records both outcomes before the UI shows the response.
 
-## How this capability fits into the platform
+## Scope
 
-When a patient sends a message through the CDP web application, Care Episode completes the care-assistant reply, stores the conversation through the Chat Service, then evaluates risk using the thread and recovery context. The evaluator assigns a severity class — low, medium, or high — and maintains a rolling clinical summary on the recovery record for clinician roster and detail views.
+After a patient content turn is persisted on the Care Episode write path, this capability evaluates clinical risk using conversation history from the message store and recovery context from Care Episode. The evaluator assigns a severity class — low, medium, or high — and maintains a rolling clinical summary on the recovery record for clinician roster and detail views.
 
-When escalation is enabled and severity is high, Care Episode requests a clinical alert email through the Notification Service ([005-notification-service.md](005-notification-service.md)). The Chat Service does not perform risk evaluation or send alerts in v1.
+Care-assistant inference for the same turn runs in the Chat Service; this capability does not generate patient-facing replies. When escalation is enabled and severity is high, Care Episode requests a clinical alert email through the Notification Service ([005-notification-service.md](005-notification-service.md)).
 
-HIPAA BAA requirement, configurable inference integration, model pinning, and PHI handling constraints for model calls are architectural decisions documented in [ADR-0002](../architecture/adrs/0002-configurable-hipaa-inference-provider.md). Vendor selection is an operator qualification step, not an ADR. Evaluation records and logs carry outcomes and correlators — not message text.
+HIPAA BAA requirement, configurable inference integration, model pinning, and PHI handling constraints for model calls are architectural decisions documented in [ADR-0002](../architecture/adrs/0002-configurable-hipaa-inference-provider.md). Which service invokes the inference provider for assistant vs risk is documented in [0016-care-episode-as-clinical-orchestration-hub.md](../architecture/adrs/0016-care-episode-as-clinical-orchestration-hub.md). Evaluation records and logs carry outcomes and correlators — not message text.
 
 ## Client objectives
 

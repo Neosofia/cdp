@@ -40,4 +40,4 @@ All CDP services that use the before-image history table pattern MUST store full
 - The `cdp-audit` shared package (forward reference in `014-authentication-service/data-model.md`) must generate full-row triggers, not delta triggers.
 - Services with very wide tables (≥50 meaningful columns) or blob/large-text columns that rarely change should raise a new ADR before adopting this pattern, as the storage trade-off changes significantly in those cases.
 - History reconstruction is O(1): `SELECT * FROM <table>_audit WHERE <pk> = $1 AND changed_at <= $2 ORDER BY changed_at DESC LIMIT 1`.
-- Consumers of history data (audit UI, central audit service) can diff any two consecutive rows without additional infrastructure.
+- Consumers of history data (audit read APIs and authorised UI) can diff any two consecutive rows without additional infrastructure.

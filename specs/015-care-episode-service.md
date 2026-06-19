@@ -6,13 +6,13 @@ Post-discharge care is procedure-scoped. A patient who had surgery in April and 
 
 The Care Episode Service exists so the platform has **one authoritative place** to record procedure-scoped recoveries, attach clinical context, run the patient chat path, evaluate risk on each turn, and trigger escalation when required.
 
-## How this service fits into the platform
+## Scope
 
-Enrolling a patient in post-care monitoring opens an active recovery anchored to that patient and procedure. The User registry ([018-user-service.md](018-user-service.md)) holds who the person is and which org roles they hold; this service owns recovery lifecycle, records shown beside chat in clinician views, and the **clinical front door** the CDP web application uses for patient chat.
-
-The CDP web application does not coordinate chat, risk, and alerts itself. For patient chat it calls this service to confirm an open recovery, open or continue a thread with authoritative context, receive the care-assistant reply, and learn the risk outcome for that turn. This service persists messages through the Chat Service ([001-chat-service.md](001-chat-service.md)), evaluates clinical risk ([010-ai-agent-service.md](010-ai-agent-service.md)), and requests alert email when severity and policy require it ([005-notification-service.md](005-notification-service.md)).
+This service owns **procedure-scoped recoveries**: opening and closing care windows, rolling clinical summary metadata beside chat, medical record content for authorised clinician views, and the **patient chat write path** — validating an active recovery, injecting authoritative interaction context, orchestrating care-assistant turns via Chat, evaluating clinical risk on each patient content message, and requesting alert delivery when severity and policy require it.
 
 Recoveries close when authorised staff close them early. Automatic closure when the care window expires and lifecycle event emission are deferred to v2 ([FR-007](#functional-requirements), [FR-011](#functional-requirements)).
+
+Runtime topology (which clients call which services for reads vs writes) is documented in [0016-care-episode-as-clinical-orchestration-hub.md](../architecture/adrs/0016-care-episode-as-clinical-orchestration-hub.md) — not in this spec.
 
 ## Client objectives
 
@@ -20,13 +20,11 @@ Recoveries close when authorised staff close them early. Automatic closure when 
 
 **Patients** enter through enrollment or a guided demo experience tied to a recovery. Registration must land them in the correct care window; chat and onboarding against a closed or expired recovery must fail clearly.
 
-**The CDP web application** needs a single orchestration surface for patient chat and clinician recovery views without composing multiple backend calls in the browser.
-
 **Operators and compliance reviewers** need audit history on changes in v1; lifecycle event signals are deferred to v2 ([FR-011](#functional-requirements)). Logs and events must carry correlators only — not clinical narrative.
 
 ## Workflows
 
-**Patient sends a chat message (happy path).** Given a signed-in patient with an active recovery opens or continues a thread in the CDP web application, when they send a message, then this service ensures the recovery is valid, completes the care-assistant reply for that turn, stores the conversation, evaluates risk, returns the reply and severity outcome to the client, and requests alert delivery when severity is high and escalation is enabled.
+**Patient sends a chat message (happy path).** Given a signed-in patient with an active recovery opens or continues a thread in the CDP web application, when they send a message, then this service ensures the recovery is valid, orchestrates the care-assistant reply for that turn via Chat, evaluates risk after the turn is persisted, returns the reply and severity outcome to the client, and requests alert delivery when severity is high and escalation is enabled.
 
 **Patient chat when care assistant is unavailable.** Given Chat inference is unreachable, when the patient sends a message through this service’s completions proxy, then the client receives **503** and the patient UI shows unavailable — no synthetic clinical replies.
 
@@ -64,15 +62,15 @@ Recoveries close when authorised staff close them early. Automatic closure when 
 
 - **FR-014**: Every create, close, and association change appends audit history suitable for compliance review.
 
-- **FR-015**: When a patient chats through the CDP web application, this service performs the orchestration described in the patient chat workflow: valid recovery, thread with context, care-assistant reply, persisted conversation, risk evaluation, and client-visible outcomes.
+- **FR-015**: When a patient chats through the CDP web application, this service performs the orchestration described in the patient chat workflow: valid recovery, thread with context, care-assistant reply via Chat, risk evaluation after persist, and client-visible outcomes.
 
 - **FR-016**: When severity is high and escalation is enabled, this service requests clinical alert delivery within the configured time budget. Only **`high`** outcomes trigger escalation; lower levels do not.
 
 - **FR-017**: Medical record content shown beside chat in clinician views is stored and served by this service for authorised callers scoped to the recovery.
 
-- **FR-018**: Patient channel clients (CDP web application and future adapters) must not call Chat directly for interaction create or completions. They call this service’s chat proxy routes with a patient JWT. Paths and schemas: `openapi.json`.
+- **FR-018**: Patient channel clients must route **interaction create** and **completions** through this service’s chat proxy routes with a patient JWT — not through Chat directly. Thread list and message history reads are out of scope for this requirement ([001-chat-service.md](001-chat-service.md), [0016-care-episode-as-clinical-orchestration-hub.md](../architecture/adrs/0016-care-episode-as-clinical-orchestration-hub.md)). Paths and schemas: `openapi.json`.
 
-- **FR-019**: Interaction create validates an active recovery, builds authoritative interaction context server-side (clients must not supply Chat context), and creates the Chat interaction using a care-episode service token. Chat `base_url` is resolved from the authentication service registry (`slug: chat`). The response includes `care_episode_uuid` and `chat_interaction_uuid`.
+- **FR-019**: Interaction create validates an active recovery, builds authoritative interaction context server-side (clients must not supply Chat context), and creates the Chat interaction. The response includes `care_episode_uuid` and `chat_interaction_uuid`.
 
 - **FR-020**: Completions proxy forwards the caller’s patient JWT to Chat for session start and message turns. When Chat inference is unavailable, the proxy returns **503** to the client (passthrough).
 

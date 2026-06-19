@@ -30,19 +30,19 @@ Operators measure whether the relay and the clinical services that call it are r
 
 ## Functional requirements
 
-- **FR-001**: The service accepts structured outbound email requests only from authorised platform callers. Clinical alert content is composed upstream; this service validates and delivers.
+- **FR-001**: The service relays validated outbound email requests to the configured destination inbox. Message content is supplied by the caller; this service validates shape, delivers through the configured provider, and reports success or failure. Clinical alert wording is composed upstream ([015-care-episode-service.md](015-care-episode-service.md)); this service does not evaluate clinical severity.
 
 - **FR-002**: Requests that do not match the published contract are rejected before any provider call.
 
 - **FR-003**: Every delivery attempt — success or failure — is recorded in structured logs using correlators only, never raw clinical narrative from upstream payloads.
 
-- **FR-004**: Content sent to the email provider includes only what the approved alert template requires. Upstream services govern how much clinical detail appears in alert email.
+- **FR-004**: Upstream callers govern how much identifiable or clinical detail appears in relayed email. This service does not add patient names, chat text, or other clinical narrative beyond what the caller supplies in the validated request.
 
 - **FR-005**: When the provider cannot deliver, the service reports failure to the caller and records the outcome for operators. Whether and when to retry is decided by the caller unless product policy adds shared replay later.
 
 - **FR-006**: Provider credentials are stored in the platform secrets store and are never embedded in application source or committed configuration.
 
-- **FR-007**: The service exposes liveness and version information so operators — including through the CDP health panel — can confirm reachability from approved browser origins where cross-origin checks are required.
+- **FR-007**: The service exposes liveness and version information so operators can confirm reachability, including from the CDP health panel.
 
 ## Operational requirements
 
