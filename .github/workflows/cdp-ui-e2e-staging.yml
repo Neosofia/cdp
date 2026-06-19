@@ -1,7 +1,7 @@
 # Post-deploy Playwright E2E against staging (OR-004 / ADR-0017).
 #
-# Triggered when Railway reports a successful CDP UI deploy (deployment_status),
-# not architecture or other services in the same repo.
+# Railway reports an empty deployment_status.description; gate on commit status
+# context "CDP - cdp" instead (see gate job).
 # Waits up to 5 minutes for the full staging stack to report green /health, then runs
 # responsive E2E + visual walkthrough and uploads the HTML gallery + PNGs as artifacts.
 #
@@ -18,6 +18,7 @@ on:
 
 permissions:
   contents: read
+  statuses: read
 
 concurrency:
   group: cdp-ui-e2e-staging-${{ github.sha }}
@@ -29,11 +30,37 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
+  gate:
+    name: Check CDP UI deploy
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'deployment_status'
+    runs-on: ubuntu-24.04
+    outputs:
+      run_e2e: ${{ steps.check.outputs.run_e2e }}
+    steps:
+      - name: Detect CDP UI deployment
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "run_e2e=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          sha="${{ github.event.deployment.sha }}"
+          state="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${sha}/status" \
+            --jq '[.statuses[] | select(.context == "CDP - cdp") | .state][0] // empty')"
+          if [ "${state}" = "success" ]; then
+            echo "run_e2e=true" >> "$GITHUB_OUTPUT"
+            echo "CDP - cdp status success for ${sha}"
+          else
+            echo "run_e2e=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping E2E (CDP - cdp status: ${state:-none})"
+          fi
+
   e2e-staging:
     name: E2E staging + walkthrough
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      contains(github.event.deployment_status.description, 'staging.neosofia.tech')
+    needs: gate
+    if: needs.gate.outputs.run_e2e == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     environment: CDP / production
