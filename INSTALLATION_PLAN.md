@@ -212,6 +212,24 @@ Run once per new environment **before** platform admin UI or `GET /api/v1/users`
 
 ---
 
+## cdp-policies v0.3.1 / user (care-episode registry access)
+
+**Release pins:** **cdp-policies v0.3.1**; rebuild **user** with `USER_PRODUCT_POLICIES_IMAGE=ghcr.io/neosofia/cdp-policies:v0.3.1` before shipping care-episode roster/profile enrichment.
+
+**Deploy:**
+
+1. Publish **`cdp-policies/v0.3.1`** (CI builds `ghcr.io/neosofia/cdp-policies:v0.3.1`).
+2. Rebuild and redeploy **user** with the new policy bundle pin (Dockerfile `USER_PRODUCT_POLICIES_IMAGE` or build arg).
+
+**Post-deploy verification:**
+
+1. Care-episode service token can `GET /api/v1/tenants/{tenant_uuid}/users` and `GET /api/v1/users/{user_uuid}` (**200**, not **403**).
+2. Clinician roster and patient profile enrichment load registry display names.
+
+**Evidence:** User service authorization logs; care-episode roster API responses include resolved patient labels.
+
+---
+
 ## cdp-policies v0.3.0 / capabilities v0.7.3 / CDP UI 2026.06.17
 
 **Release pins:** **cdp-policies v0.3.0**; **capabilities v0.7.3**; CDP UI **2026.06.17** (other backend pins unchanged from **2026.06.16**).
