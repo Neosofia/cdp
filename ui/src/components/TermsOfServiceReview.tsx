@@ -1,7 +1,7 @@
 import {
   CORPORATE_TOS_SECTIONS,
   CORPORATE_TOS_VERSION,
-} from '@/lib/corporateTermsOfServiceContent';
+} from '@/shared/auth/corporateTermsOfServiceContent';
 
 export default function TermsOfServiceReview() {
   return (

@@ -1,7 +1,7 @@
-import { TOS_PREVIEW_PATH } from '@/lib/tosPreview';
-import { PLATFORM_FOOTER, useUiTheme } from '@/lib/uiTheme';
-import { getUiVersion } from '@/lib/uiVersion';
-import { cn } from '@/lib/utils';
+import { TOS_PREVIEW_PATH } from '@/shared/auth/tosPreview';
+import { PLATFORM_FOOTER, useUiTheme } from '@/shared/core/uiTheme';
+import { getUiVersion } from '@/shared/core/uiVersion';
+import { cn } from '@/shared/core/utils';
 
 type AppFooterProps = {
   className?: string;

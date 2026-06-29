@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
-import { TOS_SECTIONS } from '@/lib/termsOfServiceContent';
+import { TOS_SECTIONS } from '@/shared/auth/termsOfServiceContent';
 
 /** Scroll speed along the crawl path (higher = faster). */
 const PX_PER_SECOND = 24;

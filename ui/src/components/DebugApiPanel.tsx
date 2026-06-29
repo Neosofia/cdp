@@ -2,9 +2,9 @@ import { ChartBarIcon as Activity } from '@heroicons/react/24/outline';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { AUTH_API, IS_PROD, TEMPLATE_API, USER_API } from '@/lib/apiBases';
-import type { JwtTokenData } from '@/lib/appTypes';
-import { cn } from '@/lib/utils';
+import { AUTH_API, IS_PROD, TEMPLATE_API, USER_API } from '@/shared/platform/apiBases';
+import type { JwtTokenData } from '@/shared/core/appTypes';
+import { cn } from '@/shared/core/utils';
 
 export interface DebugTestResult {
   api: string;

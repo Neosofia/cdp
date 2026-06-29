@@ -1,4 +1,4 @@
-import { useUiTheme } from '@/lib/uiTheme';
+import { useUiTheme } from '@/shared/core/uiTheme';
 
 /** Full-viewport brand backdrop — used while session is verified (no marketing splash). */
 export default function BrandBackground() {

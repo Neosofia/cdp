@@ -1,7 +1,7 @@
 {
   "name": "ui",
   "private": true,
-  "version": "2026.06.22",
+  "version": "2026.06.29",
   "type": "module",
   "scripts": {
     "dev": "vite --host",
@@ -16,7 +16,8 @@
     "test:e2e:install": "playwright install chromium",
     "walkthrough:visual": "playwright test e2e/visual-walkthrough.spec.ts",
     "walkthrough:visual:mobile": "playwright test e2e/visual-walkthrough.spec.ts --project=mobile-chromium",
-    "walkthrough:visual:desktop": "playwright test e2e/visual-walkthrough.spec.ts --project=desktop-chromium"
+    "walkthrough:visual:desktop": "playwright test e2e/visual-walkthrough.spec.ts --project=desktop-chromium",
+    "generate:api": "openapi-typescript ../../user/openapi.json -o src/shared/api/generated/user.schema.ts && openapi-typescript ../../care-episode/openapi.json -o src/shared/api/generated/care-episode.schema.ts && openapi-typescript ../../chat/openapi.json -o src/shared/api/generated/chat.schema.ts && openapi-typescript ../../authentication/openapi.json -o src/shared/api/generated/authentication.schema.ts && openapi-typescript ../../capabilities/openapi.json -o src/shared/api/generated/capabilities.schema.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",
@@ -38,11 +39,13 @@
     "date-fns": "^4.4.0",
     "jwt-decode": "^4.0.0",
     "lucide-react": "^1.14.0",
+    "openapi-fetch": "^0.17.0",
     "radix-ui": "^1.4.3",
     "react": "^19.2.6",
     "react-day-picker": "^10.0.1",
     "react-dom": "^19.2.6",
     "react-markdown": "^10.1.0",
+    "react-router-dom": "^7.18.0",
     "remark-gfm": "^4.0.1",
     "shadcn": "^4.7.0",
     "tailwind-merge": "^3.5.0",
@@ -63,6 +66,7 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.5.0",
+    "openapi-typescript": "^7.13.0",
     "serve": "^14.2.6",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.58.2",

@@ -40,6 +40,7 @@ import hashlib
 import json
 import os
 import sys
+import time
 import urllib.error
 import urllib.request
 from datetime import datetime, timedelta, timezone
@@ -698,6 +699,30 @@ def _latest_chat_interaction_uuids(cur, patient_uuids: list[str]) -> dict[str, s
     return {row[0]: row[1] for row in cur.fetchall()}
 
 
+def _wait_for_risk_summary(patient_uuid: str, *, timeout_seconds: float = 25.0) -> str:
+    """Poll care-episode DB until async risk evaluation persists a thread summary."""
+    psycopg = _require_psycopg()
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        with psycopg.connect(migration_database_url("care-episode")) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT summary
+                    FROM interaction_risk_states
+                    WHERE patient_uuid = %s AND summary <> ''
+                    ORDER BY changed_at DESC
+                    LIMIT 1
+                    """,
+                    (patient_uuid,),
+                )
+                row = cur.fetchone()
+                if row and row[0]:
+                    return str(row[0])[:40]
+        time.sleep(0.5)
+    return "pending"
+
+
 def _seed_risk_summaries(catalog: dict, api_url: str, headers: dict[str, str]) -> None:
     """Replay the last patient turn via care-episode so risk summaries are persisted."""
     psycopg = _require_psycopg()
@@ -761,10 +786,14 @@ def _seed_risk_summaries(catalog: dict, api_url: str, headers: dict[str, str]) -
             print(f"risk-summaries: {display_code} failed: HTTP {status}")
             continue
 
-        risk = body.get("risk_evaluation") or {}
-        risk_level = risk.get("risk_level", "?")
+        summary_preview = _wait_for_risk_summary(patient_uuid)
+        if summary_preview == "pending":
+            failed += 1
+            print(f"risk-summaries: {display_code} failed: async risk summary not persisted")
+            continue
+
         succeeded += 1
-        print(f"risk-summaries: {display_code} ok (risk_level={risk_level})")
+        print(f"risk-summaries: {display_code} ok (summary={summary_preview}…)")
 
     print(
         f"risk-summaries: {succeeded} ok, {failed} failed "

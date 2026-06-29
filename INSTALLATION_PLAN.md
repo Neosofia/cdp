@@ -31,7 +31,27 @@ uv run alembic upgrade head
 SELECT version_num FROM alembic_version;
 ```
 
-Compare `version_num` to the expected revision in that release's service **INSTALLATION_PLAN.md** (for example user **`002`**, care-episode **`012`** at CDP UI **2026.06.22**).
+Compare `version_num` to the expected revision in that release's service **INSTALLATION_PLAN.md** (for example user **`002`**, care-episode **`013`** at CDP UI **2026.06.29**).
+
+## CDP UI 2026.06.29 / care-episode v0.12.1
+
+**Release pins:** CDP UI **2026.06.29**; **care-episode v0.12.1** (requires **user v0.8.5** unchanged).
+
+**Deploy:**
+
+1. Redeploy **care-episode v0.12.1** (migration head **`013`**).
+2. Push **CDP UI 2026.06.29** to the Railway-connected branch (or redeploy UI service).
+
+**Verify:**
+
+1. `GET /health` on care-episode → `"version": "0.12.1"`; `alembic_version` on care-episode is **`013`**.
+2. UI footer shows **2026.06.29**.
+3. Clinician roster and roster summary load with patient names when user is healthy; User outage surfaces **502** in the UI (not silent empty roster).
+4. Staging E2E green (`care-episode-lifecycle`, visual walkthrough).
+
+**Evidence:** Health JSON; roster **200** with `patient` enrichment; UI **502** message when user is stopped; staging walkthrough artifact.
+
+---
 
 ## CDP UI 2026.06.22 / authentication v0.39.0 / care-episode v0.10.0
 

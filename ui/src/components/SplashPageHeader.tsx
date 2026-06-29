@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react';
 import ThemeToggle from '@/components/ThemeToggle';
-import { beginLogin } from '@/lib/auth';
-import { useUiTheme } from '@/lib/uiTheme';
-import { cn } from '@/lib/utils';
+import { beginLogin } from '@/shared/auth/auth';
+import { useUiTheme } from '@/shared/core/uiTheme';
+import { cn } from '@/shared/core/utils';
 
 const SPLASH_HEADER_PAD = 'px-6 py-4 md:px-10';
 const SPLASH_ACTIONS_CLASS = 'flex shrink-0 items-center gap-3';

@@ -5,9 +5,9 @@ import TermsOfServiceCrawl from '@/components/TermsOfServiceCrawl';
 import TermsOfServiceReview from '@/components/TermsOfServiceReview';
 import StarField from '@/components/StarField';
 import { Button } from '@/components/ui/button';
-import { TOS_VERSION } from '@/lib/termsOfServiceContent';
-import { useUiTheme } from '@/lib/uiTheme';
-import { cn } from '@/lib/utils';
+import { TOS_VERSION } from '@/shared/auth/termsOfServiceContent';
+import { useUiTheme } from '@/shared/core/uiTheme';
+import { cn } from '@/shared/core/utils';
 
 interface TermsOfServiceGateProps {
   displayName: string;

@@ -4,10 +4,17 @@ import { e2eEnv } from './env';
 
 /** Open a catalog patient seeded by `cdp/scripts/seed_demo_platform.py`. */
 export async function openCatalogPatient(page: Page): Promise<void> {
-  await page.goto('/clinician/patients');
+  // Include closed episodes so DEMO-123 stays discoverable after lifecycle tests.
+  await page.goto('/clinician/patients?episode=all');
+  await page.getByPlaceholder('Search patients…').waitFor({ state: 'visible', timeout: 60_000 });
 
-  const search = page.getByRole('textbox', { name: 'Search patients…' });
+  const search = page.getByPlaceholder('Search patients…');
+  const listLoaded = page.waitForResponse(
+    (response) =>
+      /\/api\/v1\/care-episodes(\?|$)/.test(response.url()) && response.ok(),
+  );
   await search.fill(e2eEnv.patientDisplayCode);
+  await listLoaded;
 
   const patientRow = page.locator('li').filter({ hasText: e2eEnv.patientDisplayCode });
   await expect(patientRow).toBeVisible({ timeout: 60_000 });

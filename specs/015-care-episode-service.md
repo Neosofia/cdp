@@ -24,11 +24,11 @@ Runtime topology (which clients call which services for reads vs writes) is docu
 
 ## Workflows
 
-**Patient sends a chat message (happy path).** Given a signed-in patient with an active recovery opens or continues a thread in the CDP web application, when they send a message, then this service ensures the recovery is valid, orchestrates the care-assistant reply for that turn via Chat, evaluates risk after the turn is persisted, returns the reply and severity outcome to the client, and requests alert delivery when severity is high and escalation is enabled.
+**Patient sends a chat message (happy path).** Given a signed-in patient with an active recovery opens or continues a thread in the CDP web application, when they send a message, then this service ensures the recovery is valid, orchestrates the care-assistant reply for that turn via Chat, returns the reply to the client promptly, evaluates risk after the turn is persisted on a background worker, and requests alert delivery when severity is high and escalation is enabled.
 
 **Patient chat when care assistant is unavailable.** Given Chat inference is unreachable, when the patient sends a message through this service’s completions proxy, then the client receives **503** and the patient UI shows unavailable — no synthetic clinical replies.
 
-**Risk evaluation when inference fails.** Given risk inference is unconfigured or errors, when a patient **content** completion succeeds in Chat, then the client still receives **200** with the Chat reply, `risk_evaluation.risk_level` is `failed-pending-review`, and the recovery’s stored severity is unchanged until a successful evaluation.
+**Risk evaluation when inference fails.** Given risk inference is unconfigured or errors, when a patient **content** completion succeeds in Chat, then the client still receives **200** with the Chat reply only (no inline `risk_evaluation`). A background worker records `failed-pending-review` for the thread summary when appropriate, and the recovery’s stored severity is unchanged until a successful evaluation.
 
 **Enrollment opens monitoring.** Given an authorised clinician enrolls a patient for a named procedure, when no conflicting active recovery exists for that procedure, then a new recovery opens and audit history records who created it. The CDP web application orchestrates User registry create (when the patient is new) and the first care-episode create in sequence.
 
@@ -62,9 +62,9 @@ Runtime topology (which clients call which services for reads vs writes) is docu
 
 - **FR-014**: Every create, close, and association change appends audit history suitable for compliance review.
 
-- **FR-015**: When a patient chats through the CDP web application, this service performs the orchestration described in the patient chat workflow: valid recovery, thread with context, care-assistant reply via Chat, risk evaluation after persist, and client-visible outcomes.
+- **FR-015**: When a patient chats through the CDP web application, this service performs the orchestration described in the patient chat workflow: valid recovery, thread with context, care-assistant reply via Chat, and client-visible reply. Risk evaluation and escalation run after the HTTP response on a background worker.
 
-- **FR-016**: When severity is high and escalation is enabled, this service requests clinical alert delivery within the configured time budget. Only **`high`** outcomes trigger escalation; lower levels do not.
+- **FR-016**: When severity is high and escalation is enabled, this service requests clinical alert delivery within the configured time budget on the background risk-evaluation worker. Only **`high`** outcomes trigger escalation; lower levels do not.
 
 - **FR-017**: Medical record content shown beside chat in clinician views is stored and served by this service for authorised callers scoped to the recovery.
 
@@ -74,9 +74,9 @@ Runtime topology (which clients call which services for reads vs writes) is docu
 
 - **FR-020**: Completions proxy forwards the caller’s patient JWT to Chat for session start and message turns. When Chat inference is unavailable, the proxy returns **503** to the client (passthrough).
 
-- **FR-021**: After Chat persists a patient **content** completion, this service evaluates clinical risk via an OpenAI-compatible completions API using an in-service prompt. Evaluation is skipped for `session_start`, empty content, and Chat **`intervention: true`** responses.
+- **FR-021**: After Chat persists a patient **content** completion, this service schedules clinical risk evaluation via an OpenAI-compatible completions API using an in-service prompt on a background worker. Evaluation is skipped for `session_start`, empty content, and Chat **`intervention: true`** responses.
 
-- **FR-022**: When risk inference is unconfigured or unavailable, the completion response still returns **200** with the Chat reply; `risk_evaluation.risk_level` is `failed-pending-review` and the recovery’s stored `risk_level` is unchanged until a successful evaluation.
+- **FR-022**: When risk inference is unconfigured or unavailable, the completion response still returns **200** with the Chat reply only. The background worker records `failed-pending-review` for the thread summary when appropriate; the recovery’s stored `risk_level` is unchanged until a successful evaluation.
 
 ## Operational requirements
 

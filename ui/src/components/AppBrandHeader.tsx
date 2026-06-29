@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import ThemeToggle from '@/components/ThemeToggle';
-import { useUiTheme } from '@/lib/uiTheme';
-import { cn } from '@/lib/utils';
+import { useUiTheme } from '@/shared/core/uiTheme';
+import { cn } from '@/shared/core/utils';
 
 type AppBrandHeaderProps = {
   className?: string;

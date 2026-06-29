@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { Bars3Icon } from '@heroicons/react/24/outline';
 import { Button } from '@/components/ui/button';
 import {
@@ -9,33 +9,30 @@ import {
   NavigationMenuTrigger,
 } from '@/components/ui/navigation-menu';
 import { Sheet, SheetClose, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
-import { DEFAULT_CLINICIAN_LIST_FILTERS } from '@/lib/demoPatients';
-import { useShellStyles } from '@/lib/shellStyles';
-import type { AppRoute, AppSection, PatientAction } from '@/lib/appNavigation';
-import type { EntitlementsMap } from '@/lib/appTypes';
-import { uiResource } from '@/lib/uiCapability';
-import { cn } from '@/lib/utils';
+import { useShellStyles } from '@/shared/app/shellStyles';
+import type { PatientAction } from '@/shared/app/appRoutes';
+import type { EntitlementsMap } from '@/shared/core/appTypes';
+import {
+  buildPrimaryNavGroups,
+  flattenNavGroups,
+  type NavAction,
+  type NavGroup,
+} from '@/shared/app/primaryNavModel';
+import { cn } from '@/shared/core/utils';
 
 export interface AppShellPrimaryNavProps {
   entitlements: EntitlementsMap;
   showPatientMenu: boolean;
   showClinicianMenu: boolean;
   showStudyUsersMenu: boolean;
-  isDashboard: boolean;
-  selectedSection: AppSection | null;
-  selectedAction: string | null;
+  pathname: string;
   onGoHome: () => void;
-  onMenuAction: (section: AppSection, action: string, routeOverrides?: Partial<AppRoute>) => void;
-  onNavigatePatient: (action: PatientAction) => void;
-  onOpenDebugTestPage: () => void;
+  onGoToPatient: (action: PatientAction) => void;
+  onGoToClinicianPatients: () => void;
+  onGoToAdminServices: () => void;
+  onGoToAdminUsers: () => void;
+  onGoToDebugApi: () => void;
 }
-
-type NavAction = {
-  key: string;
-  label: string;
-  active: boolean;
-  onClick: () => void;
-};
 
 function wrapMobileClose(node: ReactNode, mobile: boolean): ReactNode {
   if (!mobile) {
@@ -61,124 +58,71 @@ function NavActionButton({
   return <span key={action.key}>{wrapMobileClose(button, mobile)}</span>;
 }
 
-export default function AppShellPrimaryNav({
-  entitlements,
-  showPatientMenu,
-  showClinicianMenu,
-  showStudyUsersMenu,
-  isDashboard,
-  selectedSection,
-  selectedAction,
-  onGoHome,
-  onMenuAction,
-  onNavigatePatient,
-  onOpenDebugTestPage,
-}: AppShellPrimaryNavProps) {
+function DesktopNavGroup({
+  group,
+  mainNavLinkClass,
+  menuTriggerClass,
+  menuContentClass,
+  menuContentStyle,
+  menuItemButtonClass,
+}: {
+  group: NavGroup;
+  mainNavLinkClass: (active: boolean) => string;
+  menuTriggerClass: string;
+  menuContentClass: string;
+  menuContentStyle: CSSProperties | undefined;
+  menuItemButtonClass: string;
+}) {
+  if (group.kind === 'link') {
+    return (
+      <NavigationMenuItem>
+        <Button
+          onClick={group.action.onClick}
+          variant="ghost"
+          className={mainNavLinkClass(group.action.active)}
+        >
+          {group.action.label}
+        </Button>
+      </NavigationMenuItem>
+    );
+  }
+
+  return (
+    <NavigationMenuItem>
+      <NavigationMenuTrigger className={menuTriggerClass}>{group.label}</NavigationMenuTrigger>
+      <NavigationMenuContent
+        className={cn(menuContentClass, group.contentClassName)}
+        style={menuContentStyle}
+      >
+        <div className="space-y-1">
+          {group.items.map((item) => (
+            <Button key={item.key} onClick={item.onClick} variant="ghost" className={menuItemButtonClass}>
+              {item.label}
+            </Button>
+          ))}
+        </div>
+      </NavigationMenuContent>
+    </NavigationMenuItem>
+  );
+}
+
+export default function AppShellPrimaryNav(props: AppShellPrimaryNavProps) {
   const {
-    isCorporate,
     mainNavLinkClass,
+    mobileNavLinkClass,
     menuTriggerClass,
     menuContentClass,
     menuContentStyle,
     menuItemButtonClass,
+    isCorporate,
   } = useShellStyles();
 
-  const actions: NavAction[] = [];
-
-  if (entitlements[uiResource('Menu', 'debug')]) {
-    actions.push({
-      key: 'debug-api',
-      label: 'Test API endpoints',
-      active: selectedSection === 'Debug' && selectedAction === 'Test API endpoints',
-      onClick: onOpenDebugTestPage,
-    });
-  }
-
-  if (showStudyUsersMenu) {
-    actions.push({
-      key: 'study-users',
-      label: 'Users',
-      active: selectedSection === 'Admin' && selectedAction === 'Users',
-      onClick: () => onMenuAction('Admin', 'Users'),
-    });
-  }
-
-  if (entitlements[uiResource('Menu', 'operator')]) {
-    actions.push(
-      {
-        key: 'admin-services',
-        label: 'Services',
-        active: selectedSection === 'Admin' && selectedAction === 'Services',
-        onClick: () => onMenuAction('Admin', 'Services'),
-      },
-      {
-        key: 'admin-users',
-        label: 'Users',
-        active: selectedSection === 'Admin' && selectedAction === 'Users',
-        onClick: () => onMenuAction('Admin', 'Users'),
-      },
-    );
-  }
-
-  if (showPatientMenu) {
-    actions.push(
-      {
-        key: 'patient-dashboard',
-        label: 'Dashboard',
-        active: isDashboard,
-        onClick: onGoHome,
-      },
-      {
-        key: 'patient-chat',
-        label: 'Chat',
-        active: selectedSection === 'Patient' && selectedAction === 'Chat',
-        onClick: () => onNavigatePatient('Chat'),
-      },
-      {
-        key: 'patient-profile',
-        label: 'Profile',
-        active: selectedSection === 'Patient' && selectedAction === 'Profile',
-        onClick: () => onNavigatePatient('Profile'),
-      },
-    );
-  }
-
-  if (showClinicianMenu) {
-    actions.push(
-      {
-        key: 'clinician-dashboard',
-        label: 'Dashboard',
-        active: isDashboard,
-        onClick: onGoHome,
-      },
-      {
-        key: 'clinician-patients',
-        label: 'Patients',
-        active: selectedSection === 'Clinician' && selectedAction === 'Patients',
-        onClick: () =>
-          onMenuAction('Clinician', 'Patients', {
-            clinicianPatientUuid: null,
-            clinicianListFilters: DEFAULT_CLINICIAN_LIST_FILTERS,
-          }),
-      },
-    );
-  }
+  const groups = buildPrimaryNavGroups(props);
+  const actions = flattenNavGroups(groups);
 
   if (actions.length === 0) {
     return null;
   }
-
-  const mobileItemClass = (active: boolean) =>
-    cn(
-      'w-full justify-start rounded-xl px-3 py-2.5 text-sm font-semibold tracking-wide uppercase',
-      isCorporate
-        ? active
-          ? 'bg-slate-100 text-slate-900 ring-1 ring-slate-300'
-          : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
-        : active
-          ? 'text-cyan-300 bg-cyan-500/10'
-          : 'text-slate-400 hover:bg-cyan-500/10 hover:text-cyan-300',
-    );
 
   const sheetPanelClass = isCorporate
     ? 'w-80 border-slate-200 bg-white p-4'
@@ -190,109 +134,21 @@ export default function AppShellPrimaryNav({
     ? 'rounded-lg p-2 text-slate-700 hover:bg-slate-100'
     : 'rounded-lg p-2 text-slate-300 hover:bg-cyan-500/10 hover:text-cyan-300';
 
-  const showDebugDropdown = entitlements[uiResource('Menu', 'debug')];
-  const showAdminDropdown = entitlements[uiResource('Menu', 'operator')];
-
   return (
     <>
       <NavigationMenu className="hidden max-w-max flex-none justify-end md:flex" viewport={false}>
         <NavigationMenuList className="flex-none justify-end gap-1">
-          {showDebugDropdown && (
-            <NavigationMenuItem>
-              <NavigationMenuTrigger className={menuTriggerClass}>Debug</NavigationMenuTrigger>
-              <NavigationMenuContent className={cn(menuContentClass, 'min-w-65')} style={menuContentStyle}>
-                <div className="space-y-1">
-                  <Button onClick={onOpenDebugTestPage} variant="ghost" className={menuItemButtonClass}>
-                    Test API endpoints
-                  </Button>
-                </div>
-              </NavigationMenuContent>
-            </NavigationMenuItem>
-          )}
-          {showStudyUsersMenu && (
-            <NavigationMenuItem>
-              <Button
-                onClick={() => onMenuAction('Admin', 'Users')}
-                variant="ghost"
-                className={mainNavLinkClass(selectedSection === 'Admin' && selectedAction === 'Users')}
-              >
-                Users
-              </Button>
-            </NavigationMenuItem>
-          )}
-          {showAdminDropdown && (
-            <NavigationMenuItem>
-              <NavigationMenuTrigger className={menuTriggerClass}>Admin</NavigationMenuTrigger>
-              <NavigationMenuContent className={menuContentClass} style={menuContentStyle}>
-                <div className="space-y-1">
-                  <Button
-                    onClick={() => onMenuAction('Admin', 'Services')}
-                    variant="ghost"
-                    className={menuItemButtonClass}
-                  >
-                    Services
-                  </Button>
-                  <Button
-                    onClick={() => onMenuAction('Admin', 'Users')}
-                    variant="ghost"
-                    className={menuItemButtonClass}
-                  >
-                    Users
-                  </Button>
-                </div>
-              </NavigationMenuContent>
-            </NavigationMenuItem>
-          )}
-          {showPatientMenu && (
-            <>
-              <NavigationMenuItem>
-                <Button onClick={onGoHome} variant="ghost" className={mainNavLinkClass(isDashboard)}>
-                  Dashboard
-                </Button>
-              </NavigationMenuItem>
-              <NavigationMenuItem>
-                <Button
-                  onClick={() => onNavigatePatient('Chat')}
-                  variant="ghost"
-                  className={mainNavLinkClass(selectedSection === 'Patient' && selectedAction === 'Chat')}
-                >
-                  Chat
-                </Button>
-              </NavigationMenuItem>
-              <NavigationMenuItem>
-                <Button
-                  onClick={() => onNavigatePatient('Profile')}
-                  variant="ghost"
-                  className={mainNavLinkClass(selectedSection === 'Patient' && selectedAction === 'Profile')}
-                >
-                  Profile
-                </Button>
-              </NavigationMenuItem>
-            </>
-          )}
-          {showClinicianMenu && (
-            <>
-              <NavigationMenuItem>
-                <Button onClick={onGoHome} variant="ghost" className={mainNavLinkClass(isDashboard)}>
-                  Dashboard
-                </Button>
-              </NavigationMenuItem>
-              <NavigationMenuItem>
-                <Button
-                  onClick={() =>
-                    onMenuAction('Clinician', 'Patients', {
-                      clinicianPatientUuid: null,
-                      clinicianListFilters: DEFAULT_CLINICIAN_LIST_FILTERS,
-                    })
-                  }
-                  variant="ghost"
-                  className={mainNavLinkClass(selectedSection === 'Clinician' && selectedAction === 'Patients')}
-                >
-                  Patients
-                </Button>
-              </NavigationMenuItem>
-            </>
-          )}
+          {groups.map((group) => (
+            <DesktopNavGroup
+              key={group.kind === 'link' ? group.action.key : group.key}
+              group={group}
+              mainNavLinkClass={mainNavLinkClass}
+              menuTriggerClass={menuTriggerClass}
+              menuContentClass={menuContentClass}
+              menuContentStyle={menuContentStyle}
+              menuItemButtonClass={menuItemButtonClass}
+            />
+          ))}
         </NavigationMenuList>
       </NavigationMenu>
 
@@ -311,7 +167,7 @@ export default function AppShellPrimaryNav({
                   key={action.key}
                   action={action}
                   mobile
-                  className={mobileItemClass(action.active)}
+                  className={mobileNavLinkClass(action.active)}
                 />
               ))}
             </div>

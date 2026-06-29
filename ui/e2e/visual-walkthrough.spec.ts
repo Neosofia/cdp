@@ -93,11 +93,18 @@ test.describe('visual walkthrough', () => {
 
     await page.keyboard.press('Escape');
     await waitForAppSheetClosed(page);
+    await page.goto('/clinician/patients?episode=all');
+    await page.getByPlaceholder('Search patients…').waitFor({ state: 'visible', timeout: 60_000 });
     await openFiltersForWalkthrough(page, mode!);
     await captureWalkthroughStep(page, mode!, step(4));
     await closeFiltersAfterWalkthrough(page, mode!);
 
+    const demoPatientSearch = page.waitForResponse(
+      (response) =>
+        /\/api\/v1\/care-episodes(\?|$)/.test(response.url()) && response.ok(),
+    );
     await page.getByPlaceholder('Search patients…').fill(e2eEnv.patientDisplayCode);
+    await demoPatientSearch;
     const demoPatientRow = patientRow(page, e2eEnv.patientDisplayCode);
     await demoPatientRow.waitFor({ state: 'visible', timeout: 60_000 });
     await captureWalkthroughStep(page, mode!, step(5));

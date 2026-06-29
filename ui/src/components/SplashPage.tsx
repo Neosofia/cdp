@@ -1,8 +1,8 @@
 import AppFooter from '@/components/AppFooter';
 import SplashPageHeader, { SplashLoginButton } from '@/components/SplashPageHeader';
 import StarField from '@/components/StarField';
-import { beginLogin } from '@/lib/auth';
-import { useUiTheme } from '@/lib/uiTheme';
+import { beginLogin } from '@/shared/auth/auth';
+import { useUiTheme } from '@/shared/core/uiTheme';
 
 const TICKER_ITEMS = [
   '◆ PHASE III COMPLETE',

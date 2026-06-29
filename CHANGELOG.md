@@ -1,5 +1,18 @@
 # Changelog
 
+## [2026.06.29]
+
+### Changed
+
+- Clinician roster, dashboard summary, and enrollable-patient flows show a clear error when the User registry is unavailable instead of partial empty results (**502** / `upstream_error`).
+- Patient chat completion aligns with **care-episode v0.12.1** — the assistant reply returns without waiting for inline risk scoring; risk updates persist asynchronously on the server.
+- CDP UI source reorganized into `features/` and `shared/` modules (clinician, patient, admin routes and shared platform utilities).
+- Demo seed waits for async risk summaries after care-episode completion replay.
+
+### Fixed
+
+- Staging E2E auth role picker and patient roster search helpers match current UI placeholders and navigation.
+
 ## [2026.06.22]
 
 ### Added

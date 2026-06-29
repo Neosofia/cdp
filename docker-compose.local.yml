@@ -216,6 +216,7 @@ services:
       - ./.user.env
     volumes:
       - ./policies/user/role-catalog.json:/app/policies/role-catalog.json:ro
+      - ./policies/user/role-catalog.json:/app/roles/cdp-overlay.json:ro
       - ./policies/user/cedar:/app/policies/cdp:ro
       - ../templates/sql/audit:/app/audit-templates:ro
     command: ["python", "-m", "alembic", "upgrade", "head"]
@@ -231,6 +232,7 @@ services:
       - ./.user.env
     volumes:
       - ./policies/user/role-catalog.json:/app/policies/role-catalog.json:ro
+      - ./policies/user/role-catalog.json:/app/roles/cdp-overlay.json:ro
       - ./policies/user/cedar:/app/policies/cdp:ro
     ports:
       - "8018:8018"

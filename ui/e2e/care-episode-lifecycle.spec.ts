@@ -14,6 +14,9 @@ async function ensureCurrentEpisodeSelected(page: import('@playwright/test').Pag
     return;
   }
   const currentOption = episodeSelect.locator('option').filter({ hasText: 'Current' }).first();
+  if ((await currentOption.count()) === 0) {
+    return;
+  }
   const currentValue = await currentOption.getAttribute('value');
   if (currentValue) {
     await episodeSelect.selectOption(currentValue);
@@ -27,7 +30,6 @@ test.describe('care episode lifecycle', () => {
 
   test('clinician closes then reopens the active care episode', async ({ page }) => {
     await openCatalogPatient(page);
-    await ensureCurrentEpisodeSelected(page);
 
     const closeButton = page.getByRole('button', { name: 'Close episode' });
     const reopenButton = page.getByRole('button', { name: 'Reopen episode' });
@@ -36,6 +38,8 @@ test.describe('care episode lifecycle', () => {
       await reopenButton.click();
       await expect(closeButton).toBeEnabled({ timeout: 30_000 });
     }
+
+    await ensureCurrentEpisodeSelected(page);
 
     await closeButton.click();
     await expect(reopenButton).toBeEnabled({ timeout: 30_000 });

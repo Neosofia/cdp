@@ -1,100 +1,73 @@
 import type { ReactNode } from 'react';
+import { useLocation } from 'react-router-dom';
 import { ShieldCheckIcon as Shield, ArrowRightOnRectangleIcon as LogOut, BuildingOfficeIcon as Building } from '@heroicons/react/24/outline';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuGroup, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Breadcrumb, BreadcrumbList, BreadcrumbItem, BreadcrumbLink, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb';
+import AppFooter from '@/components/AppFooter';
 import ThemeToggle from '@/components/ThemeToggle';
 import AppShellPrimaryNav from '@/components/AppShellPrimaryNav';
-import { beginLogin } from '@/lib/auth';
-import {
-  DEFAULT_APP_ROUTE,
-  pathForAppRoute,
-  type AppRoute,
-  type AppSection,
-  type PatientAction,
-} from '@/lib/appNavigation';
-import { DEFAULT_CLINICIAN_LIST_FILTERS, type ClinicianListFilters } from '@/lib/demoPatients';
-import type { UserProfile } from '@/lib/appTypes';
-import type { EntitlementsMap } from '@/lib/appTypes';
-import type { SessionRoleChoice } from '@/lib/sessionRoles';
-import { useShellStyles } from '@/lib/shellStyles';
-import { cn } from '@/lib/utils';
+import AppShellBreadcrumb from '@/shared/app/AppShellBreadcrumb';
+import { useAppShellTrailing } from '@/shared/app/AppShellTrailingContext';
+import { useAuthenticatedSession } from '@/shared/session/AuthenticatedSessionContext';
+import { useClinicianPatientDetail } from '@/features/clinician/lib/useClinicianPatientDetail';
+import { beginLogin } from '@/shared/auth/auth';
+import { buildAppBreadcrumbTrail } from '@/shared/app/appBreadcrumbModel';
+import { parseClinicianListFilters, clinicianPatientUuidFromPath } from '@/shared/app/appRoutes';
+import { useAppPageMeta } from '@/shared/app/useAppPageMeta';
+import { useShellStyles } from '@/shared/app/shellStyles';
+import { uiResource } from '@/shared/core/uiCapability';
+import { cn } from '@/shared/core/utils';
 
 export interface AppShellProps {
-  profile: UserProfile | null;
-  initializing: boolean;
-  entitlements: EntitlementsMap;
-  activeActor: string;
-  activeSessionRole: SessionRoleChoice | null;
-  sessionRoleChoices: SessionRoleChoice[];
-  showPatientMenu: boolean;
-  showClinicianMenu: boolean;
-  showStudyUsersMenu: boolean;
-  isDashboard: boolean;
-  selectedSection: AppSection | null;
-  selectedAction: string | null;
-  clinicianPatientUuid: string | null;
-  clinicianListFilters: ClinicianListFilters;
-  clinicianPatientDisplayCode: string | null;
-  adminSectionCrumbIsLink: boolean;
-  pageTitle: string;
-  pageSubtitle: string | null;
-  showPageHeading: boolean;
-  demoBootstrapRunning: boolean;
-  demoBootstrapError: string | null;
-  demoReLoginRequired: boolean;
-  fillViewport: boolean;
-  onGoHome: () => void;
-  onMenuAction: (section: AppSection, action: string, routeOverrides?: Partial<AppRoute>) => void;
-  onNavigatePatient: (action: PatientAction) => void;
-  onNavigateClinicianPatients: (patientUuid: string | null, filters: ClinicianListFilters) => void;
-  onOpenDebugTestPage: () => void;
-  onSessionRoleChange: (choice: SessionRoleChoice) => void;
-  onLogout: () => void;
-  onSignInAgain: () => void;
-  footer?: ReactNode;
-  breadcrumbTrailing?: ReactNode;
   children: ReactNode;
 }
 
-export default function AppShell({
-  profile,
-  initializing,
-  entitlements,
-  activeActor,
-  activeSessionRole,
-  sessionRoleChoices,
-  showPatientMenu,
-  showClinicianMenu,
-  showStudyUsersMenu,
-  isDashboard,
-  selectedSection,
-  selectedAction,
-  clinicianPatientUuid,
-  clinicianListFilters,
-  clinicianPatientDisplayCode,
-  adminSectionCrumbIsLink,
-  pageTitle,
-  pageSubtitle,
-  showPageHeading,
-  demoBootstrapRunning,
-  demoBootstrapError,
-  demoReLoginRequired,
-  fillViewport,
-  onGoHome,
-  onMenuAction,
-  onNavigatePatient,
-  onNavigateClinicianPatients,
-  onOpenDebugTestPage,
-  onSessionRoleChange,
-  onLogout,
-  onSignInAgain,
-  footer,
-  breadcrumbTrailing,
-  children,
-}: AppShellProps) {
+export default function AppShell({ children }: AppShellProps) {
+  const {
+    session,
+    navigation,
+  } = useAuthenticatedSession();
+
+  const {
+    profile,
+    initializing,
+    entitlements,
+    activeActor,
+    activeSessionRole,
+    sessionRoleChoices,
+    demoBootstrapRunning,
+    demoBootstrapError,
+    demoReLoginRequired,
+    handleLogout,
+    handleSignInAgain,
+    handleSessionRoleChange,
+    activeRoleEntitlements,
+    tokenInfo,
+    sessionTenantUuid,
+  } = session;
+
+  const { pathname, search } = useLocation();
+  const clinicianListFilters = parseClinicianListFilters(search);
+  const clinicianPatientUuid = clinicianPatientUuidFromPath(pathname);
+  const { patient: clinicianPatient } = useClinicianPatientDetail(
+    tokenInfo?.raw ?? '',
+    activeActor,
+    sessionTenantUuid,
+    clinicianPatientUuid && activeActor === 'clinician' ? clinicianPatientUuid : null,
+    profile?.tenant_name,
+  );
+
+  const pageMeta = useAppPageMeta({
+    activeActor,
+    clinicianPatient,
+  });
+  const showPatientMenu = activeRoleEntitlements[uiResource('Menu', 'patient')];
+  const showClinicianMenu = activeRoleEntitlements[uiResource('Menu', 'clinician')];
+  const showStudyUsersMenu = activeRoleEntitlements[uiResource('Menu', 'users')];
+
+  const headerTrailing = useAppShellTrailing();
   const {
     isCorporate,
     breadcrumbLinkClass,
@@ -104,11 +77,15 @@ export default function AppShell({
 
   const initials = `${profile?.first_name?.charAt(0) || ''}${profile?.last_name?.charAt(0) || ''}`.toUpperCase();
 
-  const formatActionLabel = (action: string) => {
-    if (action === 'Chat') return 'Chat';
-    if (action === 'Profile') return 'Profile';
-    return action;
-  };
+  const breadcrumbCrumbs = buildAppBreadcrumbTrail({
+    pathname,
+    clinicianListFilters,
+    clinicianPatientDisplayCode: clinicianPatient?.displayCode ?? null,
+    adminSectionCrumbIsLink: pageMeta.adminSectionCrumbIsLink,
+    onGoHome: navigation.goHome,
+    onGoToClinicianPatients: navigation.goToClinicianPatients,
+    onGoToDebugApi: navigation.goToDebugApi,
+  });
 
   const showDemoBanner = demoBootstrapRunning || demoBootstrapError || demoReLoginRequired;
 
@@ -163,13 +140,15 @@ export default function AppShell({
               showPatientMenu={showPatientMenu}
               showClinicianMenu={showClinicianMenu}
               showStudyUsersMenu={showStudyUsersMenu}
-              isDashboard={isDashboard}
-              selectedSection={selectedSection}
-              selectedAction={selectedAction}
-              onGoHome={onGoHome}
-              onMenuAction={onMenuAction}
-              onNavigatePatient={onNavigatePatient}
-              onOpenDebugTestPage={onOpenDebugTestPage}
+              pathname={pathname}
+              onGoHome={navigation.goHome}
+              onGoToPatient={navigation.goToPatient}
+              onGoToClinicianPatients={() =>
+                navigation.goToClinicianPatients(null, clinicianListFilters)
+              }
+              onGoToAdminServices={navigation.goToAdminServices}
+              onGoToAdminUsers={navigation.goToAdminUsers}
+              onGoToDebugApi={navigation.goToDebugApi}
             />
 
             <div className="shrink-0 min-w-0 md:min-w-44">
@@ -321,7 +300,7 @@ export default function AppShell({
                               return (
                                 <DropdownMenuItem
                                   key={choice.id}
-                                  onClick={() => onSessionRoleChange(choice)}
+                                  onClick={() => handleSessionRoleChange(choice)}
                                   className={cn(
                                     'flex items-center justify-between cursor-pointer rounded-lg px-2 py-2 text-sm',
                                     isCorporate
@@ -376,7 +355,7 @@ export default function AppShell({
                       style={profileMenuSeparatorStyle}
                     />
                     <DropdownMenuItem
-                      onClick={onLogout}
+                      onClick={() => void handleLogout()}
                       className={cn(
                         'cursor-pointer rounded-lg',
                         isCorporate
@@ -446,7 +425,7 @@ export default function AppShell({
             {!demoBootstrapRunning && demoReLoginRequired && !demoBootstrapError && (
               <Button
                 type="button"
-                onClick={onSignInAgain}
+                onClick={handleSignInAgain}
                 className={cn(
                   'shrink-0 rounded-lg text-xs font-bold uppercase tracking-wider',
                   isCorporate ? 'bg-slate-900 text-white hover:bg-slate-800' : undefined,
@@ -466,160 +445,35 @@ export default function AppShell({
         className={cn(
           'relative z-10 mx-auto flex w-full max-w-7xl flex-1 flex-col min-h-0 px-3 md:px-8',
           showDemoBanner ? 'pt-32' : 'pt-16',
-          fillViewport ? 'overflow-hidden pb-0 md:pb-4' : 'overflow-y-auto pb-8',
+          pageMeta.fillViewport ? 'overflow-hidden pb-0 md:pb-4' : 'overflow-y-auto pb-8',
         )}
       >
         <div
           className={cn(
             'shrink-0',
-            showPageHeading
-              ? cn('pt-2 pb-2', fillViewport ? 'mb-0 md:mb-4' : 'mb-6')
-              : cn('py-3', fillViewport ? 'mb-0 md:mb-3' : 'mb-0'),
+            pageMeta.showPageHeading
+              ? cn('pt-2 pb-2', pageMeta.fillViewport ? 'mb-0 md:mb-4' : 'mb-6')
+              : cn('py-3', pageMeta.fillViewport ? 'mb-0 md:mb-3' : 'mb-0'),
           )}
         >
           <div
             className={cn(
               'flex items-center gap-3 min-w-0',
-              fillViewport && 'hidden md:flex',
+              pageMeta.fillViewport && 'hidden md:flex',
             )}
           >
-            <Breadcrumb className="min-w-0 flex-1">
-              <BreadcrumbList>
-              {isDashboard ? (
-                <BreadcrumbItem>
-                  <BreadcrumbPage>Dashboard</BreadcrumbPage>
-                </BreadcrumbItem>
-              ) : (
-                <>
-                  <BreadcrumbItem>
-                    <BreadcrumbLink
-                      href={pathForAppRoute(DEFAULT_APP_ROUTE)}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        onGoHome();
-                      }}
-                      className={breadcrumbLinkClass}
-                    >
-                      Dashboard
-                    </BreadcrumbLink>
-                  </BreadcrumbItem>
-                  {selectedSection === 'Patient' && selectedAction && (
-                    <>
-                      <BreadcrumbSeparator />
-                      <BreadcrumbItem>
-                        <BreadcrumbPage>{formatActionLabel(selectedAction)}</BreadcrumbPage>
-                      </BreadcrumbItem>
-                    </>
-                  )}
-                  {selectedSection === 'Clinician' && selectedAction === 'Patients' && (
-                    <>
-                      <BreadcrumbSeparator />
-                      <BreadcrumbItem>
-                        {clinicianPatientUuid ? (
-                          <BreadcrumbLink
-                            href={pathForAppRoute({
-                              section: 'Clinician',
-                              action: 'Patients',
-                              clinicianPatientUuid: null,
-                              clinicianEpisodeUuid: null,
-                              clinicianListFilters,
-                            })}
-                            onClick={(e) => {
-                              e.preventDefault();
-                              onNavigateClinicianPatients(null, clinicianListFilters);
-                            }}
-                            className={breadcrumbLinkClass}
-                          >
-                            Patients
-                          </BreadcrumbLink>
-                        ) : (
-                          <BreadcrumbPage>Patients</BreadcrumbPage>
-                        )}
-                      </BreadcrumbItem>
-                    </>
-                  )}
-                  {clinicianPatientDisplayCode && selectedSection === 'Clinician' && (
-                    <>
-                      <BreadcrumbSeparator />
-                      <BreadcrumbItem>
-                        <BreadcrumbPage className="font-mono">{clinicianPatientDisplayCode}</BreadcrumbPage>
-                      </BreadcrumbItem>
-                    </>
-                  )}
-                  {selectedSection === 'Admin' && selectedAction && (
-                    <>
-                      <BreadcrumbSeparator />
-                      <BreadcrumbItem>
-                        {adminSectionCrumbIsLink ? (
-                          <BreadcrumbLink
-                            href={pathForAppRoute(DEFAULT_APP_ROUTE)}
-                            onClick={(e) => {
-                              e.preventDefault();
-                              onGoHome();
-                            }}
-                            className={breadcrumbLinkClass}
-                          >
-                            Admin
-                          </BreadcrumbLink>
-                        ) : (
-                          <BreadcrumbPage>Admin</BreadcrumbPage>
-                        )}
-                      </BreadcrumbItem>
-                      <BreadcrumbSeparator />
-                      <BreadcrumbItem>
-                        <BreadcrumbPage>{selectedAction}</BreadcrumbPage>
-                      </BreadcrumbItem>
-                    </>
-                  )}
-                  {selectedSection === 'Debug' && (
-                    <>
-                      <BreadcrumbSeparator />
-                      <BreadcrumbItem>
-                        {selectedAction ? (
-                          <BreadcrumbLink
-                            href={pathForAppRoute({
-                              section: 'Debug',
-                              action: 'Test API endpoints',
-                              clinicianPatientUuid: null,
-                              clinicianEpisodeUuid: null,
-                              clinicianListFilters: DEFAULT_CLINICIAN_LIST_FILTERS,
-                            })}
-                            onClick={(e) => {
-                              e.preventDefault();
-                              onOpenDebugTestPage();
-                            }}
-                            className={breadcrumbLinkClass}
-                          >
-                            Debug
-                          </BreadcrumbLink>
-                        ) : (
-                          <BreadcrumbPage>Debug</BreadcrumbPage>
-                        )}
-                      </BreadcrumbItem>
-                      {selectedAction && (
-                        <>
-                          <BreadcrumbSeparator />
-                          <BreadcrumbItem>
-                            <BreadcrumbPage>{selectedAction}</BreadcrumbPage>
-                          </BreadcrumbItem>
-                        </>
-                      )}
-                    </>
-                  )}
-                </>
-              )}
-            </BreadcrumbList>
-          </Breadcrumb>
-          {breadcrumbTrailing ? (
-            <div className="flex items-center gap-2 shrink-0">{breadcrumbTrailing}</div>
-          ) : null}
+            <AppShellBreadcrumb
+              crumbs={breadcrumbCrumbs}
+              linkClassName={breadcrumbLinkClass}
+              trailing={headerTrailing}
+            />
           </div>
 
-          {showPageHeading ? (
+          {pageMeta.showPageHeading ? (
             <h1
               className={cn(
                 'text-3xl mb-2',
-                fillViewport && 'hidden md:block',
+                pageMeta.fillViewport && 'hidden md:block',
                 isCorporate
                   ? 'font-semibold tracking-tight text-slate-900'
                   : 'font-black uppercase tracking-wide',
@@ -637,19 +491,25 @@ export default function AppShell({
                     }
               }
             >
-              {pageTitle}
+              {pageMeta.pageTitle}
             </h1>
           ) : null}
-          {showPageHeading && pageSubtitle ? (
+          {pageMeta.showPageHeading && pageMeta.pageSubtitle ? (
             <p className={cn('text-sm mt-1', isCorporate ? 'text-slate-600' : 'text-slate-400 font-mono')}>
-              {pageSubtitle}
+              {pageMeta.pageSubtitle}
             </p>
           ) : null}
         </div>
 
         {children}
       </main>
-      {footer}
+      <AppFooter
+        compact={pageMeta.fillViewport}
+        className={cn(
+          'relative z-10 shrink-0 border-t',
+          isCorporate ? 'border-slate-200' : 'border-cyan-500/10',
+        )}
+      />
     </div>
   );
 }

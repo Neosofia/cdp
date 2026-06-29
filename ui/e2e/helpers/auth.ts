@@ -45,7 +45,13 @@ export async function loginThroughWorkOs(page: Page): Promise<void> {
 
 export async function ensureClinicianRole(page: Page): Promise<void> {
   const accountMenu = page.getByRole('button', { name: /Ben Young/i });
+  const headerRole = accountMenu.getByText(e2eEnv.clinicianRoleLabel, { exact: true });
+  if (await headerRole.isVisible().catch(() => false)) {
+    return;
+  }
+
   await accountMenu.click();
+  await page.getByRole('group', { name: 'Choose your role' }).waitFor({ state: 'visible' });
 
   const activeRole = page.getByRole('menuitem', {
     name: `${e2eEnv.clinicianRoleLabel} Active`,

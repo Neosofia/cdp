@@ -1,13 +1,16 @@
-import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
-import './styles/theme.css'
-import App from './App.tsx'
-import { UiThemeProvider } from '@/lib/uiTheme'
+import { StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
+import { BrowserRouter } from 'react-router-dom';
+import './styles/theme.css';
+import App from './App.tsx';
+import { UiThemeProvider } from '@/shared/core/uiTheme';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <UiThemeProvider>
-      <App />
-    </UiThemeProvider>
+    <BrowserRouter>
+      <UiThemeProvider>
+        <App />
+      </UiThemeProvider>
+    </BrowserRouter>
   </StrictMode>,
-)
+);
