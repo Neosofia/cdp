@@ -20,6 +20,7 @@ import {
 import { formatRelativeActivity } from '@/shared/core/formatRelativeActivity';
 import { cn } from '@/shared/core/utils';
 import { usePatientViewStyles } from '@/shared/core/patientViewStyles';
+import { toUserFacingError } from '@/shared/core/userFacingError';
 
 interface PatientProfileProps {
   firstName: string;
@@ -102,8 +103,10 @@ export default function PatientProfile({
   const fullName = `${firstName} ${lastName}`.trim() || 'Patient';
   const [records, setRecords] = useState<CareEpisodeRecord[]>([]);
   const [loadingRecords, setLoadingRecords] = useState(false);
+  const [recordsError, setRecordsError] = useState<string | null>(null);
   const [messages, setMessages] = useState<CareEpisodeInboxMessage[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
+  const [messagesError, setMessagesError] = useState<string | null>(null);
   const [markingReadId, setMarkingReadId] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
 
@@ -119,11 +122,21 @@ export default function PatientProfile({
     let cancelled = false;
     const load = async () => {
       setLoadingRecords(true);
-      const items = await listCareEpisodeRecords(token, activeActor, patientUuid);
-      if (cancelled) return;
-      setRecords(items);
-      setNowMs(Date.now());
-      setLoadingRecords(false);
+      setRecordsError(null);
+      try {
+        const items = await listCareEpisodeRecords(token, activeActor, patientUuid);
+        if (cancelled) return;
+        setRecords(items);
+        setNowMs(Date.now());
+      } catch (error) {
+        if (cancelled) return;
+        setRecords([]);
+        setRecordsError(toUserFacingError(error, 'Failed to load medical records'));
+      } finally {
+        if (!cancelled) {
+          setLoadingRecords(false);
+        }
+      }
     };
     void load();
     return () => {
@@ -139,11 +152,21 @@ export default function PatientProfile({
     let cancelled = false;
     const load = async () => {
       setLoadingMessages(true);
-      const items = await listCareEpisodeInboxMessages(token, activeActor, patientUuid);
-      if (cancelled) return;
-      setMessages(items);
-      setNowMs(Date.now());
-      setLoadingMessages(false);
+      setMessagesError(null);
+      try {
+        const items = await listCareEpisodeInboxMessages(token, activeActor, patientUuid);
+        if (cancelled) return;
+        setMessages(items);
+        setNowMs(Date.now());
+      } catch (error) {
+        if (cancelled) return;
+        setMessages([]);
+        setMessagesError(toUserFacingError(error, 'Failed to load messages'));
+      } finally {
+        if (!cancelled) {
+          setLoadingMessages(false);
+        }
+      }
     };
     void load();
     return () => {
@@ -164,9 +187,9 @@ export default function PatientProfile({
       setMarkingReadId(messageId);
       try {
         const updated = await markCareEpisodeInboxMessageRead(token, activeActor, patientUuid, messageId);
-        if (updated) {
-          setMessages(prev => prev.map(m => (m.id === messageId ? updated : m)));
-        }
+        setMessages(prev => prev.map(m => (m.id === messageId ? updated : m)));
+      } catch (error) {
+        setMessagesError(toUserFacingError(error, 'Failed to mark message as read'));
       } finally {
         setMarkingReadId(null);
       }
@@ -224,7 +247,9 @@ export default function PatientProfile({
             ) : null}
           </CardHeader>
           <CardContent className="px-5 pb-5 pt-2">
-            {loadingMessages ? (
+            {messagesError ? (
+              <p className={cn('text-sm py-2 text-red-600', !pv.isCorporate && 'text-red-400')}>{messagesError}</p>
+            ) : loadingMessages ? (
               <p className={cn('text-sm py-2', pv.subText)}>Loading messages…</p>
             ) : messages.length === 0 ? (
               <p className={cn('text-sm py-2', pv.subText)}>No messages from your care team.</p>
@@ -325,7 +350,9 @@ export default function PatientProfile({
           ) : null}
         </CardHeader>
         <CardContent className="px-5 pb-5 pt-2 flex-1">
-          {loadingRecords ? (
+          {recordsError ? (
+            <p className={cn('text-sm py-2 text-red-600', !pv.isCorporate && 'text-red-400')}>{recordsError}</p>
+          ) : loadingRecords ? (
             <p className={cn('text-sm py-2', pv.subText)}>Loading health records…</p>
           ) : sortedRecords.length === 0 ? (
             <p className={cn('text-sm py-2', pv.subText)}>No health records on file yet.</p>

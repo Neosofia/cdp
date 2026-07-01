@@ -4,6 +4,7 @@ import {
   summarizeServiceHealth,
   type ServiceHealthRow,
 } from '@/shared/platform/serviceHealth';
+import { toUserFacingError } from '@/shared/core/userFacingError';
 
 const AUTO_REFRESH_MS = 60_000;
 
@@ -21,7 +22,7 @@ export function usePlatformServiceHealth() {
       setRows(next);
       setLastRefreshAt(new Date().toISOString());
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to refresh service health');
+      setError(toUserFacingError(err, 'Failed to refresh service health'));
     } finally {
       setLoading(false);
     }

@@ -10,31 +10,29 @@ const UI_CAPABILITIES_NAMESPACE = 'ui';
 export async function fetchRoleEntitlements(
   token: string,
   role: string,
-): Promise<EntitlementsMap | null> {
-  try {
-    const client = capabilitiesApiClient(token, role);
-    return unwrapOpenApiResponse(
-      await client.GET('/api/v1/capabilities/{namespace}', {
-        params: { path: { namespace: UI_CAPABILITIES_NAMESPACE } },
-      }),
-    ) as EntitlementsResponse;
-  } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
-    console.error(`capabilities/ui failed for role ${role}:`, detail);
-    return null;
-  }
+): Promise<EntitlementsMap> {
+  const client = capabilitiesApiClient(token, role);
+  return unwrapOpenApiResponse(
+    await client.GET('/api/v1/capabilities/{namespace}', {
+      params: { path: { namespace: UI_CAPABILITIES_NAMESPACE } },
+    }),
+  ) as EntitlementsResponse;
 }
 
 export function prefetchEntitlementsInBackground(
   token: string,
   roles: string[],
   onRoleReady: (role: string, data: EntitlementsMap) => void,
+  onRoleFailed?: (role: string, error: unknown) => void,
 ): void {
   for (const role of roles) {
-    void fetchRoleEntitlements(token, role).then((data) => {
-      if (data !== null) {
+    void fetchRoleEntitlements(token, role).then(
+      (data) => {
         onRoleReady(role, data);
-      }
-    });
+      },
+      (error) => {
+        onRoleFailed?.(role, error);
+      },
+    );
   }
 }

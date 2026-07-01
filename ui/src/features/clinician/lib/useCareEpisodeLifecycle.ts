@@ -5,6 +5,7 @@ import {
   type CareEpisodeHistoryEntry,
 } from '@/shared/care-episode/careEpisodeApi';
 import type { ActivePatientRecovery } from '@/features/clinician/lib/patientRoster';
+import { toUserFacingError } from '@/shared/core/userFacingError';
 
 export function useCareEpisodeLifecycle({
   token,
@@ -43,7 +44,7 @@ export function useCareEpisodeLifecycle({
       onEpisodeChanged();
       void reloadEpisodeHistory();
     } catch (error) {
-      setLifecycleError(error instanceof Error ? error.message : 'Failed to close episode');
+      setLifecycleError(toUserFacingError(error, 'Failed to close episode'));
     } finally {
       setLifecycleBusy(false);
     }
@@ -62,7 +63,7 @@ export function useCareEpisodeLifecycle({
       onEpisodeChanged();
       void reloadEpisodeHistory();
     } catch (error) {
-      setLifecycleError(error instanceof Error ? error.message : 'Failed to reopen episode');
+      setLifecycleError(toUserFacingError(error, 'Failed to reopen episode'));
     } finally {
       setLifecycleBusy(false);
     }

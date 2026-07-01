@@ -16,6 +16,7 @@ import {
   mergeDemoTier2Roles,
   profileHasDemoRoles,
 } from '@/shared/auth/demoWorkspaceRoles';
+import { swallowOptionalEnrichmentError } from '@/shared/core/userFacingError';
 import {
   fetchRegistryUser,
   fetchUserListPage,
@@ -73,8 +74,8 @@ async function assignDemoRoles(
   try {
     const latest = await fetchRegistryUser(token, DEMO_ACTOR, userUuid);
     rolesToMerge = latest.roles;
-  } catch {
-    // Fall back to caller-provided roles when the registry read fails.
+  } catch (error) {
+    swallowOptionalEnrichmentError(error);
   }
 
   return updateUser(token, DEMO_ACTOR, userUuid, {

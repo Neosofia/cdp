@@ -6,15 +6,11 @@ export async function fetchAuthTenant(
   token: string,
   activeActor: string,
   tenantUuid: string,
-): Promise<AuthTenantSummary | null> {
-  try {
-    const client = authenticationApiClient(token, activeActor);
-    return unwrapOpenApiResponse(
-      await client.GET('/api/v1/tenants/{tenant_uuid}', {
-        params: { path: { tenant_uuid: tenantUuid } },
-      }),
-    );
-  } catch {
-    return null;
-  }
+): Promise<AuthTenantSummary> {
+  const client = authenticationApiClient(token, activeActor);
+  return unwrapOpenApiResponse(
+    await client.GET('/api/v1/tenants/{tenant_uuid}', {
+      params: { path: { tenant_uuid: tenantUuid } },
+    }),
+  );
 }

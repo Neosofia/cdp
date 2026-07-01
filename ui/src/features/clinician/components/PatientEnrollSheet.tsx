@@ -10,6 +10,7 @@ import {
 import ProcedureEpisodeFormFields from '@/shared/forms/ProcedureEpisodeFormFields';
 import { useUserFormStyles } from '@/components/userFormStyles';
 import { cn } from '@/shared/core/utils';
+import { toUserFacingError } from '@/shared/core/userFacingError';
 import type { PostCareEnrollmentInput } from '@/features/clinician/lib/postCareEnrollment';
 import {
   defaultProcedureDate,
@@ -145,7 +146,7 @@ export default function PatientEnrollSheet({
       await onEnroll(input);
       handleClose(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Enrollment failed');
+      setError(toUserFacingError(err, 'Enrollment failed'));
     } finally {
       setSaving(false);
     }

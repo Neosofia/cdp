@@ -9,6 +9,7 @@ import {
   type ChatDisplayMessage,
   type ChatInteraction,
 } from '@/shared/chat/chatApi';
+import { toUserFacingError } from '@/shared/core/userFacingError';
 
 export function useClinicianPatientChat({
   token,
@@ -52,8 +53,7 @@ export function useClinicianPatientChat({
         }
       } catch (error) {
         if (cancelled) return;
-        const message = error instanceof Error ? error.message : 'Failed to load conversations';
-        setTranscriptError(message);
+        setTranscriptError(toUserFacingError(error, 'Failed to load conversations'));
         setTranscriptLoading(false);
       }
     };
@@ -124,8 +124,7 @@ export function useClinicianPatientChat({
         setTranscript(lines);
       } catch (error) {
         if (cancelled) return;
-        const message = error instanceof Error ? error.message : 'Failed to load chat transcript';
-        setTranscriptError(message);
+        setTranscriptError(toUserFacingError(error, 'Failed to load chat transcript'));
         setTranscript([]);
       } finally {
         if (!cancelled) setTranscriptLoading(false);
@@ -168,8 +167,7 @@ export function useClinicianPatientChat({
           ),
         );
       } catch (sendError) {
-        const message = sendError instanceof Error ? sendError.message : 'Failed to send reply';
-        setComposeError(message);
+        setComposeError(toUserFacingError(sendError, 'Failed to send reply'));
       } finally {
         setSendingReply(false);
       }

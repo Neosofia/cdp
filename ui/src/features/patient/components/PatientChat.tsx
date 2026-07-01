@@ -31,6 +31,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { cn } from '@/shared/core/utils';
 import { chatDisplayBubbleLayout } from '@/shared/chat/chatBubbleLayout';
 import { usePatientViewStyles } from '@/shared/core/patientViewStyles';
+import { toUserFacingError, swallowOptionalEnrichmentError } from '@/shared/core/userFacingError';
 
 const CHAT_API = import.meta.env.VITE_CHAT_API_URL;
 
@@ -141,8 +142,7 @@ export default function PatientChat({
           return next;
         });
       } catch (e) {
-        const msg = e instanceof Error ? e.message : 'Failed to load chat history';
-        setError(msg);
+        setError(toUserFacingError(e, 'Failed to load chat history'));
         setMessages([]);
       } finally {
         setLoadingHistory(false);
@@ -204,8 +204,7 @@ export default function PatientChat({
         }
       } catch (e) {
         if (cancelled) return;
-        const msg = e instanceof Error ? e.message : 'Failed to load conversations';
-        setError(msg);
+        setError(toUserFacingError(e, 'Failed to load conversations'));
         setMessages([]);
       } finally {
         if (!cancelled) {
@@ -289,7 +288,8 @@ export default function PatientChat({
             const displayName = registryUserDisplayName(user) || 'Care team';
             const roleLabel = clinicianRoleLabelForUserRoles(user.roles, roleCatalog);
             return [senderUuid, { displayName, roleLabel }];
-          } catch {
+          } catch (error) {
+            swallowOptionalEnrichmentError(error);
             return [senderUuid, { displayName: 'Care team', roleLabel: '' }];
           }
         }),
@@ -370,8 +370,7 @@ export default function PatientChat({
         setMessages([]);
       }
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Failed to start a new chat';
-      setError(msg);
+      setError(toUserFacingError(e, 'Failed to start a new chat'));
     } finally {
       setLoadingInteractions(false);
       setLoadingHistory(false);
@@ -435,8 +434,7 @@ export default function PatientChat({
         setAssistantAvailable(false);
         setMessages(prev => prev.filter(message => message.id !== userMsg.id));
       } else {
-        const msg = e instanceof Error ? e.message : 'Failed to get a response';
-        setError(msg);
+        setError(toUserFacingError(e, 'Failed to get a response'));
         setMessages(prev => prev.filter(message => message.id !== userMsg.id));
       }
     } finally {

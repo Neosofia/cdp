@@ -27,6 +27,7 @@ import { uiResource } from '@/shared/core/uiCapability';
 import { usePaginatedRemoteList } from '@/shared/pagination/usePaginatedRemoteList';
 import { fetchRoleCatalog, roleCatalogForUi, type RoleCatalogSnapshot } from '@/shared/user-registry/roleCatalogApi';
 import type { components } from '@/shared/api/generated/user.schema';
+import { toUserFacingError, swallowOptionalEnrichmentError } from '@/shared/core/userFacingError';
 
 type User = components['schemas']['User'];
 
@@ -188,13 +189,12 @@ export default function UserManagement({
       pendingTenantFetches.current.add(tenantUuid);
       try {
         const tenant = await fetchAuthTenant(token, activeActor, tenantUuid);
-        if (!tenant) return;
         setTenantNames((prev) => {
           if (prev[tenant.uuid]) return prev;
           return { ...prev, [tenant.uuid]: formatTenantLabel(tenant.name, tenant.display_code) };
         });
-      } catch {
-        // Tenant label is optional display enrichment.
+      } catch (error) {
+        swallowOptionalEnrichmentError(error);
       } finally {
         pendingTenantFetches.current.delete(tenantUuid);
       }
@@ -213,9 +213,13 @@ export default function UserManagement({
     if (!canUpdateRoles) {
       return;
     }
-    const data = roleCatalogForUi(await fetchRoleCatalog(token, activeActor));
-    setAssignableRoles(data.roles ?? []);
-    setRoleDefinitions(data.role_definitions ?? []);
+    try {
+      const data = roleCatalogForUi(await fetchRoleCatalog(token, activeActor));
+      setAssignableRoles(data.roles ?? []);
+      setRoleDefinitions(data.role_definitions ?? []);
+    } catch (error) {
+      swallowOptionalEnrichmentError(error);
+    }
   }, [token, activeActor, canUpdateRoles]);
 
   useEffect(() => {
@@ -270,7 +274,7 @@ export default function UserManagement({
         onSelfRolesUpdated?.();
       }
     } catch (error) {
-      setEditError(error instanceof Error ? error.message : 'Update failed');
+      setEditError(toUserFacingError(error, 'Update failed'));
     } finally {
       setEditSaving(false);
     }

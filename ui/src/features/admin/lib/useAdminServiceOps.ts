@@ -5,6 +5,7 @@ import {
   mergeAuditFeedEvents,
   type DashboardAuditEvent,
 } from '@/shared/platform/platformAuditFeed';
+import { toUserFacingError } from '@/shared/core/userFacingError';
 
 const AUTO_REFRESH_MS = 60_000;
 
@@ -35,7 +36,7 @@ export function useAdminServiceOps(token: string | undefined, activeActor: strin
       setAuditEvents(mergeAuditFeedEvents([...platformOps.events, ...idpOps.events]));
       setFailedSignIns24h(idpOps.failedSignIns24h);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load platform operations');
+      setError(toUserFacingError(err, 'Failed to load platform operations'));
       setRotationDueCount(null);
       setAuditEvents([]);
       setFailedSignIns24h(null);

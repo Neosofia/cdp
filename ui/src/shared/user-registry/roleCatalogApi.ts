@@ -11,13 +11,9 @@ export type RoleCatalogSnapshot = RoleCatalog;
 export async function fetchRoleCatalog(
   token: string,
   activeActor: string,
-): Promise<RoleCatalogSnapshot | null> {
-  try {
-    const client = userApiClient(token, activeActor);
-    return unwrapOpenApiResponse(await client.GET('/api/v1/roles'));
-  } catch {
-    return null;
-  }
+): Promise<RoleCatalogSnapshot> {
+  const client = userApiClient(token, activeActor);
+  return unwrapOpenApiResponse(await client.GET('/api/v1/roles'));
 }
 
 export function roleLabelMap(catalog: RoleCatalogSnapshot | null): Map<string, string> {

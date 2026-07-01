@@ -229,34 +229,30 @@ export async function listCareEpisodeRecoveries(
   if (!tenantUuid) {
     return [];
   }
-  try {
-    return fetchAllAuditPages(
-      async (page, pageSize) => {
-        const body = await fetchCareEpisodeListPage(token, activeActor, tenantUuid, {
-          page,
-          pageSize,
-          includeTenantFilter: options?.includeTenantFilter,
-          filters: {
-            risk: 'all',
-            activity: 'all',
-            episodeStatus: options?.status ?? 'all',
-            minDaysPostOp: null,
-            minDaysSinceChat: null,
-          },
-        });
-        return {
-          items: body.items,
-          total: body.total,
-          page: body.page,
-          page_size: body.page_size,
-        };
-      },
-      AUDIT_CSV_FETCH_PAGE_SIZE,
-      AUDIT_CSV_MAX_PAGES,
-    );
-  } catch {
-    return [];
-  }
+  return fetchAllAuditPages(
+    async (page, pageSize) => {
+      const body = await fetchCareEpisodeListPage(token, activeActor, tenantUuid, {
+        page,
+        pageSize,
+        includeTenantFilter: options?.includeTenantFilter,
+        filters: {
+          risk: 'all',
+          activity: 'all',
+          episodeStatus: options?.status ?? 'all',
+          minDaysPostOp: null,
+          minDaysSinceChat: null,
+        },
+      });
+      return {
+        items: body.items,
+        total: body.total,
+        page: body.page,
+        page_size: body.page_size,
+      };
+    },
+    AUDIT_CSV_FETCH_PAGE_SIZE,
+    AUDIT_CSV_MAX_PAGES,
+  );
 }
 
 export async function listCareEpisodeRecords(
@@ -264,17 +260,13 @@ export async function listCareEpisodeRecords(
   activeActor: string,
   patientUuid: string,
 ): Promise<CareEpisodeRecord[]> {
-  try {
-    const client = careEpisodeApiClient(token, activeActor);
-    const body = unwrapOpenApiResponse(
-      await client.GET('/api/v1/care-episodes/{patient_uuid}/records', {
-        params: { path: { patient_uuid: patientUuid } },
-      }),
-    );
-    return body.items ?? [];
-  } catch {
-    return [];
-  }
+  const client = careEpisodeApiClient(token, activeActor);
+  const body = unwrapOpenApiResponse(
+    await client.GET('/api/v1/care-episodes/{patient_uuid}/records', {
+      params: { path: { patient_uuid: patientUuid } },
+    }),
+  );
+  return body.items ?? [];
 }
 
 export async function listCareEpisodeAppointments(
@@ -282,17 +274,13 @@ export async function listCareEpisodeAppointments(
   activeActor: string,
   patientUuid: string,
 ): Promise<CareEpisodeAppointment[]> {
-  try {
-    const client = careEpisodeApiClient(token, activeActor);
-    const body = unwrapOpenApiResponse(
-      await client.GET('/api/v1/care-episodes/{patient_uuid}/appointments', {
-        params: { path: { patient_uuid: patientUuid } },
-      }),
-    );
-    return body.items ?? [];
-  } catch {
-    return [];
-  }
+  const client = careEpisodeApiClient(token, activeActor);
+  const body = unwrapOpenApiResponse(
+    await client.GET('/api/v1/care-episodes/{patient_uuid}/appointments', {
+      params: { path: { patient_uuid: patientUuid } },
+    }),
+  );
+  return body.items ?? [];
 }
 
 export async function listCareEpisodeInboxMessages(
@@ -300,17 +288,13 @@ export async function listCareEpisodeInboxMessages(
   activeActor: string,
   patientUuid: string,
 ): Promise<CareEpisodeInboxMessage[]> {
-  try {
-    const client = careEpisodeApiClient(token, activeActor);
-    const body = unwrapOpenApiResponse(
-      await client.GET('/api/v1/care-episodes/{patient_uuid}/messages', {
-        params: { path: { patient_uuid: patientUuid } },
-      }),
-    );
-    return body.items ?? [];
-  } catch {
-    return [];
-  }
+  const client = careEpisodeApiClient(token, activeActor);
+  const body = unwrapOpenApiResponse(
+    await client.GET('/api/v1/care-episodes/{patient_uuid}/messages', {
+      params: { path: { patient_uuid: patientUuid } },
+    }),
+  );
+  return body.items ?? [];
 }
 
 export async function markCareEpisodeInboxMessageRead(
@@ -318,19 +302,15 @@ export async function markCareEpisodeInboxMessageRead(
   activeActor: string,
   patientUuid: string,
   messageId: string,
-): Promise<CareEpisodeInboxMessage | null> {
-  try {
-    const client = careEpisodeApiClient(token, activeActor);
-    return unwrapOpenApiResponse(
-      await client.PATCH('/api/v1/care-episodes/{patient_uuid}/messages/{message_uuid}/read', {
-        params: {
-          path: { patient_uuid: patientUuid, message_uuid: messageId },
-        },
-      }),
-    );
-  } catch {
-    return null;
-  }
+): Promise<CareEpisodeInboxMessage> {
+  const client = careEpisodeApiClient(token, activeActor);
+  return unwrapOpenApiResponse(
+    await client.PATCH('/api/v1/care-episodes/{patient_uuid}/messages/{message_uuid}/read', {
+      params: {
+        path: { patient_uuid: patientUuid, message_uuid: messageId },
+      },
+    }),
+  );
 }
 
 /** Creates or updates the active care episode for a patient (`POST /api/v1/care-episodes`). */
@@ -378,17 +358,13 @@ export async function getCareEpisode(
   token: string,
   activeActor: string,
   episodeUuid: string,
-): Promise<CareEpisodeHistoryEntry | null> {
-  try {
-    const client = careEpisodeApiClient(token, activeActor);
-    return unwrapOpenApiResponse(
-      await client.GET('/api/v1/care-episodes/{episode_uuid}', {
-        params: { path: { episode_uuid: episodeUuid } },
-      }),
-    );
-  } catch {
-    return null;
-  }
+): Promise<CareEpisodeHistoryEntry> {
+  const client = careEpisodeApiClient(token, activeActor);
+  return unwrapOpenApiResponse(
+    await client.GET('/api/v1/care-episodes/{episode_uuid}', {
+      params: { path: { episode_uuid: episodeUuid } },
+    }),
+  );
 }
 
 export async function listCareEpisodes(
@@ -396,17 +372,13 @@ export async function listCareEpisodes(
   activeActor: string,
   patientUuid: string,
 ): Promise<CareEpisodeHistoryEntry[]> {
-  try {
-    const client = careEpisodeApiClient(token, activeActor);
-    const body = unwrapOpenApiResponse(
-      await client.GET('/api/v1/care-episodes/{patient_uuid}/episodes', {
-        params: { path: { patient_uuid: patientUuid } },
-      }),
-    );
-    return body.items ?? [];
-  } catch {
-    return [];
-  }
+  const client = careEpisodeApiClient(token, activeActor);
+  const body = unwrapOpenApiResponse(
+    await client.GET('/api/v1/care-episodes/{patient_uuid}/episodes', {
+      params: { path: { patient_uuid: patientUuid } },
+    }),
+  );
+  return body.items ?? [];
 }
 
 /** @deprecated Use listCareEpisodes */

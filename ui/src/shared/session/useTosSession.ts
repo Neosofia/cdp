@@ -6,6 +6,7 @@ import { acceptSessionTermsOfService } from '@/shared/session/userProfileSession
 import { persistSessionSelection } from '@/shared/session/localSessionStorage';
 import type { TokenInfo } from '@/shared/session/types';
 import type { UserProfile } from '@/shared/core/appTypes';
+import { toUserFacingError } from '@/shared/core/userFacingError';
 
 interface UseTosSessionOptions {
   profile: UserProfile | null;
@@ -77,7 +78,7 @@ export function useTosSession({
       persistSessionSelection({ profile: nextProfile });
       navigateHome();
     } catch (err) {
-      setTosError(err instanceof Error ? err.message : 'Could not record acceptance');
+      setTosError(toUserFacingError(err, 'Could not record acceptance'));
     } finally {
       setTosAccepting(false);
     }

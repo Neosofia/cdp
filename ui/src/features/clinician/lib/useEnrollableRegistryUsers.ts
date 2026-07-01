@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { fetchEnrollablePatients } from '@/shared/care-episode/careEpisodeApi';
 import type { RegistryPatientUser } from '@/features/clinician/lib/patientRoster';
+import { toUserFacingError } from '@/shared/core/userFacingError';
 
 export function useEnrollableRegistryUsers(
   token: string,
@@ -33,7 +34,7 @@ export function useEnrollableRegistryUsers(
       } catch (err) {
         if (!cancelled) {
           setUsers([]);
-          setError(err instanceof Error ? err.message : 'Failed to load enrollable patients');
+          setError(toUserFacingError(err, 'Failed to load enrollable patients'));
         }
       } finally {
         if (!cancelled) {

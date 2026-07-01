@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import type { EntitlementsByRole, EntitlementsMap } from '@/shared/core/appTypes';
+import { toUserFacingError } from '@/shared/core/userFacingError';
 import { fetchRoleEntitlements } from '@/shared/session/entitlements';
 import { homePath, isClinicianPatientsPath, isPatientPath } from '@/shared/app/appRoutes';
 import { uiResource } from '@/shared/core/uiCapability';
@@ -23,6 +24,7 @@ export function useSessionEntitlements({
   const { pathname } = useLocation();
   const [entitlements, setEntitlements] = useState<EntitlementsMap>({});
   const [entitlementsByRole, setEntitlementsByRole] = useState<EntitlementsByRole>({});
+  const [entitlementsError, setEntitlementsError] = useState<string | null>(null);
 
   const entitlementsReady =
     Boolean(tokenInfo && activeActor && Object.hasOwn(entitlementsByRole, activeActor));
@@ -36,6 +38,7 @@ export function useSessionEntitlements({
   const resetEntitlements = useCallback(() => {
     setEntitlements({});
     setEntitlementsByRole({});
+    setEntitlementsError(null);
   }, []);
 
   useEffect(() => {
@@ -55,11 +58,20 @@ export function useSessionEntitlements({
 
     let cancelled = false;
     const loadEntitlements = async () => {
-      const data = await fetchRoleEntitlements(tokenInfo.raw, activeActor);
-      if (cancelled || data === null) {
-        return;
+      setEntitlementsError(null);
+      try {
+        const data = await fetchRoleEntitlements(tokenInfo.raw, activeActor);
+        if (cancelled) {
+          return;
+        }
+        setEntitlementsByRole((prev) => ({ ...prev, [activeActor]: data }));
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+        setEntitlementsByRole((prev) => ({ ...prev, [activeActor]: {} }));
+        setEntitlementsError(toUserFacingError(error, 'Failed to load access permissions'));
       }
-      setEntitlementsByRole((prev) => ({ ...prev, [activeActor]: data }));
     };
 
     void loadEntitlements();
@@ -105,6 +117,7 @@ export function useSessionEntitlements({
     entitlements,
     entitlementsByRole,
     entitlementsReady,
+    entitlementsError,
     activeRoleEntitlements,
     cacheRoleEntitlements,
     resetEntitlements,

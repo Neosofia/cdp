@@ -19,6 +19,7 @@ import { useProcedureCatalog } from '@/shared/procedures/useProcedureCatalog';
 import type { PostCareEnrollmentInput } from '@/features/clinician/lib/postCareEnrollment';
 import { fetchRegistryUser } from '@/shared/user-registry/userRegistryApi';
 import { cn } from '@/shared/core/utils';
+import { toUserFacingError, swallowOptionalEnrichmentError } from '@/shared/core/userFacingError';
 
 interface Props {
   token: string;
@@ -114,7 +115,8 @@ export default function ClinicianActivePatients({
     let matchedUser;
     try {
       matchedUser = await fetchRegistryUser(token, activeActor, patientToEdit.patientUuid);
-    } catch {
+    } catch (error) {
+      swallowOptionalEnrichmentError(error);
       matchedUser = undefined;
     }
     const [fallbackFirstName = '', ...rest] = patientToEdit.displayName.trim().split(/\s+/);
@@ -174,8 +176,8 @@ export default function ClinicianActivePatients({
       try {
         const matchedUser = await fetchRegistryUser(token, activeActor, editingPatient.patientUuid);
         tenantUuidForSave = matchedUser.tenant_uuid ?? tenantUuidForSave;
-      } catch {
-        // keep session tenant fallback
+      } catch (error) {
+        swallowOptionalEnrichmentError(error);
       }
       await onEditEnrollment({
         patient_uuid: editingPatient.patientUuid,
@@ -195,7 +197,7 @@ export default function ClinicianActivePatients({
       onRosterChanged?.();
       void reloadPatient();
     } catch (submitError) {
-      setEditError(submitError instanceof Error ? submitError.message : 'Failed to save patient profile');
+      setEditError(toUserFacingError(submitError, 'Failed to save patient profile'));
       setEditSaving(false);
     }
   };

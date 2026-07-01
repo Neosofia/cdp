@@ -5,6 +5,7 @@ import {
 } from '@/features/clinician/lib/patientRoster';
 import { recoveryFromEpisodeRow } from '@/features/clinician/lib/rosterFromEpisode';
 import { fetchCareEpisodeRosterSummary } from '@/shared/care-episode/careEpisodeApi';
+import { toUserFacingError } from '@/shared/core/userFacingError';
 
 interface UseClinicianDashboardSummaryOptions {
   token: string;
@@ -76,7 +77,7 @@ export function useClinicianDashboardSummary({
       });
     } catch (err) {
       setSummary(EMPTY_SUMMARY);
-      setError(err instanceof Error ? err.message : 'Failed to load clinician dashboard');
+      setError(toUserFacingError(err, 'Failed to load clinician dashboard'));
     } finally {
       setLoading(false);
     }

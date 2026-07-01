@@ -5,6 +5,7 @@ import type { MedicalRecord } from '@/features/patient/lib/patientRecordsData';
 import { listCareEpisodeRecords } from '@/shared/care-episode/careEpisodeApi';
 import { usePatientViewStyles } from '@/shared/core/patientViewStyles';
 import { cn } from '@/shared/core/utils';
+import { toUserFacingError } from '@/shared/core/userFacingError';
 
 export default function PatientMedicalRecordsSheet({
   open,
@@ -25,6 +26,7 @@ export default function PatientMedicalRecordsSheet({
   const [records, setRecords] = useState<MedicalRecord[]>([]);
   const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) {
@@ -33,6 +35,7 @@ export default function PatientMedicalRecordsSheet({
 
     let cancelled = false;
     setLoading(true);
+    setLoadError(null);
     setRecords([]);
     setSelectedRecordId(null);
 
@@ -56,6 +59,9 @@ export default function PatientMedicalRecordsSheet({
           }
           return nextRecords[0]?.id ?? null;
         });
+      } catch (error) {
+        if (cancelled) return;
+        setLoadError(toUserFacingError(error, 'Failed to load medical records'));
       } finally {
         if (!cancelled) {
           setLoading(false);
@@ -88,6 +94,9 @@ export default function PatientMedicalRecordsSheet({
           <SheetTitle className={cn('pr-8', pv.titleClass)}>Medical records</SheetTitle>
         </SheetHeader>
         <div className="min-h-0 flex-1 overflow-hidden px-6 pb-6 pt-4">
+          {loadError ? (
+            <p className={cn('text-sm text-red-600', !pv.isCorporate && 'text-red-400')}>{loadError}</p>
+          ) : null}
           <PatientRecordsPanel
             records={records}
             embedded

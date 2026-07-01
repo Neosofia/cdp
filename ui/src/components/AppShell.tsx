@@ -40,6 +40,7 @@ export default function AppShell({ children }: AppShellProps) {
     demoBootstrapRunning,
     demoBootstrapError,
     demoReLoginRequired,
+    entitlementsError,
     handleLogout,
     handleSignInAgain,
     handleSessionRoleChange,
@@ -88,6 +89,7 @@ export default function AppShell({ children }: AppShellProps) {
   });
 
   const showDemoBanner = demoBootstrapRunning || demoBootstrapError || demoReLoginRequired;
+  const showAccessBanner = Boolean(entitlementsError);
 
   return (
     <div className="flex min-h-0 w-full flex-1 flex-col">
@@ -400,7 +402,7 @@ export default function AppShell({ children }: AppShellProps) {
         </div>
       </header>
 
-      {showDemoBanner && (
+      {(showDemoBanner || showAccessBanner) && (
         <div
           className={cn(
             'fixed top-16 z-40 w-full border-b',
@@ -410,6 +412,9 @@ export default function AppShell({ children }: AppShellProps) {
         >
           <div className="mx-auto flex w-full max-w-7xl flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between md:px-6">
             <div className={cn('text-sm', isCorporate ? 'text-slate-700' : 'text-slate-300')}>
+              {entitlementsError && (
+                <span className={isCorporate ? 'text-red-700' : 'text-red-300'}>{entitlementsError}</span>
+              )}
               {demoBootstrapRunning && 'Setting up your demo workspace…'}
               {!demoBootstrapRunning && demoBootstrapError && (
                 <span className={isCorporate ? 'text-red-700' : 'text-red-300'}>

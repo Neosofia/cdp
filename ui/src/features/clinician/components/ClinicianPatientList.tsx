@@ -26,6 +26,7 @@ import {
 } from '@/features/clinician/lib/patientRoster';
 import { usePatientViewStyles } from '@/shared/core/patientViewStyles';
 import { cn } from '@/shared/core/utils';
+import { toUserFacingError } from '@/shared/core/userFacingError';
 
 export default function ClinicianPatientList({
   selfUuid,
@@ -140,7 +141,7 @@ export default function ClinicianPatientList({
       onBulkClosed();
       void reload();
     } catch (closeError) {
-      setBulkError(closeError instanceof Error ? closeError.message : 'Failed to close episodes');
+      setBulkError(toUserFacingError(closeError, 'Failed to close episodes'));
     } finally {
       setBulkClosing(false);
     }

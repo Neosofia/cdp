@@ -100,6 +100,8 @@ See the Railway worked example in the infrastructure guide for `${{cdp.RAILWAY_P
 
 **Staging observability:** Grafana — [`infrastructure/public-cloud/grafana/README.md`](https://github.com/Neosofia/infrastructure/blob/main/public-cloud/grafana/README.md) (dashboards, OpenTofu, LogQL). Log ingest — [Neosofia/locomotive](https://github.com/Neosofia/locomotive). **If Grafana is not working:** [Railway debugging (fallback)](https://github.com/Neosofia/infrastructure/blob/main/public-cloud/OPERATIONS.md#railway-debugging-fallback) (project **CDP**, env **`production`** = staging lane).
 
+**Helpdesk error correlation (CDP UI):** When the UI shows an unknown error, the user sees an eight-character **helpdesk code** (suffix of the OpenTelemetry trace ID). Today: search Grafana/Locomotive for a trace or log line whose trace ID ends with that suffix. Implementation: [ADR 0019](architecture/adrs/0019-user-facing-error-correlation-and-incident-debugging.md), `ui/src/shared/core/userFacingError.ts`. **Planned ([#11](https://github.com/Neosofia/cdp/issues/11)):** Grafana **incident trace** dashboard with a `trace_id` variable and one-click deep links in Zendesk tickets (no manual LogQL).
+
 ## UI Service local dev
 
 For the front-end interface, we use a distinct Dockerfile for the local development environment (`cdp/ui/Dockerfile.dev`). This development image installs `pnpm` directly using `npm` and binds the Vite dev server with Hot Module Replacement (HMR) to port 5173. 

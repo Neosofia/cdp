@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { fetchUserRegistryTotal } from '@/shared/user-registry/userRegistryApi';
+import { toUserFacingError } from '@/shared/core/userFacingError';
 
 const AUTO_REFRESH_MS = 60_000;
 
@@ -21,7 +22,7 @@ export function useUserRegistryStats(token: string | undefined, activeActor: str
       const summary = await fetchUserRegistryTotal(token, activeActor);
       setTotal(summary.total);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load user count');
+      setError(toUserFacingError(err, 'Failed to load user count'));
       setTotal(null);
     } finally {
       setLoading(false);

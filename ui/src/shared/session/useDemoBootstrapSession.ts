@@ -7,6 +7,7 @@ import {
 import { fetchSessionRegistryUser } from '@/shared/session/userProfileSession';
 import type { TokenInfo } from '@/shared/session/types';
 import type { UserProfile } from '@/shared/core/appTypes';
+import { toUserFacingError } from '@/shared/core/userFacingError';
 
 interface UseDemoBootstrapSessionOptions {
   tokenInfo: TokenInfo | null;
@@ -82,7 +83,7 @@ export function useDemoBootstrapSession({
         );
       } catch (err) {
         demoBootstrapAttemptRef.current = null;
-        setDemoBootstrapError(err instanceof Error ? err.message : 'Demo bootstrap failed');
+        setDemoBootstrapError(toUserFacingError(err, 'Demo bootstrap failed'));
       } finally {
         setDemoBootstrapRunning(false);
       }

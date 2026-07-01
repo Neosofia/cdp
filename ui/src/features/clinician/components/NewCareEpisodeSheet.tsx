@@ -9,6 +9,7 @@ import {
 import ProcedureEpisodeFormFields from '@/shared/forms/ProcedureEpisodeFormFields';
 import { useUserFormStyles } from '@/components/userFormStyles';
 import { cn } from '@/shared/core/utils';
+import { toUserFacingError } from '@/shared/core/userFacingError';
 import { useProcedureCatalog } from '@/shared/procedures/useProcedureCatalog';
 import {
   defaultProcedureDate,
@@ -131,7 +132,7 @@ export default function NewCareEpisodeSheet({
       onStarted(created.episode_uuid ?? '');
       handleClose(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to start new episode');
+      setError(toUserFacingError(err, 'Failed to start new episode'));
     } finally {
       setSaving(false);
     }

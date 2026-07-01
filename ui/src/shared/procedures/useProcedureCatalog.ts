@@ -8,6 +8,7 @@ import {
   type ProcedureCatalogState,
   type ProcedureType,
 } from '@/shared/procedures/procedureCatalog';
+import { toUserFacingError } from '@/shared/core/userFacingError';
 
 const EMPTY_CATALOG: ProcedureCatalogState = {
   entries: [],
@@ -40,7 +41,7 @@ export function useProcedureCatalog(token: string, activeActor: string) {
       })
       .catch((loadError: unknown) => {
         if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : 'Failed to load procedure catalog');
+          setError(toUserFacingError(loadError, 'Failed to load procedure catalog'));
         }
       })
       .finally(() => {

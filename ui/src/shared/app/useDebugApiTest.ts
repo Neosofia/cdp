@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import type { DebugTestResult } from '@/components/DebugApiPanel';
 import { platformApiFetch } from '@/shared/platform/platformApiFetch';
+import { toUserFacingError } from '@/shared/core/userFacingError';
 
 interface UseDebugApiTestOptions {
   token: string | undefined;
@@ -37,7 +38,7 @@ export function useDebugApiTest({
       } catch (e: unknown) {
         setTestResult({
           api: label ?? url,
-          data: e instanceof Error ? e.message : 'Unknown error',
+          data: toUserFacingError(e),
           status: 500,
         });
       }

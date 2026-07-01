@@ -10,6 +10,7 @@ import {
 import PatientRecordsPanel from '@/features/patient/components/PatientRecordsPanel';
 import XrayScissorsDemo from '@/features/patient/components/XrayScissorsDemo';
 import { usePatientViewStyles } from '@/shared/core/patientViewStyles';
+import { toUserFacingError } from '@/shared/core/userFacingError';
 import { listCareEpisodeRecords, type CareEpisodeRecord } from '@/shared/care-episode/careEpisodeApi';
 import type { MedicalRecord } from '@/features/patient/lib/patientRecordsData';
 
@@ -34,6 +35,7 @@ export default function PatientRecords({ token, activeActor, patientUuid }: Prop
   const [records, setRecords] = useState<MedicalRecord[]>([]);
   const [sheetRecord, setSheetRecord] = useState<MedicalRecord | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!patientUuid) {
@@ -44,18 +46,28 @@ export default function PatientRecords({ token, activeActor, patientUuid }: Prop
     let cancelled = false;
     const load = async () => {
       setLoading(true);
-      const remote = await listCareEpisodeRecords(token, activeActor, patientUuid);
-      if (cancelled) return;
-      setRecords((remote as CareEpisodeRecord[]).map(r => ({
-        id: r.id,
-        title: r.title,
-        date: r.date,
-        type: (r.type as RecordType),
-        provider: r.provider,
-        summary: r.summary,
-        imageKey: r.imageKey as MedicalRecord['imageKey'],
-      })));
-      setLoading(false);
+      setLoadError(null);
+      try {
+        const remote = await listCareEpisodeRecords(token, activeActor, patientUuid);
+        if (cancelled) return;
+        setRecords((remote as CareEpisodeRecord[]).map(r => ({
+          id: r.id,
+          title: r.title,
+          date: r.date,
+          type: (r.type as RecordType),
+          provider: r.provider,
+          summary: r.summary,
+          imageKey: r.imageKey as MedicalRecord['imageKey'],
+        })));
+      } catch (error) {
+        if (cancelled) return;
+        setRecords([]);
+        setLoadError(toUserFacingError(error, 'Failed to load medical records'));
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
     };
     void load();
     return () => {
@@ -65,10 +77,11 @@ export default function PatientRecords({ token, activeActor, patientUuid }: Prop
 
   const helperText = useMemo(() => {
     if (!patientUuid) return 'No patient context available.';
+    if (loadError) return loadError;
     if (loading) return 'Loading records from care-episode service...';
     if (records.length === 0) return 'No records returned by care-episode service.';
     return null;
-  }, [loading, patientUuid, records.length]);
+  }, [loadError, loading, patientUuid, records.length]);
 
   return (
     <>

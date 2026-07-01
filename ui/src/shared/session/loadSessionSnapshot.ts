@@ -14,6 +14,7 @@ import {
 } from '@/shared/core/appTypes';
 import { prefetchEntitlementsInBackground } from '@/shared/session/entitlements';
 import { fetchRoleCatalog, roleCatalogForUi } from '@/shared/user-registry/roleCatalogApi';
+import { swallowOptionalEnrichmentError } from '@/shared/core/userFacingError';
 import {
   buildSessionRoleChoices,
   resolveStoredSessionRoleChoice,
@@ -106,11 +107,11 @@ export async function loadSessionSnapshot(
             resolvedActor,
             registry.tenant_uuid,
           );
-          if (tenant?.name) {
+          if (tenant.name) {
             tenantName = formatTenantLabel(tenant.name, tenant.display_code);
           }
-        } catch {
-          // Tenant label is optional display enrichment.
+        } catch (error) {
+          swallowOptionalEnrichmentError(error);
         }
       }
 
@@ -129,7 +130,12 @@ export async function loadSessionSnapshot(
         tos_accepted: registry.tos_accepted === true,
       };
 
-      const remoteCatalog = await fetchRoleCatalog(tokenData.access_token, resolvedActor);
+      let remoteCatalog = null;
+      try {
+        remoteCatalog = await fetchRoleCatalog(tokenData.access_token, resolvedActor);
+      } catch (error) {
+        swallowOptionalEnrichmentError(error);
+      }
       const roleCatalog = roleCatalogForUi(remoteCatalog);
 
       const roleChoices = buildSessionRoleChoices(fetchedSessionActors, orgRoles, roleCatalog);
@@ -161,9 +167,6 @@ export async function loadSessionSnapshot(
     } catch (err) {
       if (err && typeof err === 'object' && 'isAuthError' in err) {
         break;
-      }
-      if (attempt === retries) {
-        console.error('Failed to fetch session data after retries', err);
       }
     }
   }

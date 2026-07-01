@@ -23,6 +23,7 @@ import ServiceFormSheet, {
   type ServiceFormDraft,
 } from '@/features/admin/components/ServiceFormSheet';
 import { cn } from '@/shared/core/utils';
+import { toUserFacingError } from '@/shared/core/userFacingError';
 import { usePatientViewStyles } from '@/shared/core/patientViewStyles';
 import { buildAuditSection } from '@/shared/audit/buildAuditSection';
 import { downloadServiceAuditCsv } from '@/shared/audit/downloadAuditCsv';
@@ -218,7 +219,7 @@ export default function ServiceManagement({ token, activeActor }: Props) {
       }
       void fetchServices();
     } catch (error) {
-      setFormError(error instanceof Error ? error.message : 'Save failed');
+      setFormError(toUserFacingError(error, 'Save failed'));
     } finally {
       setFormSaving(false);
     }
@@ -236,7 +237,7 @@ export default function ServiceManagement({ token, activeActor }: Props) {
           const data = await rotateAuthServiceCredential(token, activeActor, slug);
           return { slug, client_secret: data.client_secret };
         } catch (e) {
-          return { slug, client_secret: '', error: e instanceof Error ? e.message : 'Unknown error' };
+          return { slug, client_secret: '', error: toUserFacingError(e) };
         }
       }),
     );

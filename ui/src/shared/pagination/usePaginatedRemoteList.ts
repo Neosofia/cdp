@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
+import { toUserFacingError } from '@/shared/core/userFacingError';
 import { useListPageSelection } from '@/shared/pagination/useListPageSelection';
 
 export interface PaginatedListResponse<T> {
@@ -81,7 +82,7 @@ export function usePaginatedRemoteList<T>({
     } catch (err) {
       setItems([]);
       setTotal(0);
-      setError(err instanceof Error ? err.message : 'Failed to load list');
+      setError(toUserFacingError(err, 'Failed to load list'));
     } finally {
       setLoading(false);
     }

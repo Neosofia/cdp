@@ -4,6 +4,7 @@ import {
   type PlatformServiceDefinition,
   type PlatformServiceId,
 } from '@/shared/platform/platformServices';
+import { toUserFacingError } from '@/shared/core/userFacingError';
 
 const HEALTH_PROBE_TIMEOUT_MS = 8_000;
 
@@ -144,7 +145,7 @@ async function probeOne(def: PlatformServiceDefinition): Promise<ServiceHealthRo
       baseUrl,
       reachability: 'unreachable',
       latencyMs: Math.round(performance.now() - started),
-      errorMessage: err instanceof Error ? err.message : 'Health check failed',
+      errorMessage: toUserFacingError(err, 'Health check failed'),
     });
   }
 }

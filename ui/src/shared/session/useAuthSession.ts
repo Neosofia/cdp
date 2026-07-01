@@ -47,6 +47,7 @@ export function useAuthSession(options: UseAuthSessionOptions = {}) {
     entitlements,
     entitlementsByRole,
     entitlementsReady,
+    entitlementsError,
     activeRoleEntitlements,
     cacheRoleEntitlements,
     resetEntitlements,
@@ -245,6 +246,7 @@ export function useAuthSession(options: UseAuthSessionOptions = {}) {
     activeSessionRole,
     sessionTenantUuid,
     entitlementsReady,
+    entitlementsError,
     needsTosAcceptance,
     activeRoleEntitlements,
   };

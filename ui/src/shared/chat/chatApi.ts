@@ -65,17 +65,13 @@ export async function fetchChatMeta(
     return { assistant: { available: false } };
   }
 
-  try {
-    const client = chatApiClient(token, activeActor);
-    const body = unwrapChatResponse(await client.GET('/meta/enums'));
-    return {
-      assistant: {
-        available: Boolean(body.enums?.MessageSenderType),
-      },
-    };
-  } catch {
-    return { assistant: { available: false } };
-  }
+  const client = chatApiClient(token, activeActor);
+  const body = unwrapChatResponse(await client.GET('/meta/enums'));
+  return {
+    assistant: {
+      available: Boolean(body.enums?.MessageSenderType),
+    },
+  };
 }
 
 export interface ChatSessionRef {
@@ -92,18 +88,14 @@ export async function fetchTenantLastChatActivity(
     return byPatient;
   }
 
-  try {
-    const client = chatApiClient(token, activeActor);
-    const body = unwrapChatResponse(
-      await client.GET('/api/v1/tenants/{tenant_uuid}/last-activity', {
-        params: { path: { tenant_uuid: tenantUuid } },
-      }),
-    );
-    for (const item of body.items ?? []) {
-      byPatient.set(item.user_uuid, item.last_message_at);
-    }
-  } catch {
-    // Optional enrichment.
+  const client = chatApiClient(token, activeActor);
+  const body = unwrapChatResponse(
+    await client.GET('/api/v1/tenants/{tenant_uuid}/last-activity', {
+      params: { path: { tenant_uuid: tenantUuid } },
+    }),
+  );
+  for (const item of body.items ?? []) {
+    byPatient.set(item.user_uuid, item.last_message_at);
   }
   return byPatient;
 }

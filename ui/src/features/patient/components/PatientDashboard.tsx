@@ -32,6 +32,7 @@ import {
   previewText,
   RECORD_TYPE_COLOR,
 } from '@/features/patient/lib/patientDashboardFormatters';
+import { toUserFacingError } from '@/shared/core/userFacingError';
 
 export interface PatientDashboardProps {
   firstName?: string;
@@ -57,6 +58,7 @@ export default function PatientDashboard({
   const [messages, setMessages] = useState<CareEpisodeInboxMessage[]>([]);
   const [records, setRecords] = useState<CareEpisodeRecord[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
 
   useEffect(() => {
@@ -71,6 +73,7 @@ export default function PatientDashboard({
     let cancelled = false;
     const load = async () => {
       setLoading(true);
+      setLoadError(null);
       try {
         const [appts, inbox, recs] = await Promise.all([
           listCareEpisodeAppointments(token, activeActor, patientUuid),
@@ -82,6 +85,12 @@ export default function PatientDashboard({
         setMessages(inbox);
         setRecords(recs);
         setNowMs(Date.now());
+      } catch (error) {
+        if (cancelled) return;
+        setAppointments([]);
+        setMessages([]);
+        setRecords([]);
+        setLoadError(toUserFacingError(error, 'Failed to load dashboard data'));
       } finally {
         if (!cancelled) {
           setLoading(false);
@@ -134,7 +143,9 @@ export default function PatientDashboard({
         }
       >
         <p className={cn('text-sm', isCorporate ? 'text-slate-800' : 'text-slate-300')}>
-          {demoSeeding || loading ? (
+          {loadError ? (
+            <span className={isCorporate ? 'text-red-700' : 'text-red-400'}>{loadError}</span>
+          ) : demoSeeding || loading ? (
             <>Loading your care overview…</>
           ) : nextAppointment ? (
             <>

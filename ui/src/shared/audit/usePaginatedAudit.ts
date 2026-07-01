@@ -3,6 +3,7 @@ import { useCallback, useState } from 'react';
 import { AUDIT_CSV_FETCH_PAGE_SIZE, AUDIT_CSV_MAX_PAGES, AUDIT_PAGE_SIZE } from '@/shared/audit/constants';
 import { fetchAllAuditPages } from '@/shared/audit/fetchAllAuditPages';
 import type { PaginatedAuditResponse } from '@/shared/audit/types';
+import { toUserFacingError } from '@/shared/core/userFacingError';
 
 interface UsePaginatedAuditOptions<T> {
   pageSize?: number;
@@ -61,7 +62,7 @@ export function usePaginatedAudit<T>({
         setPage(data.page ?? pageNum);
         setTotal(data.total ?? 0);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load audit history');
+        setError(toUserFacingError(err, 'Failed to load audit history'));
       } finally {
         setLoading(false);
       }

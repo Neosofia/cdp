@@ -5,6 +5,7 @@ import {
 } from '@/features/clinician/lib/patientRoster';
 import { recoveryFromEpisodeRow } from '@/features/clinician/lib/rosterFromEpisode';
 import { fetchCareEpisodeListPage } from '@/shared/care-episode/careEpisodeApi';
+import { toUserFacingError } from '@/shared/core/userFacingError';
 
 export function useClinicianPatientDetail(
   token: string,
@@ -40,7 +41,7 @@ export function useClinicianPatientDetail(
       setPatient(recoveryFromEpisodeRow(care, tenantName));
     } catch (err) {
       setPatient(null);
-      setError(err instanceof Error ? err.message : 'Failed to load patient');
+      setError(toUserFacingError(err, 'Failed to load patient'));
     } finally {
       setLoading(false);
     }

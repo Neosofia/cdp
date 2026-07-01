@@ -1,5 +1,17 @@
 # Changelog
 
+## [2026.07.01]
+
+### Added
+
+- ADR 0019 — user-facing error correlation and incident debugging (helpdesk trace codes, Grafana deep-link follow-up in [cdp#11](https://github.com/Neosofia/cdp/issues/11)).
+- CDP UI `userFacingError` helper — unknown failures show a helpdesk code (OpenTelemetry trace ID suffix) for log correlation.
+
+### Changed
+
+- CDP UI surfaces API failures instead of silent empty results; entitlements load failures show a shell banner.
+- `OPERATIONS.md` documents helpdesk trace lookup and planned Grafana incident dashboard links.
+
 ## [2026.06.29]
 
 ### Changed
