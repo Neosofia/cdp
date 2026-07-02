@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -247,7 +247,7 @@ export function AuditHistorySheet({
 }: AuditHistorySheetProps) {
   const styles = useAuditHistoryStyles();
 
-  const renderActorBadge = (
+  const renderActorBadge = useCallback((
     changedByType: number,
     changedByUuid: string,
     changedByName?: string | null,
@@ -287,7 +287,7 @@ export function AuditHistorySheet({
         <span className={styles.actorUuidClass}>{truncated}</span>
       </span>
     );
-  };
+  }, [styles]);
 
   const columns = useMemo(() => {
     const baseColumns = <Row extends AuditBaseItem>(
@@ -434,7 +434,7 @@ export function AuditHistorySheet({
         },
       ] satisfies AuditColumn<InteractionRiskAuditItem>[],
     };
-  }, [styles]);
+  }, [styles, renderActorBadge]);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>

@@ -32,4 +32,5 @@ Production deployment topology beyond staging is out of scope for this ADR and w
 - Structurizr deployment views prioritise Railway staging over Proxmox/AWS auth-only diagrams
 - `INSTALLATION_PLAN.md` and `OPERATIONS.md` in each service should state Railway service names and verification URLs
 - Operators verify staging after CI green + Railway deploy complete, not only after merge
+- CDP UI behavioral verification: post-deploy Playwright E2E ([ADR-0020](0020-layered-testing-strategy-for-services-and-browser-ui.md))
 - Secrets and CORS origins are managed in Railway project variables per service

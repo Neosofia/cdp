@@ -265,7 +265,9 @@ services:
   ui:
     build:
       context: ./ui
-      dockerfile: Dockerfile.dev
+      target: development
+      args:
+        UI_DEV: "1"
     container_name: cdp-ui
     depends_on:
       authentication:
@@ -278,6 +280,7 @@ services:
         condition: service_healthy
       care-episode:
         condition: service_healthy
+    entrypoint: ["pnpm", "run", "dev"]
     volumes:
       - ./ui:/app
       - ./policies/user/role-catalog.json:/app/policies/user/role-catalog.json:ro

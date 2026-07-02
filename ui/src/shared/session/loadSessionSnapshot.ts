@@ -1,6 +1,7 @@
 import { jwtDecode } from 'jwt-decode';
 import { hasLoggedOutLocally, LOCAL_AUTH_KEY } from '@/shared/auth/auth';
 import { AUTH_API } from '@/shared/platform/apiBases';
+import { injectPlatformTraceHeaders } from '@/shared/platform/platformApiFetch';
 import { fetchAuthTenant } from '@/shared/auth/authenticationApi';
 import {
   formatTenantLabel,
@@ -58,9 +59,11 @@ export async function loadSessionSnapshot(
         await new Promise((resolve) => setTimeout(resolve, 250));
       }
 
+      const tokenHeaders = new Headers({ 'Content-Type': 'application/x-www-form-urlencoded' });
+      injectPlatformTraceHeaders(tokenHeaders);
       const tokenRes = await fetch(`${AUTH_API}/api/token`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        headers: tokenHeaders,
         body: 'grant_type=session',
         credentials: 'include',
       });

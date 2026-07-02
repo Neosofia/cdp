@@ -28,7 +28,7 @@ Specs 001, 010, 015, and 019 state behaviour; this ADR owns topology. The CDP UI
 
 - Chat Service API surface focuses on storage, history, interaction metadata, **care-assistant inference**, and inference configuration — not escalation or risk records
 - Care Episode calls the external inference provider for **risk evaluation only**; Chat calls it for **care-assistant completions**
-- Care Episode gains the largest clinical write-path contract; contract tests and OpenAPI diffs there are release gates
+- Care Episode gains the largest clinical write-path contract; contract tests and OpenAPI diffs there are release gates ([ADR-0020](0020-layered-testing-strategy-for-services-and-browser-ui.md))
 - CDP UI holds two patient chat integration surfaces by design: Care Episode for writes, Chat for authorised reads
 - Future channel adapters (SMS, native apps) would re-enter through Care Episode for writes; reads follow the same “direct to data owner when no orchestration feature is required” rule
 - Structurizr dynamic views show Patient → CDP UI → Care Episode → Chat → inference (assistant) and Care Episode → inference (risk) / Notification for write paths, and Patient → CDP UI → Chat for read paths

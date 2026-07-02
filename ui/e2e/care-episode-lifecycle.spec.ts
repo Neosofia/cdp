@@ -1,45 +1,26 @@
 import { expect, test } from '@playwright/test';
 
 import { loginAsClinician } from './helpers/auth';
-import { openCatalogPatient } from './helpers/patient';
+import { E2E_SPEC_TRACE } from './helpers/specTraceability';
+import { enrollNewPatientViaUi, uniqueEnrollPatient } from './helpers/enroll';
+import { openPatientSession } from './helpers/patient';
 
-async function ensureCurrentEpisodeSelected(page: import('@playwright/test').Page): Promise<void> {
-  const episodeSelect = page.getByRole('combobox', { name: 'Care episode' });
-  if (!(await episodeSelect.isVisible().catch(() => false))) {
-    return;
-  }
-  const selectedValue = await episodeSelect.inputValue();
-  const selectedLabel = await episodeSelect.locator(`option[value="${selectedValue}"]`).textContent();
-  if (selectedLabel?.includes('Current')) {
-    return;
-  }
-  const currentOption = episodeSelect.locator('option').filter({ hasText: 'Current' }).first();
-  if ((await currentOption.count()) === 0) {
-    return;
-  }
-  const currentValue = await currentOption.getAttribute('value');
-  if (currentValue) {
-    await episodeSelect.selectOption(currentValue);
-  }
-}
+const trace = E2E_SPEC_TRACE['care-episode-lifecycle.spec.ts'];
 
-test.describe('care episode lifecycle', () => {
+test.describe(trace.summary, () => {
   test.beforeEach(async ({ page }) => {
     await loginAsClinician(page);
   });
 
   test('clinician closes then reopens the active care episode', async ({ page }) => {
-    await openCatalogPatient(page);
+    const patient = uniqueEnrollPatient();
+    await enrollNewPatientViaUi(page, patient);
+    await openPatientSession(page, patient.displayCode);
 
     const closeButton = page.getByRole('button', { name: 'Close episode' });
     const reopenButton = page.getByRole('button', { name: 'Reopen episode' });
 
-    if (await reopenButton.isVisible().catch(() => false)) {
-      await reopenButton.click();
-      await expect(closeButton).toBeEnabled({ timeout: 30_000 });
-    }
-
-    await ensureCurrentEpisodeSelected(page);
+    await expect(closeButton).toBeEnabled({ timeout: 30_000 });
 
     await closeButton.click();
     await expect(reopenButton).toBeEnabled({ timeout: 30_000 });
@@ -47,9 +28,5 @@ test.describe('care episode lifecycle', () => {
 
     await reopenButton.click();
     await expect(closeButton).toBeEnabled({ timeout: 30_000 });
-    const episodeSelect = page.getByRole('combobox', { name: 'Care episode' });
-    if (await episodeSelect.isVisible().catch(() => false)) {
-      await expect(episodeSelect).toContainText(/Current/i);
-    }
   });
 });

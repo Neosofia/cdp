@@ -1,7 +1,5 @@
 import { upsertCareEpisodeRecovery } from '@/shared/care-episode/careEpisodeApi';
 import {
-  registerPostCareEnrollment,
-  type DemoPatientClinical,
   type RegistryPatientUser,
 } from '@/features/clinician/lib/patientRoster';
 import { createPatientUser, type RegistryUser } from '@/shared/user-registry/userRegistryApi';
@@ -43,30 +41,6 @@ export interface PostCareEnrollmentResult {
 function recoveryIdForPatient(displayCode: string, patientUuid: string): string {
   const code = displayCode.trim() || patientUuid.slice(0, 8).toUpperCase();
   return `EP-${code}`;
-}
-
-function daysPostOpFromDate(procedureDate: string): number {
-  const procedureMs = Date.parse(`${procedureDate.trim()}T12:00:00`);
-  if (!Number.isFinite(procedureMs)) {
-    return 0;
-  }
-  const todayMs = Date.parse(`${new Date().toISOString().slice(0, 10)}T12:00:00`);
-  return Math.max(0, Math.floor((todayMs - procedureMs) / (24 * 60 * 60 * 1000)));
-}
-
-function clinicalFromEnrollment(
-  input: PostCareEnrollmentInput,
-  displayCode: string,
-  patientUuid: string,
-): DemoPatientClinical {
-  const procedureDate = input.procedure_date.trim();
-  return {
-    surgery: input.procedure.trim(),
-    procedureDate,
-    daysPostOp: daysPostOpFromDate(procedureDate),
-    recoveryId: recoveryIdForPatient(displayCode, patientUuid),
-    riskLevel: 'Low',
-  };
 }
 
 function resolveTenantUuid(input: PostCareEnrollmentInput, patient: RegistryPatientUser): string | undefined {
@@ -142,11 +116,6 @@ export async function enrollPatientInPostCare(
       throw err;
     }
   }
-
-  registerPostCareEnrollment(
-    patient.uuid,
-    clinicalFromEnrollment(input, displayCode, patient.uuid),
-  );
 
   return {
     patientUuid: patient.uuid,

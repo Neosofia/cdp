@@ -5,6 +5,10 @@ import { fileURLToPath } from 'node:url';
 import { expect, devices, type Locator, type Page, type TestInfo } from '@playwright/test';
 
 import { waitForAppSheetClosed, waitForAppSheetReady } from './nav';
+import {
+  formatWalkthroughCaption,
+  type ProductSpecRef,
+} from './specTraceability';
 
 const uiRootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 /** Outside Playwright outputDir so mobile/desktop runs do not wipe each other. */
@@ -26,30 +30,79 @@ export interface WalkthroughStep {
   id: string;
   slug: string;
   title: string;
+  /** Product specs this capture supports (`cdp/specs/`). */
+  specs: ProductSpecRef[];
   /** Optional extra mobile-only capture (stacked under the primary mobile shot). */
   mobileExtra?: { suffix: string; label: string };
 }
 
 export const WALKTHROUGH_STEPS: WalkthroughStep[] = [
-  { id: '01', slug: 'clinician-dashboard', title: 'Clinician dashboard' },
+  {
+    id: '01',
+    slug: 'clinician-dashboard',
+    title: 'Clinician dashboard',
+    specs: [{ spec: '019', anchors: ['FR-004'] }],
+  },
   {
     id: '02',
     slug: 'patient-list',
     title: 'Patient list',
+    specs: [{ spec: '019', anchors: ['FR-004'] }, { spec: '015', anchors: ['FR-005'] }],
     mobileExtra: { suffix: 'filters', label: 'Patient filters sheet' },
   },
-  { id: '03', slug: 'enroll-sheet', title: 'Enroll sheet' },
-  { id: '04', slug: 'enroll-new-patient', title: 'Enroll new patient' },
-  { id: '05', slug: 'filters-sheet', title: 'Filters sheet' },
-  { id: '06', slug: 'patient-search', title: 'Patient search' },
-  { id: '07', slug: 'edit-sheet', title: 'Edit patient sheet' },
-  { id: '08', slug: 'risk-summary', title: 'AI interaction summary' },
-  { id: '09', slug: 'clinician-chat', title: 'Clinician chat (Alice Hartley)' },
-  { id: '10', slug: 'patient-dashboard', title: 'Patient dashboard' },
+  {
+    id: '03',
+    slug: 'enroll-sheet',
+    title: 'Enroll sheet',
+    specs: [{ spec: '015', anchors: ['FR-001'] }],
+  },
+  {
+    id: '04',
+    slug: 'enroll-new-patient',
+    title: 'Enroll new patient',
+    specs: [{ spec: '015', anchors: ['FR-001'] }, { spec: '018', anchors: ['FR-006'] }],
+  },
+  {
+    id: '05',
+    slug: 'filters-sheet',
+    title: 'Filters sheet',
+    specs: [{ spec: '019', anchors: ['FR-004'] }],
+  },
+  {
+    id: '06',
+    slug: 'patient-search',
+    title: 'Patient search',
+    specs: [{ spec: '019', anchors: ['FR-004'] }, { spec: '015', anchors: ['FR-005'] }],
+  },
+  {
+    id: '07',
+    slug: 'edit-sheet',
+    title: 'Edit patient sheet',
+    specs: [{ spec: '018', anchors: ['FR-006'] }, { spec: '019', anchors: ['FR-004'] }],
+  },
+  {
+    id: '08',
+    slug: 'risk-summary',
+    title: 'AI interaction summary',
+    specs: [{ spec: '015', anchors: ['FR-006'] }, { spec: '010' }],
+  },
+  {
+    id: '09',
+    slug: 'clinician-chat',
+    title: 'Clinician chat (Alice Hartley)',
+    specs: [{ spec: '001' }, { spec: '019', anchors: ['FR-004'] }],
+  },
+  {
+    id: '10',
+    slug: 'patient-dashboard',
+    title: 'Patient dashboard',
+    specs: [{ spec: '019', anchors: ['FR-003'] }],
+  },
   {
     id: '11',
     slug: 'patient-chat',
     title: 'Patient chat (Care team)',
+    specs: [{ spec: '019', anchors: ['FR-003'] }, { spec: '001' }],
     mobileExtra: { suffix: 'conversations', label: 'Prior conversations sheet' },
   },
 ];
@@ -190,17 +243,18 @@ export function generateWalkthroughGallery(): string {
 
   const buildHtml = (imagePathPrefix: string) => {
     const figures = WALKTHROUGH_STEPS.map(step => {
-      const renderShot = (mode: WalkthroughMode, file: string, exists: boolean, caption?: string) => {
+      const renderShot = (mode: WalkthroughMode, file: string, exists: boolean, extraLabel?: string) => {
         const label = mode === 'mobile' ? 'Mobile' : 'Desktop';
         if (!exists) {
           return `<p class="missing">Missing — run <code>pnpm walkthrough:visual</code> (both projects; single-project runs no longer wipe the other mode).</p>`;
         }
         const display = walkthroughGalleryDisplaySize(mode);
-        const cap = caption
-          ? `<p class="shot-caption">${caption}</p>`
+        const cap = extraLabel
+          ? `<p class="shot-caption">${extraLabel}</p>`
           : '';
         const src = `${imagePathPrefix}${file}`;
-        return `${cap}<div class="shot shot-${mode}"><img src="${src}" alt="${label} — ${step.title}" width="${display.width}" height="${display.height}" decoding="sync" /></div>`;
+        const stepCaption = formatWalkthroughCaption(step);
+        return `${cap}<div class="shot shot-${mode}"><img src="${src}" alt="${label} — ${stepCaption.title} — ${stepCaption.trace}" width="${display.width}" height="${display.height}" decoding="sync" /></div>`;
       };
 
       const renderPanel = (mode: WalkthroughMode) => {
@@ -223,9 +277,14 @@ export function generateWalkthroughGallery(): string {
         </div>`;
       };
 
+      const caption = formatWalkthroughCaption(step);
+
       return `
     <figure>
-      <figcaption>${step.id} — ${step.title}</figcaption>
+      <figcaption>
+        <div class="step-title">${caption.title}</div>
+        <div class="step-trace">${caption.trace}</div>
+      </figcaption>
       <div class="comparison">
         ${renderPanel('mobile')}
         ${renderPanel('desktop')}
@@ -283,9 +342,18 @@ export function generateWalkthroughGallery(): string {
       figcaption {
         padding: 0.75rem 1rem;
         font-size: 0.875rem;
-        font-weight: 600;
         text-align: center;
         border-bottom: 1px solid #f1f5f9;
+      }
+      .step-title {
+        font-weight: 600;
+        margin-bottom: 0.25rem;
+      }
+      .step-trace {
+        font-size: 0.75rem;
+        font-weight: 500;
+        color: #64748b;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
       }
       .comparison {
         display: flex;
@@ -352,7 +420,7 @@ export function generateWalkthroughGallery(): string {
     <div class="walkthrough">
       <header class="walkthrough-header">
         <h1>Visual walkthrough</h1>
-        <p class="subtitle">Mobile ${WALKTHROUGH_MOBILE_DEVICE} captured at ${WALKTHROUGH_VIEWPORTS.mobile.width}×${WALKTHROUGH_VIEWPORTS.mobile.height} (shown ~${Math.round(WALKTHROUGH_MOBILE_GALLERY_WIDTH_RATIO * 100)}% of desktop width in gallery) · desktop ${WALKTHROUGH_VIEWPORTS.desktop.width}×${WALKTHROUGH_VIEWPORTS.desktop.height} · ${WALKTHROUGH_DEVICE_SCALE_FACTOR.mobile}× / ${WALKTHROUGH_DEVICE_SCALE_FACTOR.desktop}× device pixels · ${generatedAt}</p>
+        <p class="subtitle">Mobile ${WALKTHROUGH_MOBILE_DEVICE} captured at ${WALKTHROUGH_VIEWPORTS.mobile.width}×${WALKTHROUGH_VIEWPORTS.mobile.height} (shown ~${Math.round(WALKTHROUGH_MOBILE_GALLERY_WIDTH_RATIO * 100)}% of desktop width in gallery) · desktop ${WALKTHROUGH_VIEWPORTS.desktop.width}×${WALKTHROUGH_VIEWPORTS.desktop.height} · ${WALKTHROUGH_DEVICE_SCALE_FACTOR.mobile}× / ${WALKTHROUGH_DEVICE_SCALE_FACTOR.desktop}× device pixels · ${generatedAt} · captions reference product specs (ADR-0020)</p>
       </header>
       ${figures}
     </div>

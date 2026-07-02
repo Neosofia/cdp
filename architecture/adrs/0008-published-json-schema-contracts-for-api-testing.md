@@ -8,7 +8,7 @@ Accepted — implemented in Authentication Service (014)
 
 ## Context
 
-Constitution §V mandates a test pyramid with contract testing at the boundary between services and clients. However, the prior approach of writing 50+ assertions per test (thanks AI!) is:
+Integration tests must validate API behavior against a **published contract**, not imperative assertion lists. The prior approach of writing 50+ assertions per test (thanks AI!) is:
 
 1. **Brittle** — assertions couple test code to response shape; any schema change requires finding and updating all assertions
 2. **Not publishable** — contracts are embedded in test code, so they cannot be versioned, documented, or consumed by client code generators
@@ -44,13 +44,13 @@ The OpenAPI spec is:
 - **Versioned** — major API changes MUST update the version field in the spec
 - **Authoritative** — the spec is the single source of truth; implementation must conform to the published spec
 
-## Contract Testing Patterns
+## Contract testing
 
-See [schemas/README.md](https://github.com/Neosofia/schemas/blob/main/README.md) for testing patterns and OpenAPI validation examples.
+How integration tests use OpenAPI (happy-path integration, schema validation, no UI unit tests) is defined in [ADR-0020](0020-layered-testing-strategy-for-services-and-browser-ui.md). OpenAPI examples and shared schema patterns: [schemas/README.md](https://github.com/Neosofia/schemas/blob/main/README.md).
 
 ## References
 
-- Constitution §V — Test Pyramid
+- [ADR-0020](0020-layered-testing-strategy-for-services-and-browser-ui.md) — layered testing strategy
 - OpenAPI 3.0.0 Specification — https://spec.openapis.org/oas/v3.0.0
 - JSON Schema — https://json-schema.org/
 - Shared Schemas — [schemas/README.md](https://github.com/Neosofia/schemas/blob/main/README.md)

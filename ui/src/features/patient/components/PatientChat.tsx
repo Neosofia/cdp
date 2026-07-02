@@ -218,7 +218,7 @@ export default function PatientChat({
     return () => {
       cancelled = true;
     };
-  }, [token, activeActor, patientUuid, canLoadHistory, primeNewSession]);
+  }, [token, activeActor, patientUuid, canLoadHistory, primeNewSession, greetingName]);
 
   useEffect(() => {
     if (!canLoadHistory || !patientUuid || interactions.length < 2) {

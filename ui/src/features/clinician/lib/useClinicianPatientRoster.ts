@@ -32,6 +32,7 @@ export function useClinicianPatientRoster({
       items: ActivePatientRecovery[];
       total: number;
     }> => {
+      void rosterRevision;
       if (!tenantUuid) {
         return { items: [], total: 0 };
       }

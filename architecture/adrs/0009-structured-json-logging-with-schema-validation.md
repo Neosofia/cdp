@@ -29,7 +29,7 @@ All services in CDP MUST emit logs as **JSON** with the following constraints:
    - `event_type` — structured event identifier (e.g., `platform_token_issued`, `health_check_failed`)
    - `user_id`, `user_type` — user context for debugging and incident response (NOT for audit trails)
    - `error`, `reason`, `detail` — additional context for troubleshooting
-4. **Test validation** — contract tests MUST validate at least one request's logs against `schemas/log.json` using `jsonschema.validate()`
+4. **Test validation** — integration tests MUST validate at least one request's logs against `schemas/log.json` using `jsonschema.validate()` (integration layer per [ADR-0020](0020-layered-testing-strategy-for-services-and-browser-ui.md))
 
 ### Important: Logs Are NOT Audit Trails
 
@@ -37,11 +37,12 @@ Logs are **not durable or atomic** and must NOT be relied upon for audit trails,
 
 ## Logging Pattern
 
-The shared Python SDK plugin `logenvelope` enforces structured JSON formatting and schema consistency across Python platform services. See [schemas/README.md](https://github.com/Neosofia/schemas/blob/main/README.md) for testing patterns.
+The shared Python SDK plugin `logenvelope` enforces structured JSON formatting and schema consistency across Python platform services. Testing layer placement: [ADR-0020](0020-layered-testing-strategy-for-services-and-browser-ui.md). Schema patterns: [schemas/README.md](https://github.com/Neosofia/schemas/blob/main/README.md).
 
 ## References
 
-- Constitution §IV — Operational Observability
+- Constitution §IV — Trustworthy Operation
+- [ADR-0020](0020-layered-testing-strategy-for-services-and-browser-ui.md) — integration test layers
 - Shared Schemas — [schemas/README.md](https://github.com/Neosofia/schemas/blob/main/README.md)
 - Log Schema — [schemas/log.json](https://github.com/Neosofia/schemas/blob/main/log-v1.0.0.json)
 - Auth Service implementation — [src/logging_config.py](https://github.com/Neosofia/authentication/blob/main/src/logging_config.py), [tests/contract/test_api_contract.py](https://github.com/Neosofia/authentication/blob/main/tests/contract/test_api_contract.py)

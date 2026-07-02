@@ -4,35 +4,22 @@ import { registerInstrumentations } from '@opentelemetry/instrumentation';
 import { W3CTraceContextPropagator } from '@opentelemetry/core';
 
 export const setupTracing = () => {
+  const spanProcessors = import.meta.env.DEV
+    ? [new SimpleSpanProcessor(new ConsoleSpanExporter())]
+    : [];
+
   const provider = new WebTracerProvider({
-    spanProcessors: [
-      new SimpleSpanProcessor(new ConsoleSpanExporter())
-    ]
+    spanProcessors,
   });
 
-  // Register the provider
   provider.register({
-    propagator: new W3CTraceContextPropagator(), // Ensures traceparent is sent via W3C format
+    propagator: new W3CTraceContextPropagator(),
   });
 
-  // Register auto-instrumentations (for fetch, XMLHTTPRequest, document load, etc.)
+  // Spans only — traceparent is set on platform fetches in platformApiFetch.ts.
   registerInstrumentations({
-    instrumentations: [
-      getWebAutoInstrumentations({
-        // Configure fetch instrumentation to propagate headers correctly 
-        // to our local test environment URLs
-        '@opentelemetry/instrumentation-fetch': {
-          propagateTraceHeaderCorsUrls: [
-            /http:\/\/localhost:8014/,
-            /http:\/\/localhost:8018/,
-            /http:\/\/localhost:8019/,
-            /http:\/\/localhost:8900/,
-            /.*localhost.*/,
-          ],
-        },
-      }),
-    ],
+    instrumentations: [getWebAutoInstrumentations()],
   });
-  
+
   return provider;
 };

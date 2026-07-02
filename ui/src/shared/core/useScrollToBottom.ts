@@ -29,6 +29,7 @@ export function useScrollToBottom<T extends HTMLElement>(deps: unknown[]): RefOb
       resizeObserver.disconnect();
       mutationObserver.disconnect();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- caller supplies reactive deps array
   }, deps);
 
   return ref;

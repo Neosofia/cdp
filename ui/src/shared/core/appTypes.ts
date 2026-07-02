@@ -7,17 +7,6 @@ export interface LocalOauthToken {
   id_token?: string;
 }
 
-export interface UserRegistryRecord {
-  uuid: string;
-  tenant_uuid: string;
-  display_code: string | null;
-  first_name: string | null;
-  last_name: string | null;
-  email: string | null;
-  roles: string[];
-  tos_accepted?: boolean;
-}
-
 export interface UserProfile {
   uuid: string;
   first_name: string;

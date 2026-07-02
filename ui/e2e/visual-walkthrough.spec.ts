@@ -9,6 +9,7 @@ import {
   waitForAppSheetClosed,
   waitForAppSheetReady,
 } from './helpers/nav';
+import { E2E_SPEC_TRACE } from './helpers/specTraceability';
 import {
   captureWalkthroughStep,
   clickEnrollPatient,
@@ -22,6 +23,8 @@ import {
   walkthroughModeFromTestInfo,
   type WalkthroughMode,
 } from './helpers/walkthrough';
+
+const trace = E2E_SPEC_TRACE['visual-walkthrough.spec.ts'];
 
 async function expectClinicianDashboardReady(page: Page): Promise<void> {
   await expect(page.getByRole('navigation', { name: 'breadcrumb' })).toBeVisible({
@@ -54,7 +57,7 @@ async function expectPatientChatReady(page: Page, mode: WalkthroughMode) {
   await expect(page.getByText('Loading your conversation…')).toBeHidden({ timeout: 60_000 });
 }
 
-test.describe('visual walkthrough', () => {
+test.describe(trace.summary, () => {
   test.afterAll(() => {
     generateWalkthroughGallery();
   });

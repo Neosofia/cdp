@@ -104,29 +104,51 @@ See the Railway worked example in the infrastructure guide for `${{cdp.RAILWAY_P
 
 ## UI Service local dev
 
-For the front-end interface, we use a distinct Dockerfile for the local development environment (`cdp/ui/Dockerfile.dev`). This development image installs `pnpm` directly using `npm` and binds the Vite dev server with Hot Module Replacement (HMR) to port 5173. 
+The CDP UI uses a **single** `cdp/ui/Dockerfile`. The default build target is **production** (static `dist/` served by `serve` as non-root `app`, with `HEALTHCHECK` on `/`). Railway and pre-deploy CI use that path unchanged.
 
-The production image (`cdp/ui/Dockerfile`) isolates the static build into a pure runtime image hosting the `dist` directory via `serve`, dynamically responding to a provisioned `$PORT` or safely defaulting to 5173 (which ensures compatibility with deployment hosts like Railway).
+**Local compose (dev/prod parity):** build target **`development`** with build-arg **`UI_DEV=1`** (skips the production Vite build; keeps devDependencies in `node_modules`). Compose bind-mounts `./ui` for HMR and overrides **entrypoint** to `pnpm run dev` — same image base, same pnpm/Corepack setup, same non-root `app` user as production.
+
+```yaml
+# docker-compose.local.yml / docker-compose.dev.yml (ui service)
+build:
+  context: ./ui
+  target: development
+  args:
+    UI_DEV: "1"
+entrypoint: ["pnpm", "run", "dev"]
+volumes:
+  - ./ui:/app
+  - ./policies/user/role-catalog.json:/app/policies/user/role-catalog.json:ro
+  - /app/node_modules
+```
+
+Rebuild after dependency changes: `docker compose -f docker-compose.local.yml build ui`.
+
+**OpenAPI client sync (local only):** `pnpm dev` and `pnpm build` run `scripts/sync-api-schemas.sh` first. When sibling service repos are checked out (`../../user/openapi.json`, etc.), generated clients under `src/shared/api/generated/` are refreshed from those specs before Vite starts. If none of the sources exist (CI, ui-only checkout, or in-container build), sync is skipped. If some but not all exist, dev/build fails with a list of missing repos — run `pnpm generate:api` on the host from the full workspace before compose. Commit regenerated files when service APIs change. There is no CI drift gate.
 
 ### Playwright E2E and visual walkthrough
 
 End-to-end tests live under `ui/e2e/`. Copy `ui/e2e/env.sample` to `ui/e2e/.env` and set `E2E_AUTH_EMAIL` / `E2E_AUTH_PASSWORD` for a clinician with access to seeded patient **DEMO-123**.
 
+**E2E data rules:** Specs MAY assume a **properly seeded environment** (test tenant, WorkOS credentials, demo catalog patients such as **DEMO-123** for the visual walkthrough). Specs MUST NOT branch on state left by **prior test runs** — each mutating flow creates its own data (unique display codes) or relies only on the seed baseline documented in `e2e/env.sample`.
+
 | Command | Purpose |
 |---------|---------|
 | `pnpm test:e2e:install` | Install Chromium for Playwright (once per machine) |
+| `pnpm run lint` | ESLint on `src/` (same gate as pre-deploy CI) |
 | `pnpm test:e2e` | Clinician workflow on **desktop** (1366×768 low bar) |
 | `pnpm test:e2e:rwd` | Same flows on **mobile** (iPhone 12 profile, Chromium) |
 | `pnpm test:e2e:all` | Both projects |
 | `pnpm walkthrough:visual` | Capture mobile + desktop screenshots and regenerate `ui/test-results/walkthrough.html` |
+| `pnpm test:container` | Build production `ui/Dockerfile` image and smoke-test static `/` and `/favicon.svg` (no platform APIs) |
 
 **Local runs** build and serve production `dist/` on port **5173** by default. Stop the Vite dev container first (`docker compose -f docker-compose.local.yml stop ui`) or set `E2E_SKIP_BUILD=1` and `E2E_APP_PORT=5173` to reuse the dev server. Do not set `E2E_BASE_URL` to localhost — use `E2E_BASE_URL` only for staging/production targets.
 
 Walkthrough PNGs are stored in `ui/test-results/walkthrough/` (outside Playwright’s wiped output dir). Open the gallery at `ui/test-results/walkthrough.html`. Steps include clinician and patient dashboards, patient roster workflows, and chat. Mobile captures use iPhone 12 (390×664 @ 3×); desktop uses 1366×768 @ 2×. The gallery scales mobile display width for side-by-side readability (~22% of desktop width).
 
-**Staging CDP UI deploy (Railway + Wait for CI):** Keep **`cdp`** autodeploy **ON** and **Wait for CI ON** on Railway. On push to `main` that touches `ui/**`, [`.github/workflows/cdp-ui-quality-staging.yml`](.github/workflows/cdp-ui-quality-staging.yml) runs TypeScript (`pnpm exec tsc -b --noEmit`). Railway waits for that push workflow and **CodeQL** to pass, then autodeploys via the normal GitHub callback — no `RAILWAY_TOKEN`. Spec/ADR-only pushes do not run the UI quality workflow and do not redeploy the UI unless `ui/**` changed.
+**Staging CDP UI deploy (Railway + Wait for CI):** Keep **`cdp`** autodeploy **ON** and **Wait for CI ON** on Railway. On push to `main` that touches `ui/**`, [`.github/workflows/cdp-ui-quality-staging.yml`](.github/workflows/cdp-ui-quality-staging.yml) runs TypeScript (`pnpm exec tsc -b --noEmit`), ESLint (`pnpm run lint`), production build (`pnpm run build`), and the production image container smoke test (`pnpm test:container`). Railway waits for that push workflow and **CodeQL** to pass, then autodeploys via the normal GitHub callback — no `RAILWAY_TOKEN`. Spec/ADR-only pushes do not run the UI quality workflow and do not redeploy the UI unless `ui/**` changed.
 
-**Staging CI (post-deploy):** After Railway reports a successful **`cdp`** deploy (`staging.neosofia.tech`), [`.github/workflows/cdp-ui-e2e-staging.yml`](.github/workflows/cdp-ui-e2e-staging.yml) runs `pnpm test:e2e:staging` (care-episode lifecycle + visual walkthrough at desktop and mobile; **excludes** mutating enroll spec). It ignores `deployment_status` from other Railway services in this repo (e.g. **architecture**). Waits up to **5 minutes** for API `/health` URLs in `ui/e2e/staging-health-urls.txt`. Download artifact **`walkthrough-staging`** for `walkthrough.html` and PNGs.
+**Staging CI (post-deploy):** After Railway reports a successful **`cdp`** deploy (`staging.neosofia.tech`), [`.github/workflows/cdp-ui-e2e-staging.yml`](.github/workflows/cdp-ui-e2e-staging.yml) runs `pnpm test:e2e:staging` (all specs under `ui/e2e/` — enroll, care-episode lifecycle, visual walkthrough — at desktop and mobile). It ignores `deployment_status` from other Railway services in this repo (e.g. **architecture**). Waits up to **5 minutes** for API `/health` URLs in `ui/e2e/staging-health-urls.txt`. Download artifact **`walkthrough-staging`** for `walkthrough.html` and PNGs.
 
 | GitHub environment secret (`CDP / production`) | Purpose |
 |---------------|---------|

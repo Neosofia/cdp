@@ -35,6 +35,7 @@ export default function PatientCareEpisodeAuditSheet({
     }
     void episodeAudits.reload();
     void riskAudits.reload();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reload when sheet opens for this patient
   }, [open, patient.patientUuid]);
 
   return (

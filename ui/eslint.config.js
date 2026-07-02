@@ -19,11 +19,21 @@ export default defineConfig([
       globals: globals.browser,
     },
     rules: {
-      // Data-fetch hooks intentionally set loading/error state when effects run.
-      'react-hooks/set-state-in-effect': 'off',
-      'react-hooks/preserve-manual-memoization': 'off',
-      'react-hooks/exhaustive-deps': 'off',
       'react-refresh/only-export-components': 'off',
+    },
+  },
+  {
+    // Data-fetch hooks sync loading/error state when effects run or poll.
+    files: ['src/**/use*.ts'],
+    rules: {
+      'react-hooks/set-state-in-effect': 'off',
+    },
+  },
+  {
+    // Sheets and views reset local UI state when open targets change.
+    files: ['src/components/**/*.tsx', 'src/features/**/*.tsx', 'src/shared/**/*.tsx'],
+    rules: {
+      'react-hooks/set-state-in-effect': 'off',
     },
   },
 ])

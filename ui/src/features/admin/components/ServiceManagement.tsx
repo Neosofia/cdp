@@ -166,6 +166,8 @@ export default function ServiceManagement({ token, activeActor }: Props) {
       serviceAudits.reset();
       credentialAudits.reset();
     }
+    // Reload when the audit target changes; paginator objects are recreated each render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- auditService?.slug
   }, [auditService?.slug]);
 
   type ServiceFormSheetState =

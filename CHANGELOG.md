@@ -1,5 +1,24 @@
 # Changelog
 
+## [2026.07.02]
+
+### Added
+
+- ADR 0020 — layered testing strategy for platform services and CDP browser UI (Playwright happy-path E2E only; production container smoke test).
+- Pre-deploy CI gates for CDP UI — ESLint, production build, and container smoke test (`pnpm test:container`) before Railway autodeploy.
+- Local OpenAPI client sync before `pnpm dev` and `pnpm build` when sibling service `openapi.json` files are present.
+
+### Changed
+
+- CDP UI production image runs as non-root `app` with Docker `HEALTHCHECK` on `/`; single `ui/Dockerfile` replaces separate dev Dockerfile (compose uses `development` target with `UI_DEV=1`).
+- Platform HTTP clients propagate W3C `traceparent` on outbound calls; OpenTelemetry console span export is limited to dev builds ([production OTLP follow-up in cdp#11](https://github.com/Neosofia/cdp/issues/11)).
+- Playwright E2E specs share helpers; mutating flows use unique patient identities; staging CI runs all specs under `ui/e2e/`.
+- TypeScript `strict: true` and React Hooks ESLint re-enabled with targeted overrides.
+
+### Removed
+
+- Unused UI dependencies and dead clinician patient-registry bridge code.
+
 ## [2026.07.01]
 
 ### Added

@@ -56,6 +56,7 @@ export function toUserFacingError(error: unknown, contextMessage?: string): stri
 }
 
 /** Non-fatal display enrichment; callers keep a safe fallback instead of surfacing an error. */
-export function swallowOptionalEnrichmentError(_error: unknown): void {
+export function swallowOptionalEnrichmentError(error: unknown): void {
+  void error;
   // Intentionally not user-visible.
 }

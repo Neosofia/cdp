@@ -17,7 +17,7 @@ import {
   type ProcedureEpisodeFormValues,
 } from '@/shared/forms/procedureEpisodeForm';
 import { startNewCareEpisode } from '@/shared/care-episode/careEpisodeApi';
-import { registerPostCareEnrollment, DEFAULT_CARE_WINDOW_DAYS, type DemoPatientClinical } from '@/features/clinician/lib/patientRoster';
+import { DEFAULT_CARE_WINDOW_DAYS } from '@/features/clinician/lib/patientRoster';
 
 export interface NewCareEpisodeInput {
   patientUuid: string;
@@ -47,15 +47,6 @@ function recoveryIdForProcedure(displayCode: string, procedureDate: string): str
   const code = displayCode.trim() || 'PATIENT';
   const compactDate = procedureDate.replace(/-/g, '');
   return `EP-${code}-${compactDate}`;
-}
-
-function daysPostOpFromDate(procedureDate: string): number {
-  const procedureMs = Date.parse(`${procedureDate.trim()}T12:00:00`);
-  if (!Number.isFinite(procedureMs)) {
-    return 0;
-  }
-  const todayMs = Date.parse(`${new Date().toISOString().slice(0, 10)}T12:00:00`);
-  return Math.max(0, Math.floor((todayMs - procedureMs) / (24 * 60 * 60 * 1000)));
 }
 
 function emptyEpisodeFields(): ProcedureEpisodeFormValues {
@@ -109,13 +100,6 @@ export default function NewCareEpisodeSheet({
     const { procedureEntry, careDays, procedureDate } = parsed;
 
     const recoveryId = recoveryIdForProcedure(displayCode, procedureDate);
-    const clinical: DemoPatientClinical = {
-      surgery: procedureEntry.name,
-      procedureDate,
-      daysPostOp: daysPostOpFromDate(procedureDate),
-      recoveryId,
-      riskLevel: 'Low',
-    };
 
     try {
       const created = await startNewCareEpisode(token, activeActor, {
@@ -128,7 +112,6 @@ export default function NewCareEpisodeSheet({
         care_window_days: careDays,
       });
 
-      registerPostCareEnrollment(patientUuid, clinical);
       onStarted(created.episode_uuid ?? '');
       handleClose(false);
     } catch (err) {

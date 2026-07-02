@@ -1,3 +1,5 @@
+import type { CareEpisodeStatus } from '@/shared/care-episode/careEpisodeApi';
+
 export type PatientRiskLevel = 'High' | 'Medium' | 'Low';
 
 export interface DemoPatientClinical {
@@ -18,7 +20,7 @@ export interface RegistryPatientUser {
   roles: string[];
 }
 
-export type CareEpisodeStatus = 'active' | 'closed';
+export type { CareEpisodeStatus } from '@/shared/care-episode/careEpisodeApi';
 
 /** Platform default post-discharge monitoring window (spec 015 FR-003). */
 export const DEFAULT_CARE_WINDOW_DAYS = 30;

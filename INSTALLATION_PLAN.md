@@ -31,7 +31,26 @@ uv run alembic upgrade head
 SELECT version_num FROM alembic_version;
 ```
 
-Compare `version_num` to the expected revision in that release's service **INSTALLATION_PLAN.md** (for example user **`002`**, care-episode **`013`** at CDP UI **2026.06.29**).
+Compare `version_num` to the expected revision in that release's service **INSTALLATION_PLAN.md** (for example user **`002`**, care-episode **`013`** at CDP UI **2026.07.02**).
+
+## CDP UI 2026.07.02
+
+**Release pins:** CDP UI **2026.07.02** (backend pins unchanged from **2026.07.01** / **care-episode v0.12.1**).
+
+**Deploy:**
+
+1. Push **`cdp-ui/2026.07.02`** (or merge to the Railway-connected branch so **cdp-ui-quality-staging** passes and Railway autodeploys the **cdp** service).
+
+**Verify:**
+
+1. UI footer shows **2026.07.02**.
+2. Production UI container reports Docker **healthy** (`HEALTHCHECK` on `/`; non-root user **`app`**).
+3. **cdp-ui-quality-staging** workflow green (TypeScript, ESLint, build, container smoke).
+4. Post-deploy **cdp-ui-e2e-staging** green (all specs under `ui/e2e/` at desktop and mobile).
+
+**Evidence:** UI footer CalVer; container inspect `State.Health.Status`; GitHub Actions run URLs; staging walkthrough artifact.
+
+---
 
 ## CDP UI 2026.06.29 / care-episode v0.12.1
 

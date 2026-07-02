@@ -179,6 +179,7 @@ export default function UserManagement({
     } else {
       userAudits.reset();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- auditUser?.uuid
   }, [auditUser?.uuid]);
 
   const resolveTenantName = useCallback(

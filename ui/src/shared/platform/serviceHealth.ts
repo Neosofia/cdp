@@ -4,6 +4,7 @@ import {
   type PlatformServiceDefinition,
   type PlatformServiceId,
 } from '@/shared/platform/platformServices';
+import { injectPlatformTraceHeaders } from '@/shared/platform/platformApiFetch';
 import { toUserFacingError } from '@/shared/core/userFacingError';
 
 const HEALTH_PROBE_TIMEOUT_MS = 8_000;
@@ -108,9 +109,11 @@ async function probeOne(def: PlatformServiceDefinition): Promise<ServiceHealthRo
   const started = performance.now();
 
   try {
+    const headers = new Headers({ Accept: 'application/json' });
+    injectPlatformTraceHeaders(headers);
     const response = await fetch(healthCheckUrl(baseUrl), {
       method: 'GET',
-      headers: { Accept: 'application/json' },
+      headers,
       signal: AbortSignal.timeout(HEALTH_PROBE_TIMEOUT_MS),
     });
     const latencyMs = Math.round(performance.now() - started);

@@ -1,7 +1,7 @@
 import createClient from 'openapi-fetch';
 
 import { refreshAccessTokenIfPossible } from '@/shared/auth/auth';
-import { apiErrorMessage } from '@/shared/platform/platformApiFetch';
+import { apiErrorMessage, injectPlatformTraceHeaders } from '@/shared/platform/platformApiFetch';
 
 export function createPlatformOpenApiClient<Paths extends object>(
   baseUrl: string,
@@ -15,6 +15,7 @@ export function createPlatformOpenApiClient<Paths extends object>(
     onRequest({ request }) {
       request.headers.set('Authorization', `Bearer ${auth.bearer}`);
       request.headers.set('X-Active-Actor', activeActor);
+      injectPlatformTraceHeaders(request.headers);
       return request;
     },
     async onResponse({ request, response }) {
@@ -29,6 +30,7 @@ export function createPlatformOpenApiClient<Paths extends object>(
       const retry = new Request(request);
       retry.headers.set('Authorization', `Bearer ${auth.bearer}`);
       retry.headers.set('X-Active-Actor', activeActor);
+      injectPlatformTraceHeaders(retry.headers);
       return fetch(retry);
     },
   });

@@ -49,4 +49,5 @@ Platform logging already mandates structured JSON and correlation identifiers ([
 - Constitution §IV — Trustworthy Operation
 - [ADR-0009](0009-structured-json-logging-with-schema-validation.md) — structured logs and correlation fields
 - [Neosofia SDLC checklist — Logging, Observability & Operational Awareness](https://github.com/Neosofia/corporate/blob/main/resources/checklists/sdlc.md#logging-observability--operational-awareness)
+- [ADR-0020](0020-layered-testing-strategy-for-services-and-browser-ui.md) — layered testing strategy (UI E2E vs service unit/integration)
 - CDP UI — `ui/src/shared/core/userFacingError.ts`

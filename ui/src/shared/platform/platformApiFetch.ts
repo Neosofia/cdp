@@ -1,4 +1,15 @@
+import { context, propagation } from '@opentelemetry/api';
+
 import { refreshAccessTokenIfPossible } from '@/shared/auth/auth';
+
+/** W3C traceparent on every outbound platform API request. */
+export function injectPlatformTraceHeaders(headers: Headers): void {
+  propagation.inject(context.active(), headers, {
+    set(carrier, key, value) {
+      carrier.set(key, value);
+    },
+  });
+}
 
 export function apiErrorMessage(body: unknown, status: number): string {
   if (body && typeof body === 'object') {
@@ -29,6 +40,7 @@ export async function platformApiFetch(
     const headers = new Headers(init.headers);
     headers.set('Authorization', `Bearer ${bearer}`);
     headers.set('X-Active-Actor', activeActor);
+    injectPlatformTraceHeaders(headers);
     return fetch(url, { ...init, headers });
   };
 

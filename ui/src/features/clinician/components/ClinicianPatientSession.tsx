@@ -65,29 +65,33 @@ export default function ClinicianPatientSession({
     episodeStatus: lifecycle.episodeStatus,
   });
 
-  const sessionToolbarProps = {
-    episodeHistory: history.episodeHistory,
-    selectedHistoryUuid: history.selectedHistoryUuid,
-    historyLoading: history.historyLoading,
-    onSelectEpisode: history.setSelectedHistoryUuid,
-    onOpenRecords: () => onRecordsOpenChange(true),
-    onOpenAudits: () => setAuditsOpen(true),
-    onEditPatient,
-    outlineButtonClass: pv.outlineButton,
-    inputClass: pv.inputClass,
-  };
-
-  const desktopToolbar = useMemo(
-    () => <PatientSessionDesktopToolbar {...sessionToolbarProps} />,
+  const sessionToolbarProps = useMemo(
+    () => ({
+      episodeHistory: history.episodeHistory,
+      selectedHistoryUuid: history.selectedHistoryUuid,
+      historyLoading: history.historyLoading,
+      onSelectEpisode: history.setSelectedHistoryUuid,
+      onOpenRecords: () => onRecordsOpenChange(true),
+      onOpenAudits: () => setAuditsOpen(true),
+      onEditPatient,
+      outlineButtonClass: pv.outlineButton,
+      inputClass: pv.inputClass,
+    }),
     [
       history.episodeHistory,
       history.selectedHistoryUuid,
       history.historyLoading,
+      history.setSelectedHistoryUuid,
       onEditPatient,
       onRecordsOpenChange,
       pv.outlineButton,
       pv.inputClass,
     ],
+  );
+
+  const desktopToolbar = useMemo(
+    () => <PatientSessionDesktopToolbar {...sessionToolbarProps} />,
+    [sessionToolbarProps],
   );
 
   useAppShellTrailingContent(desktopToolbar);

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { registerTokenRefreshHandler } from '@/shared/auth/auth';
 import {
   TOKEN_REFRESH_INTERVAL_MS,
@@ -19,13 +19,13 @@ export function useSessionTokenRefresh({
 }: UseSessionTokenRefreshOptions) {
   const refreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const clearRefreshTimer = () => {
+  const clearRefreshTimer = useCallback(() => {
     if (refreshTimerRef.current) {
       window.clearInterval(refreshTimerRef.current);
       refreshTimerRef.current = null;
     }
     onClearRefreshTimer?.();
-  };
+  }, [onClearRefreshTimer]);
 
   useEffect(() => {
     registerTokenRefreshHandler(() => fetchSessionData());
@@ -59,7 +59,7 @@ export function useSessionTokenRefresh({
       clearRefreshTimer();
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };
-  }, [tokenInfo, fetchSessionData]);
+  }, [tokenInfo, fetchSessionData, clearRefreshTimer]);
 
   return { clearRefreshTimer };
 }
